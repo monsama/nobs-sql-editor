@@ -46,19 +46,67 @@
     caps its shrink at that natural width instead, same principle as everywhere else this session
     that a control's own label shouldn't silently break under pressure from a neighbor. */
  button{padding:0 9px;height:28px;box-sizing:border-box;border:1px solid var(--bd);border-radius:4px;background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:middle;font-size:13px;white-space:nowrap}
- button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
+ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:3px;font-size:10.5px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
  /* A saved connection name or environment label is free text with no length limit at the point
     of use (only a maxlength on the input, as a soft cap) - without this, a long one would either
     stretch the bar past the window or wrap it onto a second line. Ellipsize instead; the title
     attribute (set alongside the text in JS) carries the untruncated value on hover. */
- #connStatus,#envChip,#schemaBadge{overflow:hidden;text-overflow:ellipsis;max-width:220px} button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.go{background:#2e7d32;color:#fff;border-color:#276b2b} button.sm{padding:0 6px;font-size:12px} button.warn{background:#b23b3b;color:#fff;border-color:#933}
+ #connStatus,#envChip{overflow:hidden;text-overflow:ellipsis;max-width:220px}
+ /* Connected: a quiet chip with a green dot and the connection's name. The dot says connected,
+    so "Connected:" stays in the text only for the tooltip, screen readers and whatever reads
+    textContent (.vh hides it), and the name gets the room. inline-block, not the chips' flex, so
+    a cut name ends in an ellipsis instead of just stopping. */
+ .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ #connStatus{display:inline-block;position:relative}
+ /* Disconnected, the connection form is showing, which says it plainly - a "Not connected" chip
+    beside it was only noise. The text stays for whatever reads it. */
+ body.disconnected #connStatus,body.disconnected #connX{display:none !important}
+ /* The chips in the top bar are as tall as its buttons and boxes, so the row is one height. */
+ /* The x that disconnects sits on the pill's right end while connected: its own button, not
+    part of the label, so a long name cut short with an ellipsis never takes the x with it. */
+ #connX{display:none;height:28px;width:24px;padding:0;border:1px solid var(--bd);border-left:none;border-radius:0 3px 3px 0;background:var(--panel2);color:var(--muted);font-size:15px;line-height:1}
+ #connStatus.ok+#connX{display:inline-flex;margin-left:-6px} /* joined to the pill, across connStatusGroup's gap */ #connX:hover{color:#fff;background:#c0504d;border-color:#c0504d}
+ #connStatus.ok{border-top-right-radius:0;border-bottom-right-radius:0;padding-right:6px}
+ /* The charset box is as wide as its choice, and never narrower than "charset: server" - it is
+    the one thing in the bar that says the text is not read as the server sends it. */
+ #bar #browseCs{field-sizing:content;min-width:110px;max-width:none !important;flex:none}
+ /* The environment tag and the saved-password lock sit inside the connections box, over its
+    right end before the arrow, rather than beside it - see syncConnTags. Clicks go through them
+    to the box, so what they say is in the box's tooltip too. */
+ #connPick{position:relative;display:inline-flex;align-items:center;flex:none}
+ #connlist{text-overflow:ellipsis}
+ #connTags{position:absolute;right:22px;top:0;bottom:0;display:inline-flex;align-items:center;gap:5px;pointer-events:none}
+ #pwChip{color:var(--muted);display:inline-flex}
+ .chip .roeye{display:inline-flex;vertical-align:-1px} .chip .roeye.after{margin-left:5px}
+ /* The list the connections box opens - see openConnList. */
+ #connListPop{display:none;position:fixed;z-index:9999;background:var(--panel);border:1px solid var(--bd);border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,.35);padding:3px 0;max-height:60vh;overflow:auto;max-width:440px}
+ #connListPop .cli{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;cursor:pointer;white-space:nowrap}
+ #connListPop .cli:hover,#connListPop .cli.kb{background:var(--hover)} #connListPop .cli.sel{font-weight:600}
+ #connListPop .cln{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+ #connListPop .clf{padding:3px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--bd2);white-space:nowrap}
+ #connListPop .cll{color:var(--muted);display:inline-flex;width:13px;flex:none}
+ #connListPop .chip{display:inline-block;height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+ /* The separator before Settings parts it from the buttons left of it; disconnected, there are none. */
+ body.disconnected #topActions+.tbchunk>.tbsep:first-child{display:none}
+ #bar #connTags .chip{height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:110px} #barTop.fit2 #connTags .chip{max-width:92px}
+ #bar .chip{height:28px;box-sizing:border-box;padding:0 9px;font-size:12px;letter-spacing:.2px} #bar #connStatus{line-height:26px}
+ #connStatus.ok{background:var(--panel2);color:var(--fg);border-color:var(--bd);box-shadow:none;min-width:0}
+ #connStatus.ok::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;margin-right:6px;vertical-align:1px}
+ /* The schema the active tab's queries run in - see updateSchemaBadge. The same green as the dot,
+    and not the accent, which is already the selected row's background. */
+ #schemas .item.runs{box-shadow:inset 3px 0 0 #3fb950;font-weight:600} button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.go{background:#2e7d32;color:#fff;border-color:#276b2b} button.sm{padding:0 6px;font-size:12px} button.warn{background:#b23b3b;color:#fff;border-color:#933}
  #main{flex:1;display:flex;min-height:0}
  /* 280px is not an arbitrary floor - it's the narrowest the SCHEMAS header's label + its 4
     buttons (+ Schema/+ Table/ER/refresh) fit on one line without wrapping into an overlapping
     mess (measured empirically; wraps below ~270px, so 280 keeps a small safety margin for
     font-metric differences across platforms). Below this, the header row that's been fixed to
     never move (per the earlier top-bar/toolbar polish passes) would go right back to breaking. */
- #side{width:280px;min-width:280px;flex:0 0 auto;display:flex;flex-direction:column} #sideResize{flex:0 0 7px;cursor:col-resize;background:var(--bd);position:relative;touch-action:none;z-index:5} #sideResize:hover,#sideResize.drag{background:var(--accent)} body.disconnected #sideResize{pointer-events:auto !important;opacity:1 !important}
+ #side{width:280px;min-width:280px;flex:0 0 auto;display:flex;flex-direction:column}
+ /* Folded, the sidebar gives its width to the grid and leaves the divider behind as the way back -
+    the same bargain the Action Output panel's header makes. */
+ body.side-folded #side{display:none}
+ body.side-folded #sideResize{flex-basis:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+ body.side-folded #sideResize::after{content:"\00BB";color:var(--fg);opacity:.8;font-size:11px;font-weight:700} #sideResize{flex:0 0 7px;cursor:col-resize;background:var(--bd);position:relative;touch-action:none;z-index:5} #sideResize:hover,#sideResize.drag{background:var(--accent)} body.disconnected #sideResize{pointer-events:auto !important;opacity:1 !important}
  .hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;gap:8px;height:52px;box-sizing:border-box}
  #schemas{flex:0 0 40%;overflow:auto;border-bottom:1px solid var(--bd)} #objects{flex:1;overflow:auto}
  .item{padding:3px 10px 3px 16px;cursor:pointer;white-space:nowrap} #schemas .item{overflow:hidden;text-overflow:ellipsis} .uitem{padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .uitem:hover{background:var(--hover)} .uitem.sel{background:var(--accent);color:#fff} .item:hover{background:var(--hover)} .item.sel{background:var(--accent);color:#fff}
@@ -111,6 +159,16 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
     input fills the cell exactly (no inset "box" look, no row growth from stacking both paddings)
     with just a faint tint on focus rather than a distinct form control's border. */
  table.grid td.cellEditing{padding:0}
+ /* The box takes the room that is left and the "set NULL" button keeps its own at the cell's right
+    edge. An <input> at its natural width (about 177px) pushed the button outside a narrower cell,
+    where it was clipped - it only ever showed in cells wide enough, or holding several lines. */
+ /* The cell being edited is one field the width of the cell: the box has no frame of its own,
+    the cell carries it, and the "set NULL" button sits inside it on the same background - no
+    button-in-a-cell look, nothing to line up. It only takes a tint under the pointer. */
+ .celled{display:flex;align-items:stretch;width:100%;background:var(--in);border:1px solid var(--accent)}
+ .celled>input,.celled>textarea{flex:1;min-width:0;width:100%;border:none;border-radius:0;background:transparent;color:inherit;padding:2px 6px;outline:none}
+ .celled>button{flex:none;align-self:stretch;height:auto;border:none;border-radius:0;background:transparent;color:var(--muted);padding:0 6px;font-size:12px;line-height:1}
+ .celled>button:hover{background:var(--hover);color:var(--fg)}
  table.grid td input,table.grid td textarea{width:100%;height:100%;box-sizing:border-box;border:none;font:inherit;padding:2px 8px;background:transparent;color:var(--fg);vertical-align:middle}
  table.grid td textarea{display:block;resize:vertical;white-space:pre-wrap}
  /* The "Set NULL" button next to the input is a regular <button> (height:28px by default) - taller
@@ -134,6 +192,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #log{height:104px;overflow:auto;background:var(--log);color:var(--logfg);font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px;padding:6px 8px;white-space:pre-wrap}
  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9000}
 .modal.floating{background:transparent;pointer-events:none}
+.modal.minimized{display:none !important}
+.wctl{display:inline-flex;gap:2px;align-items:center}
+.modal:not(.floating) .box{position:relative}
+.box>.wctl{position:absolute;top:8px;right:10px;background:var(--bg);padding-left:6px;z-index:3}
+.wctl>span{cursor:pointer;width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;color:var(--muted);font-size:14px;line-height:1;user-select:none}
+.wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:#c0504d;color:#fff}
 .modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
  #mInput{z-index:9600} #mRowForm{z-index:9500}
  .modal.show{display:flex} .box{background:var(--bg);color:var(--fg);border-radius:6px;padding:16px;max-width:900px;width:94%;max-height:92%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
@@ -154,9 +218,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px}
  #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff} #allSchemasBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
  table.dz{border-collapse:collapse;width:100%;margin:8px 0} table.dz th{border:none;border-bottom:2px solid var(--bd);padding:6px 6px;text-align:left;color:var(--muted);font-weight:600;font-size:12px} table.dz td{border:none;border-bottom:1px solid var(--bd2);padding:6px 4px} table.dz tr:last-child td{border-bottom:none} table.dz input,table.dz select{width:100%}
-.pill{background:var(--accent);color:#fff;border-radius:10px;padding:0 7px;font-size:11px}
-#toasts{position:fixed;bottom:16px;right:16px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:360px}
-.toast{background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:10px 14px;font-size:13px;white-space:pre-wrap;box-shadow:0 4px 14px rgba(0,0,0,.3);animation:toastin .2s ease-out}
+.pill{background:var(--accent);color:#fff;border-radius:3px;padding:0 9px;font-size:12px;display:inline-flex;align-items:center;height:28px;box-sizing:border-box;white-space:nowrap} /* as tall as the buttons beside it */
+#toasts{position:fixed;bottom:16px;right:16px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:min(620px,46vw)}
+.toast{background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:10px 14px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 14px rgba(0,0,0,.3);animation:toastin .2s ease-out}
 .toast.err{border-left-color:#c0504d}
 .toast.ok{border-left-color:#2e8f4f}
 @keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -164,31 +228,57 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  body.disconnected .needsconn{display:none !important}
  /* Once connected, host/port/user/pass duplicate what connStatus already shows and cost a
     full row of permanent vertical space for something rarely touched again after the initial
-    connect - hidden by default, but "Connect with different details..." in the Manage menu
+    connect - hidden by default, but "Connect..." in the Manage menu
     (itself only offered while connected, since toggling this has no visible effect otherwise)
     can force it back with .show-connform, for connecting with different, temporary values
     without touching the saved connection - see saveConn()'s comment for why this and Save's
     behavior are deliberately kept distinct. */
  body:not(.disconnected):not(.show-connform) #connFormRow{display:none}
  body.disconnected #main.needsconn{display:flex !important;visibility:hidden}
- /* Same reasoning as #main above: hiding topActions outright while disconnected would let
-    Settings/Quit slide left to fill the gap, then jump right the moment you connect - keeping
-    its buttons laid out (just invisible) holds Settings/Quit in a fixed spot in both states. */
- body.disconnected #topActions.needsconn{display:contents !important;visibility:hidden}
+ /* topActions is hidden outright while disconnected, like any .needsconn. It used to be kept
+    laid out but invisible, to hold Settings/Quit in place; they sit at the right end of a
+    right-aligned group now, so they stay put either way - and invisible buttons made a bar that
+    has room for everything that shows turn it into icons. */
  /* Everything right of the connection status is one group, so a window too narrow for the whole
     bar moves the group down as a unit instead of leaving Settings, the coffee button and Quit on
     a line of their own: a flex item breaks onto the next line at its full width, and only shrinks
     - wrapping inside, a chunk at a time - once it has a line to itself and still does not fit.
     topActions is display:contents so its chunks wrap with Settings's, not as one block. */
- /* Below the width the whole group needs, Export/Import/Compare DB move into a "More" menu, and
-    below the next step Users/Processes/History/Library join them - so Settings and Quit keep
-    company down to a phone-narrow window. The widths are the group's own, measured: 891px in
-    full, about 740px without the first set; change a button's label and they move. */
- #topActions .tbmore{display:none}
- @media (max-width:920px){#topActions .tbfold2{display:none} #topActions .tbmore{display:inline-flex}}
- @media (max-width:770px){#topActions .tbfold1{display:none}}
+ /* A bar that would wrap turns buttons into icons first - see fitBar(). An icon replaces the
+    label, it is not added to it, so a bar with room looks as it always has. fit2 goes further
+    than fit1: the buttons marked data-fit="2" too, and a few narrower widths. */
+ [data-ic] .ic{display:none;align-items:center}
+ /* data-icalways: the icon is there whatever the bar's width - for a button whose label used to
+    start with an arrow of its own, the icon says the same and says it the same way everywhere. */
+ [data-ic][data-icalways] .ic{display:inline-flex} [data-icalways]{gap:5px}
+ .fit1 [data-ic]:not([data-fit="2"]) .lbl,.fit2 [data-ic] .lbl{display:none}
+ .fit1 [data-ic]:not([data-fit="2"]) .ic,.fit2 [data-ic] .ic{display:inline-flex}
+ .fit1 [data-ic]:not([data-fit="2"]),.fit2 [data-ic]{padding-left:6px;padding-right:6px}
+ .ison .ic{color:var(--accent)}
+ .fit1 input.gsearch{width:120px !important} .fit2 input.gsearch{width:90px !important} .fit2 .coetxt{display:none}
+ .fit2 #connStatus{max-width:120px} .fit2 #envChip{max-width:90px}
+ .fit2 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fit2 .brand{display:none} .fit2 .tbsep{margin:2px 3px !important} .fit2 .tbchunk{gap:4px} .fit2#barTop,.fit2 #barRight{column-gap:4px} .fit2 #barRight button.warn{margin-left:4px !important}
+ .toolbar.fitbar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden} .toolbar.fitbar>*{flex-shrink:0}
+ .toolbar.fit2{gap:4px} .toolbar.fit2 .tbsep{margin:2px !important} .toolbar.fit2 [id^="resultActions_"],.toolbar.fit2 [id^="edit_"]{gap:4px !important} .toolbar.fit2>label{margin-left:0 !important}
+ .fit2 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit2 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
- body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:auto;min-width:60%} table.ovgrid th{border:none;border-bottom:2px solid var(--bd);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-bottom:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} table.ovgrid th{background:var(--gridh);font-weight:600} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
+ body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
+ /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
+    eye loses which column it is in halfway along a wide window. */
+ table.ovgrid th+th,table.ovgrid td+td{border-left:1px solid var(--bd2)}
+ .ovcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-bottom:16px}
+ /* Parts the server from what is on it, so the page reads as two things rather than one long one. */
+ .ovsep{border-top:1px solid var(--bd);margin:0 0 16px}
+ .ovcard{border:1px solid var(--bd);border-radius:6px;padding:9px 12px;background:var(--panel2);min-width:0}
+ .ovcard .k{font-size:10.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+ .ovcard .v{font-size:14px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .ovcard .s{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ /* A path is long by nature, so its card takes two columns rather than a second line. */
+ .ovcard.path{grid-column:span 2}
+ /* How big a database is compared with the biggest one here - the numbers alone make that a
+    reading exercise, and which ones are worth attention is the point of the list. */
+ .szbar{height:3px;border-radius:2px;background:var(--bd2);margin-top:3px}
+ .szbar>i{display:block;height:3px;border-radius:2px;background:var(--accent);opacity:.75} table.ovgrid th{border:none;border-bottom:2px solid var(--bd);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-bottom:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} table.ovgrid th{background:var(--gridh);font-weight:600} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
 .expdbrow{margin:1px 0}
 .exptoggle{display:inline-block;width:14px;cursor:pointer;color:var(--muted);user-select:none;font-size:10px;text-align:center}
 .exptoggle:hover{color:var(--accent)}
@@ -212,25 +302,26 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
 </div>
 <div id="bar">
- <div class="barrow">
+ <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
   <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
-	<select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select>
-  <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()">New</button><button class="sm" title="Save these connection details" onclick="saveConn()">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)">Manage &#9662;</button>
-  <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span id="pwChip" title="This connection has a saved password" style="display:none;font-size:14px;cursor:default;flex:none">&#128274;</span><span id="connStatus" class="chip bad">Not connected</span><span id="envChip" class="chip bad" style="display:none"></span><span id="schemaBadge" class="chip ok" style="display:none"></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab">+ New Query</button></span><span class="tbchunk tbfold1"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()">Library</button></span><span class="tbchunk tbfold2"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()">Compare DB</button></span><span class="tbchunk tbmore"><span class="tbsep"></span><button class="sm" title="The buttons this window is too narrow to show" onclick="event.stopPropagation();moreMenu(this)">More &#9662;</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
+	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span>
+  <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="2">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="2">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="2">Manage &#9662;</button>
+  <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span id="connStatus" class="chip bad">Not connected</span><button id="connX" title="Disconnect" aria-label="Disconnect" onclick="disconnectAsk()">&times;</button><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="2">+ New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img id="coffeeImg" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
   <select id="ssl" onchange="sslCaToggle()"><option value="default">default</option><option value="disabled">disabled</option><option value="required">required</option><option value="verify">verify</option><option value="verify-ca">verify-ca</option></select>
   <span class="fld" id="sslcaWrap" style="display:none">CA <input id="sslca" class="s" style="width:150px" placeholder="CA certificate (.pem)" title="The CA certificate that signed this server's certificate. Needed for &quot;verify&quot; against a server using a private or self-signed certificate - which is what MariaDB and MySQL generate by default, and which no system trust store accepts. Leave empty to verify against the system trust store instead." onkeydown="if(event.key==='Enter')connect()"><button class="sm" title="Browse for the CA certificate file" onclick="browse({title:'Select CA certificate',filter:'*.pem',mode:'file',onPick:pp=>$('sslca').value=pp})">...</button></span>
-  <button class="primary" title="Connect to the server with the details above" onclick="connect()">Connect</button><button class="sm" title="Disconnect and lock the UI" onclick="disconnect()">Disconnect</button>
+  <button class="primary" title="Connect to the server with the details above" onclick="connect()">Connect</button><button class="sm" title="Disconnect and lock the UI" onclick="disconnectAsk()">Disconnect</button>
   <span style="flex:1"></span>
  </div>
 </div>
 <div id="main" class="needsconn">
  <div id="side">
-  <div class="hdr"><span>SCHEMAS</span><span style="white-space:nowrap"><button class="sm" title="Create a new schema" onclick="newSchema()">+ Schema</button> <button class="sm" title="Open the table designer" onclick="designTable(null)">+ Table</button> <button class="sm" title="ER Diagram for the selected schema" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the schema list and tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
+  <div class="hdr"><span>SCHEMAS</span><span style="white-space:nowrap"><button class="sm" id="sideFoldBtn" title="Hide the sidebar" onclick="toggleSide()">&#171;</button> <button class="sm" title="Create a new schema" onclick="newSchema()">+ Schema</button> <button class="sm" title="Open the table designer" onclick="designTable(null)">+ Table</button> <button class="sm" title="ER Diagram for the selected schema" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the schema list and tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
+  <input id="schemaFilter" placeholder="filter schemas..." oninput="loadSchemasFilter()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('schemas'));}" style="margin:4px 6px;font-size:12px;width:calc(100% - 12px)">
   <div id="schemas" tabindex="0"></div>
   <!-- The schema name gets its own row under the "OBJECTS" label rather than squeezed onto the
        same line - a flat width cap, and later flex:1 sharing the line with the label, both still
@@ -248,7 +339,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="sideResize" title="Drag to resize the sidebar (double-click to reset)"></div>
  <div id="content"><div id="tabsbar"></div><div id="panes" style="flex:1;display:flex;flex-direction:column;min-height:0"><div id="overview" style="display:none;flex:1;overflow:auto;padding:14px"></div></div></div>
 </div>
-<div id="loghdr"><span>Action Output</span><span style="cursor:pointer" onclick="document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
+<div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
 <div id="ctx"></div>
 <div id="minimizedTray" style="display:none;position:fixed;bottom:10px;right:10px;gap:8px;z-index:9500;max-width:70vw;flex-wrap:wrap;justify-content:flex-end"></div>
 <div id="colPicker"></div>
@@ -553,7 +644,19 @@ window.readOnly=false;window.curEnv='';
 // Pure DOM rendering for the env chip - no side effects on window.readOnly/curEnv, so it's
 // safe to call for a merely-selected (not yet connected) connection as a preview, same as the
 // password lock icon already does. Only applyEnv() (below) touches the real enforcement state.
-function renderEnvChip(env,ro,acc){const el=$('envChip');if(!el)return;if(env||ro){el.style.display='inline-flex';el.textContent=(env||'')+(ro?(env?' - ':'')+'READ-ONLY':'');el.title=el.textContent;if(acc){el.className='chip';el.style.background=acc;el.style.color='#fff';el.style.borderColor='transparent';}else{el.className='chip '+(ro?'bad':'ok');el.style.background='';el.style.color='';el.style.borderColor='';}}else{el.style.display='none';}}
+// A connection's environment tag: its name, and an eye for read-only rather than the word, which
+// took more of the tag than the name it belongs to. An eye and not a padlock: the padlock beside it
+// says a password is saved, and two locks meaning different things is worse than no icon at all.
+// The words are still in the tooltip. Coloured in the connection's own colour if it has one, else
+// red for read-only and green otherwise; null when there is nothing to say.
+const RO_EYE='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+function envTag(env,ro,acc){if(!env&&!ro)return null;const el=document.createElement('span');
+ if(env)el.appendChild(document.createTextNode(env));
+ if(ro){const i=document.createElement('span');i.className='roeye'+(env?' after':'');i.innerHTML=RO_EYE;i.title='Read-only';el.appendChild(i);}
+ el.title=(env||'')+(ro?(env?' - ':'')+'read-only':'');
+ if(acc){el.className='chip';el.style.background=acc;el.style.color='#fff';el.style.borderColor='transparent';}else el.className='chip '+(ro?'bad':'ok');return el;}
+function renderEnvChip(env,ro,acc){const el=$('envChip');if(!el)return;const t=envTag(env,ro,acc);if(!t){el.style.display='none';return;}
+ el.style.display='inline-block';el.innerHTML=t.innerHTML;el.title=t.title;el.className=t.className;el.style.background=t.style.background;el.style.color=t.style.color;el.style.borderColor=t.style.borderColor;}
 function applyEnv(name){const m=connMeta()[name]||{};window.readOnly=!!m.readonly;window.curEnv=m.env||'';const acc=window.curAccent||accMap()[name]||'';renderEnvChip(window.curEnv,window.readOnly,acc);document.body.classList.toggle('ro',window.readOnly);}
 // ---- reading in another character set ----
 // A value that reads "cafÃ©" is either stored wrong or being read wrong, and nothing in a grid can
@@ -618,6 +721,13 @@ function getConn(){return {host:$('host').value,port:$('port').value,user:$('use
 // that one, rather than sitting there inviting someone to fill in a box that will be ignored.
 function sslCaToggle(){const w=$('sslcaWrap');if(w)w.style.display=(/^verify(-ca)?$/.test($('ssl').value))?'inline-flex':'none';}
 function log(s){const l=$('log');l.textContent+=s+"\n";l.scrollTop=l.scrollHeight;}
+// The output panel's 104px are worth having back when nothing has gone wrong - folded, its header
+// stays, so the log is one click away and new lines still collect behind it. Kept like the
+// sidebar's width, per browser.
+function setLogFolded(on){const l=$('log'),c=$('logCaret');if(!l)return;l.style.display=on?'none':'';if(c)c.textContent=on?'\u25B8':'\u25BE';
+ try{localStorage.setItem('logFolded',on?'1':'');}catch(e){}}
+function toggleLog(){setLogFolded($('log').style.display!=='none');}
+try{if(localStorage.getItem('logFolded'))setLogFolded(true);}catch(e){}
 // kind: true (legacy) or 'err' -> red, 6s; 'ok' -> green success, 3.5s; omitted/falsy -> neutral
 // info, 3.5s. The boolean form is kept working so none of this function's many existing callers
 // needed to change - only call sites that want the new green "success" variant pass 'ok'.
@@ -737,6 +847,25 @@ function floatDragEnd(){
 // is hidden and a small chip is added to the tray instead - restoring just reverses that, rather
 // than tearing down and rebuilding the modal's state each time.
 window._floatingMinimized = {};
+// ---- A dialog's window controls
+// Minimize, maximize and close, in that order, in every dialog's top right corner - the floating
+// ones had the first two in their own headers and no close at all, the rest had none. Each is what
+// was already there: the tray (floatMinimize), the full-window toggle (floatToggleMaximize) and
+// the close the Esc key uses (modalClose), which runs a dialog's own cleanup where it has one.
+const WSVG=p=>'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+const WCTLS=[[WSVG('<path d="M5 12h14"/>'),'Minimize',id=>floatMinimize(id)],
+ [WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>'),'Maximize',id=>floatToggleMaximize(id)],
+ [WSVG('<path d="M6 6l12 12M18 6L6 18"/>'),'Close (Esc)',id=>modalClose(id)]];
+function addWindowControls(){document.querySelectorAll('.modal').forEach(m=>{const box=m.querySelector('.box');if(!box||box.querySelector('.wctl'))return;
+ const strip=document.createElement('span');strip.className='wctl';strip.addEventListener('mousedown',e=>e.stopPropagation());
+ WCTLS.forEach(([ch,title,fn])=>{const b=document.createElement('span');b.innerHTML=ch;b.title=title;if(title==='Maximize')b.id='maxBtn_'+m.id;b.onclick=()=>fn(m.id);strip.appendChild(b);});
+ // A floating dialog carries its own pair in its draggable header; the strip takes their place
+ // there, so it stays in the header rather than floating over the title.
+ const old=box.querySelector('span[onclick^="floatToggleMaximize"]')||box.querySelector('span[onclick^="floatMinimize"]');
+ const oldMin=box.querySelector('span[onclick^="floatMinimize"]');
+ if(old){old.parentNode.insertBefore(strip,old);old.remove();if(oldMin&&oldMin!==old)oldMin.remove();}
+ else box.insertBefore(strip,box.firstChild);});}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addWindowControls);else addWindowControls();
 function floatTrayLabel(id){
  // Reads the title text at render time rather than storing a label up front, so a DYNAMIC title
  // (the ER diagram's "ER Diagram - schemaname") shows correctly on the chip even if it changed
@@ -772,14 +901,14 @@ function floatRenderTray(){
 function floatMinimize(id){
  const box=$(id).querySelector('.box');
  if(!box)return;
- box.style.display='none';
+ box.style.display='none';$(id).classList.add('minimized');
  window._floatingMinimized[id]=true;
  floatRenderTray();
 }
 function floatRestore(id){
  const box=$(id).querySelector('.box');
  if(!box)return;
- box.style.display='';
+ box.style.display='';$(id).classList.remove('minimized');
  delete window._floatingMinimized[id];
  floatBringToFront(id);
  floatRenderTray();
@@ -812,7 +941,7 @@ function floatToggleMaximize(id){
  const extraIds=FLOAT_MAX_EXTRA[id]||[];
  if(window._floatingMaxState[id]){
   const s=window._floatingMaxState[id];
-  box.style.top=s.top;box.style.left=s.left;box.style.width=s.width;box.style.height=s.height;box.style.maxWidth=s.maxWidth;box.style.maxHeight=s.maxHeight;
+  box.style.position=s.position||'';box.style.top=s.top;box.style.left=s.left;box.style.width=s.width;box.style.height=s.height;box.style.maxWidth=s.maxWidth;box.style.maxHeight=s.maxHeight;
   extraIds.forEach(eid=>{const el=$(eid);if(el&&s.extra&&(eid in s.extra))el.style.maxHeight=s.extra[eid];});
   delete window._floatingMaxState[id];
   if(btn)btn.title='Maximize';
@@ -823,8 +952,8 @@ function floatToggleMaximize(id){
   // gap on the right/bottom than the 10px on top/left) unless overridden too.
   const extra={};
   extraIds.forEach(eid=>{const el=$(eid);if(el)extra[eid]=el.style.maxHeight;});
-  window._floatingMaxState[id]={top:box.style.top,left:box.style.left,width:box.style.width,height:box.style.height,maxWidth:box.style.maxWidth,maxHeight:box.style.maxHeight,extra};
-  box.style.top='10px';box.style.left='10px';box.style.width='calc(100vw - 20px)';box.style.height='calc(100vh - 20px)';box.style.maxWidth='none';box.style.maxHeight='none';
+  window._floatingMaxState[id]={position:box.style.position,top:box.style.top,left:box.style.left,width:box.style.width,height:box.style.height,maxWidth:box.style.maxWidth,maxHeight:box.style.maxHeight,extra};
+  box.style.position='fixed';box.style.top='10px';box.style.left='10px';box.style.width='calc(100vw - 20px)';box.style.height='calc(100vh - 20px)';box.style.maxWidth='none';box.style.maxHeight='none';
   extraIds.forEach(eid=>{const el=$(eid);if(el)el.style.maxHeight='none';});
   if(btn)btn.title='Restore';
  }
@@ -844,7 +973,7 @@ function show(id){
  }
 }
 function hide(id){
- $(id).classList.remove('show');
+ $(id).classList.remove('show');$(id).classList.remove('minimized');
  const box=$(id).querySelector('.box');
  if(window._floatingMinimized[id]){
   delete window._floatingMinimized[id];
@@ -1179,21 +1308,145 @@ function hl(code){let re=/(\/\*[\s\S]*?\*\/|--[^\n]*)|('(?:[^'\\]|\\.)*'|"(?:[^"
 function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;}
 
 // connection profiles
-function connTitle(){const s=$('connlist');if(s)s.title=(s.selectedIndex>0?s.options[s.selectedIndex].text:'Saved connections');}
+// The box's tooltip: what the picked connection is, one labelled line each - the tags inside
+// the box say the same in a word, and clicks go through them, so they cannot carry their own.
+function connTitle(){const s=$('connlist');if(!s)return;if(!s.value){s.title='Saved connections';return;}
+ const m=connMeta()[s.value]||{},pw=$('pwChip');
+ const t=['Name: '+s.value,'Password: '+(pw&&pw.style.display!=='none'?'saved':'not saved'),'Environment: '+(m.env||'none')];
+ if(m.readonly)t.push('Read-only: yes');s.title=t.join('\n');}
+// The box's text stops short of the tags inside it. They are measured whenever they change size -
+// shown, hidden, or an environment named by the user - and the tooltip says what they say.
+// The box's own drop-down can only list text, so opening the box shows this list instead: every
+// saved connection with the lock and environment tag the box shows for the one picked. Picking one
+// sets the box and fires its change, as the native list did; the arrow keys on the closed box
+// still step through the connections without opening anything.
+// What has been typed while the list is open, to narrow it by. Cleared when it closes.
+window._connListTerm='';
+function openConnList(){const s=$('connlist');if(!s||s.disabled)return;let m=$('connListPop');
+ if(!m){m=document.createElement('div');m.id='connListPop';m.setAttribute('role','listbox');document.body.appendChild(m);}
+ m.innerHTML='';const meta=connMeta(),pws=window._connPw||{};
+ const term=(window._connListTerm||'').toLowerCase();
+ [...s.options].forEach(o=>{if(o.disabled)return;const name=o.value,cm=meta[name]||{};if(term&&!name.toLowerCase().includes(term))return;
+  const row=document.createElement('div');row.className='cli'+(name===s.value?' sel':'');row.setAttribute('role','option');row.dataset.v=name;
+  const nm=document.createElement('span');nm.className='cln';nm.textContent=o.textContent;nm.title=name;row.appendChild(nm);
+  // The picked connection's lock is the one the box shows, which follows a password just removed.
+  const pw=name===s.value?$('pwChip').style.display!=='none':!!pws[name];
+  const tg=envTag(cm.env,cm.readonly,cm.accent||'');if(tg)row.appendChild(tg);
+  // The lock has a slot of its own at the row's end, filled or not, so every lock lines up.
+  const l=document.createElement('span');l.className='cll';if(pw){l.innerHTML=$('pwChip').innerHTML;l.title='Password saved';}row.appendChild(l);
+  row.onmousedown=e=>e.preventDefault();row.onclick=()=>pickFromConnList(name);m.appendChild(row);});
+ // One width for every tag, the widest one's, so they line up as a column rather than each
+ // ending where its own text does. Set before the list is placed, so its width includes them.
+ m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';
+ const tg=[...m.querySelectorAll('.cli .chip')];
+ if(tg.length){const w=Math.ceil(Math.max(...tg.map(t=>t.getBoundingClientRect().width)));tg.forEach(t=>{t.style.width=w+'px';t.style.textAlign='left';});}
+ const r=s.getBoundingClientRect();m.style.visibility='';m.style.minWidth=r.width+'px';m.style.left=Math.max(6,Math.min(r.left,innerWidth-m.offsetWidth-6))+'px';m.style.top=(r.bottom+2)+'px';
+ if(!m.children.length){const d=document.createElement('div');d.className='cli';d.style.cursor='default';d.textContent='No connection matches "'+(window._connListTerm||'')+'"';m.appendChild(d);}
+ if(window._connListTerm){const h=document.createElement('div');h.className='clf';h.textContent='filter: '+window._connListTerm+'  (Backspace to undo, Esc to clear)';m.insertBefore(h,m.firstChild);}
+ const cur=m.querySelector('.sel');if(cur)cur.scrollIntoView({block:'nearest'});}
+function closeConnList(){const m=$('connListPop');if(m)m.style.display='none';window._connListTerm='';}
+function connListOpen(){const m=$('connListPop');return !!m&&m.style.display==='block';}
+function pickFromConnList(name){closeConnList();const s=$('connlist');if(s.value===name)return;s.value=name;s.dispatchEvent(new Event('change'));}
+function wireConnList(){const s=$('connlist');if(!s)return;
+ s.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();s.focus();if(connListOpen())closeConnList();else openConnList();});
+ s.addEventListener('blur',closeConnList);addEventListener('resize',closeConnList);
+ s.addEventListener('keydown',e=>{
+  if(!connListOpen()){if((e.altKey&&(e.key==='ArrowDown'||e.key==='ArrowUp'))||e.key==='F4'||e.key===' '||e.key==='Enter'){e.preventDefault();openConnList();}return;}
+  const rows=[...$('connListPop').children];
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();let i=rows.findIndex(x=>x.classList.contains('kb'));if(i<0)i=rows.findIndex(x=>x.classList.contains('sel'));
+   i=Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)));rows.forEach((x,j)=>x.classList.toggle('kb',j===i));if(rows[i])rows[i].scrollIntoView({block:'nearest'});}
+  else if(e.key==='Enter'){e.preventDefault();const x=rows.find(x=>x.classList.contains('kb'));if(x)pickFromConnList(x.dataset.v);else closeConnList();}
+  else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if(window._connListTerm){window._connListTerm='';openConnList();}else closeConnList();}
+  else if(e.key==='Tab')closeConnList();
+  // Typing narrows the list to the connections whose name holds what was typed.
+  else if(e.key==='Backspace'){e.preventDefault();window._connListTerm=(window._connListTerm||'').slice(0,-1);openConnList();}
+  else if(e.key.length===1&&!e.ctrlKey&&!e.altKey&&!e.metaKey){e.preventDefault();window._connListTerm=(window._connListTerm||'')+e.key;openConnList();}});}
+function syncConnTags(){const tags=$('connTags'),s=$('connlist');if(!tags||!s)return;const w=tags.offsetWidth;s.style.paddingRight=w?(w+26)+'px':'';
+ // The tags widen the box by what they take, rather than taking it from the name. In the tightest
+ // step the box has a fixed width (see .fit2 #connlist), and the tag is cut shorter there instead.
+ const narrow=$('barTop')&&$('barTop').classList.contains('fit2');
+ s.style.width=s.style.maxWidth=((narrow?150:210)+(w?w+6:0))+'px';connTitle();}
 // --- Connections: dropdown, New/Save/pick, and the 'primary' (auto-open) flag.
 function updatePrimeBtn(){const b=$('primeBtn');if(!b)return;const n=$('connlist').value;const isP=(n&&n===window._primaryConn);b.textContent=(isP?'\u2605':'\u2606')+' Primary';b.style.color=isP?'#f5c518':'';b.title=isP?'This is the primary connection (opens on startup). Click to unset.':'Set as primary connection (opens automatically on startup)';}
-// "More": whichever top-bar buttons the width has folded away, in their order, a set at a time.
-function moreMenu(btn){const items=[];document.querySelectorAll('#topActions .tbchunk').forEach(c=>{if(getComputedStyle(c).display!=='none')return;
- const bs=[...c.querySelectorAll('button')];if(!bs.length)return;if(items.length)items.push('-');bs.forEach(b=>items.push([b.textContent,()=>b.click()]));});
- const r=btn.getBoundingClientRect();menu(r.left,r.bottom+2,items);}
-function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],['Clear password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with different details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items);}
-async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:''},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if($('connlist').value===n)setPass('');}else toast(r.error||'Failed',true);}
+// ---- Keeping a bar on one line
+// The top bar and each tab's run query bar give up labels before they wrap onto a second line:
+// fit1 shows the buttons marked data-ic as icons, fit2 also those marked data-fit="2", and
+// narrows a few things more. Their tooltips already name them. Each fit starts from the labels,
+// so a bar goes back to them as soon as they fit again. Narrower than fit2 can hold, the bar
+// still wraps - nothing is left to shorten.
+const ICONS={
+ users:'<circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 12 0v1M16 4a4 4 0 0 1 0 8M22 21v-1a6 6 0 0 0-4-5.6"/>',
+ activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+ history:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ book:'<path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/>',
+ export:'<path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+ import:'<path d="M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+ compare:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5V15a3 3 0 0 0 3 3h6.5M18 15.5V9a3 3 0 0 0-3-3H8.5"/>',
+ gear:'<circle cx="12" cy="12" r="3.2"/><path d="M19.1 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2.8a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V2.8a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ file:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M12 12v6M9 15h6"/>',
+ save:'<path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM7 3v5h8V3M7 21v-7h10v7"/>',
+ sliders:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+ runsel:'<path d="M4 5l9 7-9 7zM17 6h4M19 6v12M17 18h4"/>',
+ explain:'<path d="M4 5h16M8 12h12M12 19h8"/>',
+ format:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+ lastq:'<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5"/>',
+ wholetable:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9.5h18M3 14.5h18M9 9.5V20"/>',
+ copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+ wrap:'<path d="M3 6h18M3 12h15a3 3 0 0 1 0 6h-4M16 16l-2 2 2 2M3 18h7"/>',
+ columns:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M9 4v16M15 4v16"/>',
+ clearf:'<path d="M3 4h14l-6 7v6l-3 2v-8zM17 13l4 4M21 13l-4 4"/>',
+ trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+ undo:'<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+};
+// Puts an icon beside each data-ic element's label, once; CSS decides which of the two shows.
+// The label stays the element's text, so textContent reads as it did.
+function decorateIcons(root){root.querySelectorAll('[data-ic]:not([data-icd])').forEach(b=>{const p=ICONS[b.dataset.ic];if(!p)return;b.dataset.icd='1';
+ const l=document.createElement('span');l.className='lbl';while(b.firstChild)l.appendChild(b.firstChild);
+ const i=document.createElement('span');i.className='ic';i.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+ b.appendChild(i);b.appendChild(l);});}
+// Whether a bar's items sit on more than one line, or run past its end (the run query bar, which
+// does not wrap): their vertical middles, which align-items:center
+// puts level on one line, differ by a whole row on the next. Fixed-position children (the update
+// notice) and display:contents wrappers have no offsetParent and are left out; the top bar's
+// chunks are what wraps there, so they are looked at themselves.
+function barWraps(row){let lo=Infinity,hi=-Infinity;
+ row.querySelectorAll(':scope > *, .tbchunk').forEach(e=>{if(!e.offsetParent||!e.offsetWidth)return;const r=e.getBoundingClientRect();const m=r.top+r.height/2;if(m<lo)lo=m;if(m>hi)hi=m;});
+ return hi-lo>10||row.scrollWidth>row.clientWidth+1;}
+// loosen: start again from the labels. Only a change in the bar's width does that; a change in
+// what is in it only ever tightens. Running a query hides the result and edit buttons until the
+// answer comes, and a bar that loosened on that showed its labels for the length of the run, then
+// went back to icons - the labels flashed on every click.
+function fitBar(row,loosen){if(!row||!row.offsetParent)return;const was=row.className;if(loosen)row.classList.remove('fit1','fit2');
+ if(barWraps(row)){row.classList.add('fit1');if(barWraps(row))row.classList.add('fit2');}
+ // The connections box is narrower in the tightest step, so its own width follows the step.
+ if(row.id==='barTop'&&row.className!==was&&typeof syncConnTags==='function')syncConnTags();}
+// Refitted when a bar's width changes (a window resize, a hidden tab shown) and when what is in it
+// changes (the counter, the edit buttons, a chip's text) - right away. Both observers call back
+// before the page is next drawn, so a rebuilt button goes straight to its icon; putting this off to
+// the next frame drew one frame of labels first, and the bar flashed its text on every click that
+// rebuilt part of it. Only style attributes are watched, so the classes fitBar sets do not set it
+// off again, and _fitting stops the observer answering the icons this puts in.
+const _barRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(es=>es.forEach(e=>refit(e.target,true))):null;
+const _barMO=typeof MutationObserver!=='undefined'?new MutationObserver(ms=>ms.forEach(m=>{const n=m.target.nodeType===1?m.target:m.target.parentElement;const row=n&&n.closest('.fitbar');if(row)refit(row);})):null;
+// A bar only tightens while its content changes, so a change that removed something for good
+// (a result closed, an edit applied) would leave it in icons until the window was resized. Once it
+// has been quiet for a second, it tries the labels again - by then nothing is mid-flight, so this
+// cannot put the labels back for the length of a query.
+function refitSoon(row){clearTimeout(row._settle);row._settle=setTimeout(()=>{row._settle=0;refit(row,true);},1000);}
+function refit(row,loosen){if(!row||row._fitting)return;if(!loosen)refitSoon(row);row._fitting=true;try{decorateIcons(row);const p=row.querySelector('[id^="pager_"]');if(p&&p.title!==p.textContent)p.title=p.textContent;fitBar(row,loosen);}finally{row._fitting=false;}}
+function watchBar(row){if(!row||row.classList.contains('fitbar'))return;row.classList.add('fitbar');decorateIcons(row);
+ if(_barRO)_barRO.observe(row);if(_barMO)_barMO.observe(row,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']});refit(row,true);}
+// Connecting and disconnecting show and hide the top bar's action buttons through the body's class.
+function watchTopBar(){watchBar($('barTop'));wireConnList();if(_barRO)new ResizeObserver(syncConnTags).observe($('connTags'));if(_barMO)new MutationObserver(()=>refit($('barTop'),true)).observe(document.body,{attributes:true,attributeFilter:['class']});}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchTopBar);else watchTopBar();
+function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],['Clear password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items);}
+async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:''},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n)setPass('');}else toast(r.error||'Failed',true);}
 async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Failed',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
-async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
-  // Only READ-ONLY here: the environment label has its own chip (envChip) beside the
-  // connection state, and repeating it made the entry read as part of the connection's name.
-  const tags=[];if(c.readonly)tags.push('READ-ONLY');
-  o.textContent=(c.primary?'\u2605 ':'')+c.name+(tags.length?'  ['+tags.join(' \u2013 ')+']':'');
+async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
+  // Just the name: the environment and READ-ONLY are the tag beside it, in the box and in its
+  // list (openConnList), and repeating them made the entry read as part of the name.
+  o.textContent=(c.primary?'\u2605 ':'')+c.name;
   sel.appendChild(o);});sel.disabled=(n===0);sel.title=(n===0?'No saved connections yet - fill in the details and Save':'Saved connections');connTitle();updatePrimeBtn();}
 // Manually forces #connFormRow visible even while connected, overriding the CSS rule that
 // hides it by default at that point - see the CSS comment above body:not(.disconnected) for
@@ -1252,7 +1505,7 @@ async function pickConn() {
 // wrote the LIVE inline form's current host/port/user/pass straight over the saved profile with
 // zero confirmation - genuinely risky once that form became collapsed-by-default elsewhere in
 // this app, since you could easily forget it held temporary, unsaved values (e.g. from testing
-// a different user via "Connect with different details...") and clobber the real saved details by
+// a different user via "Connect...") and clobber the real saved details by
 // mistake. Now the dialog always shows exactly what's about to be written, pre-filled from
 // whatever's currently live - keeping the same name as an already-selected connection updates
 // it (matching the backend's existing same-name-means-update behavior); a different name saves
@@ -1346,7 +1599,7 @@ async function connect() {
   window.mariadb = !!r.mariadb;
   document.body.classList.remove('disconnected');
   document.body.classList.remove('show-connform');
-  const _cs = $('connStatus'); if (_cs) { const _sel=$('connlist'); _cs.textContent = 'Connected: ' + (_sel && _sel.value ? _sel.options[_sel.selectedIndex].text.replace(/^\u2605 /, '') : ($('user').value + '@' + $('host').value)); _cs.title = _cs.textContent; _cs.className = 'chip ok'; }
+  const _cs = $('connStatus'); if (_cs) { const _sel=$('connlist'); _cs.innerHTML = '<span class="vh">Connected: </span>' + esc(_sel && _sel.value ? _sel.options[_sel.selectedIndex].text.replace(/^\u2605 /, '') : ($('user').value + '@' + $('host').value)); _cs.title = _cs.textContent; _cs.className = 'chip ok'; }
   applyAccent(window.curAccent || '');
   applyEnv($('connlist').value);
   // IMPORTANT: snapshot the active connection BEFORE restoring any tabs below - restoring a
@@ -1375,12 +1628,20 @@ async function connect() {
 
 }
 function clearObjectsPanel(){$('objects').innerHTML='';$('objdb').textContent='';if($('objFilter'))$('objFilter').value='';curSchema=null;objData=null;}
+// The pill's x and the Disconnect button. Disconnecting keeps every tab, so it only asks when
+// something would be cut short - a query still running, or grid edits not applied yet - and stops
+// the running queries rather than leave them going on a connection nobody is looking at.
+async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirty=tabs.filter(t=>pendingCount(t)>0);
+ if(running.length||dirty.length){const what=[];if(running.length)what.push(running.length+(running.length>1?' queries':' query')+' still running');if(dirty.length)what.push(dirty.length+' tab(s) with grid edits not applied yet');
+  if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped.')))return;
+  await Promise.all(running.map(t=>cancelQuery(t.id)));}
+ disconnect();}
 function disconnect(){window.mariadb=false;document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='Not connected';_cs.className='chip bad';}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
  const _n=$('connlist')&&$('connlist').value;const _m=_n?(connMeta()[_n]||{}):{};renderEnvChip(_m.env||'', !!_m.readonly, _m.accent||(_n?accMap()[_n]:'')||'');
- const _sb=$('schemaBadge');if(_sb){_sb.style.display='none';_sb.textContent='';}
+ markRunSchema(null);
  document.body.classList.remove('ro');log('Disconnected.');}
 async function refreshSchemasAndTables(){await loadSchemas();if(typeof curSchema!=='undefined'&&curSchema){await loadObjects(curSchema,true);}}
 async function loadSchemas() {
@@ -1400,6 +1661,8 @@ async function loadSchemas() {
         d.textContent = sc.name + sizeStr;
         d.title = sc.name + sizeStr;
         d.dataset.schema = sc.name;
+        // The filter box above the list: the same "contains, ignoring case" the objects filter uses.
+        if (schemaFilterTerm() && !sc.name.toLowerCase().includes(schemaFilterTerm())) d.style.display = 'none';
 
         d.onclick = () => {
             [...box.children].forEach(c => c.classList.remove('sel'));
@@ -1421,6 +1684,7 @@ async function loadSchemas() {
                 ['New procedure...', () => newProcedure(sc.name)],
                 ['New function...', () => newFunction(sc.name)],
                 ['ER Diagram...', () => openErd(sc.name)],
+                ['Export SQL (mysqldump)...', () => openExport({ db: sc.name })],
                 ['Drop schema...', () => dropSchema(sc.name)],
                 '-',
                 ['Refresh', () => loadSchemas()]
@@ -1428,7 +1692,13 @@ async function loadSchemas() {
         };
         box.appendChild(d);
     });
+    markRunSchema(activeTab&&!document.body.classList.contains('disconnected')?dbOf(T(activeTab)):null);
 }
+function schemaFilterTerm(){const el=$('schemaFilter');return el?(el.value||'').trim().toLowerCase():'';}
+// Typing in the box only shows and hides rows that are already there - no reloading, so the sizes
+// and the selection stay exactly as they were.
+function loadSchemasFilter(){const box=$('schemas');if(!box)return;const f=schemaFilterTerm();
+ [...box.children].forEach(c=>{const n=c.dataset.schema||'';c.style.display=(!f||n.toLowerCase().includes(f))?'':'none';});}
 function fmtBytes(b){b=+b||0;if(b<1024)return b+" B";const u=["KB","MB","GB","TB"];let i=-1;do{b/=1024;i++;}while(b>=1024&&i<u.length-1);return (b<10?b.toFixed(1):Math.round(b))+" "+u[i];}
 function invalidateTableCache(db,table){
   if(!db||!table)return;
@@ -1454,6 +1724,13 @@ function togglePin(db,name){const p=pinnedTables(db);const i=p.indexOf(name);if(
 
 function fmtCount(n){n=Math.round(+n||0);return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");}
 function fmtMs(ms){ms=+ms||0;if(ms>=10000)return Math.round(ms/1000)+'s';if(ms>=1000)return (ms/1000).toFixed(1)+'s';return Math.round(ms)+'ms';}
+// The statement behind the grid: the result picked from a script's results, else the last
+// statement run.
+function gridSql(t){const rs=t.resultSets&&t.resultSets[t.resultIdx||0];if(rs)return rs.sql;const s=splitStmts(String(t.curRun||'')).filter(x=>!isCommentOnly(x));return s.length?s[s.length-1]:'';}
+// How many rows the LIMIT at the very end of a statement allows - LIMIT n, LIMIT offset,n and
+// LIMIT n OFFSET m alike - or null. Only a trailing one: a LIMIT in a subquery is followed by its
+// ")", and limits that subquery, not the result.
+function trailingLimit(sql){const m=/\blimit\s+(\d+)\s*(?:,\s*(\d+)|offset\s+\d+)?\s*;?\s*$/i.exec(String(sql||''));if(!m)return null;return +(m[2]!=null?m[2]:m[1]);}
 function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st_'+id);if(!st)return;
   const rowLabel=(t.table&&t.estRows!=null)?(t.rows.length+' row(s) of '+fmtCount(t.estRows)+' rows.'):(t.rows.length+' row(s).');
   const ms=(t.lastElapsedMs!=null)?(' '+t.lastElapsedMs+' ms'):'';
@@ -1462,7 +1739,12 @@ function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st
   // "page" to move to - so this just says more is available; scrolling near the bottom (see
   // maybePrefetchNextBatch) is what actually goes and gets it, automatically.
   const moreLabel=t.hasMore?'  |  more rows available - keep scrolling to load more':'';
-  st.textContent=rowLabel+ms+moreLabel+(t.pk?('  |  editable PK: '+t.pk.join(', ')):'');
+  // A LIMIT the query set itself, and reached: every row is loaded, yet "994 row(s)" alone reads as
+  // the whole table. Only a LIMIT in the SQL that was run counts - the app pages with a cursor and
+  // never writes one.
+  const lim=t.hasMore?null:trailingLimit(gridSql(t));
+  const limLabel=(lim!=null&&t.rows.length>=lim)?'  |  LIMIT '+fmtCount(lim)+' in the query - there may be more rows':'';
+  st.textContent=rowLabel+ms+moreLabel+limLabel+(t.pk?('  |  editable PK: '+t.pk.join(', ')):'');
 }
 // Tears down a tab's open result cursor (if any), server-side, and forgets it locally. Fire-and-
 // forget - cursor teardown must never hold up tab close/replace/app-quit for a round trip - and
@@ -1682,6 +1964,7 @@ async function showOverview(forceRefresh) {
                 const parsedCache = JSON.parse(cachedData);
                 if (parsedCache.timestamp && (Date.now() - parsedCache.timestamp) < 300000) { // Cache valid for 5 minutes
                     window._overviewRaw = { r: parsedCache.data, fetchedAt: parsedCache.timestamp };
+                    if (!window._serverInfo) window._serverInfo = await loadServerInfo();
                     renderOverview();
                     return;
                 }
@@ -1726,6 +2009,7 @@ async function showOverview(forceRefresh) {
         }
 
         window._overviewRaw = { r, fetchedAt };
+        window._serverInfo = await loadServerInfo();
         renderOverview();
     } catch (e) {
         ov.innerHTML = '<div class="muted" style="padding:8px">Overview error: ' + esc(e.message) + '</div>';
@@ -1770,6 +2054,49 @@ function overviewFilteredSortedRows() {
     return rows;
 }
 
+// What the server says about itself, for the overview. Two queries, both cheap: the settings in
+// one row, and the handful of counters worth showing - SHOW GLOBAL STATUS with a WHERE, rather
+// than information_schema.GLOBAL_STATUS (MariaDB) or performance_schema.global_status (MySQL 8),
+// which are not in the same place in both.
+async function loadServerInfo(){
+ const vars="SELECT VERSION() v, @@version_comment vc, @@hostname hn, @@port pt, @@character_set_server cs, @@collation_server co, @@time_zone tz, @@max_connections mc, @@innodb_buffer_pool_size bp, @@read_only ro, CURRENT_USER() cu, NOW() nw, @@datadir dd, @@max_allowed_packet mp";
+ const stat="SHOW GLOBAL STATUS WHERE Variable_name IN ('Uptime','Threads_connected','Threads_running','Questions','Slow_queries','Aborted_connects')";
+ const [a,b]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null)]);
+ if(!a||!a.ok||!a.rows.length)return null;
+ const r=a.rows[0],st={};
+ if(b&&b.ok)b.rows.forEach(x=>{st[String(x[0])]=x[1];});
+ return {v:r[0],vc:r[1],hn:r[2],pt:r[3],cs:r[4],co:r[5],tz:r[6],mc:r[7],bp:r[8],ro:r[9],cu:r[10],nw:r[11],dd:r[12],mp:r[13],st};
+}
+// "3d 4h", "4h 12m", "12m" - the exact seconds of an uptime are noise.
+function fmtUptime(sec){sec=+sec||0;const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);
+ if(d)return d+'d '+h+'h';if(h)return h+'h '+m+'m';if(m)return m+'m';return sec+'s';}
+// The server, and what is on it, as cards: the value large, what it means under it. Cards rather
+// than a second table, because these are single numbers to glance at, not a list to compare.
+// Each line is kept to one line and carries its own tooltip, so a long value (a path, a
+// collation) ends in an ellipsis instead of making its card taller than the rest of the row.
+function ovCard(k,v,sub,cls){return '<div class="ovcard'+(cls?' '+cls:'')+'"><div class="k">'+esc(k)+'</div><div class="v" title="'+esc(v)+'">'+esc(v)+'</div>'+(sub?('<div class="s" title="'+esc(sub)+'">'+esc(sub)+'</div>'):'')+'</div>';}
+function serverInfoHtml(rows){
+ const s=window._serverInfo;const cards=[];
+ if(s){
+  const flavour=/mariadb/i.test(String(s.v)+String(s.vc))?'MariaDB':'MySQL';
+  const ro=String(s.ro)==='1';
+  cards.push(ovCard('Server',flavour+' '+s.v,s.vc||''));
+  cards.push(ovCard('Host',String(s.hn||'')+':'+String(s.pt||''),'as '+String(s.cu||'')));
+  cards.push(ovCard('Uptime',fmtUptime(s.st.Uptime),s.nw?('server time '+String(s.nw)):''));
+  cards.push(ovCard('Threads',(s.st.Threads_connected||'?')+' / '+(s.st.Threads_running||'?'),'connected / running, max '+String(s.mc||'?')));
+  cards.push(ovCard('Queries',fmtCount(s.st.Questions||0),[+s.st.Slow_queries?(fmtCount(s.st.Slow_queries)+' slow'):'',+s.st.Aborted_connects?(fmtCount(s.st.Aborted_connects)+' aborted connects'):''].filter(Boolean).join(' \u00B7 ')||'since start'));
+  cards.push(ovCard('Charset',String(s.cs||''),String(s.co||'')+' \u00B7 time zone '+String(s.tz||'')));
+  cards.push(ovCard('Buffer pool',fmtBytes(s.bp),'max packet '+fmtBytes(s.mp)+(ro?' \u00B7 SERVER IS READ ONLY':'')));
+  if(s.dd)cards.push(ovCard('Data directory',String(s.dd),'','path'));
+ }
+ if(rows&&rows.length){
+  const sum=i=>rows.reduce((a,r)=>a+(+r[i]||0),0);
+  cards.push(ovCard('Databases',fmtCount(rows.length),fmtCount(sum(1))+' tables \u00B7 '+fmtCount(sum(2))+' rows'));
+  cards.push(ovCard('Size',fmtBytes(sum(3)),'data and indexes, as the server estimates them'));
+ }
+ if(!cards.length)return '';
+ return '<h2 style="margin:2px 0 10px">Server</h2><div class="ovcards">'+cards.join('')+'</div><div class="ovsep"></div>';
+}
 function renderOverview() {
     const ov = $('overview');
     if (!ov) return;
@@ -1789,7 +2116,8 @@ function renderOverview() {
     const rows = overviewFilteredSortedRows();
     const { col: sortCol, dir: sortDir } = window._overviewSort;
 
-    let h = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
+    let h = serverInfoHtml(rows);
+    h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
     h += '<h2 style="margin:0">Databases (' + rows.length + (rows.length !== allCount ? (' of ' + allCount) : '') + ')</h2>';
     h += '<input id="overviewFilter" placeholder="Filter databases..." style="width:200px" oninput="renderOverview()" value="' + esc(filterValue) + '">';
     h += '<span class="muted" style="font-size:11px">Updated ' + esc(overviewTimeAgo(raw.fetchedAt)) + '</span>';
@@ -1800,13 +2128,14 @@ function renderOverview() {
         const arrow = i === sortCol ? (sortDir > 0 ? ' \u25B2' : ' \u25BC') : '';
         return '<th' + (isNum ? ' class=num' : '') + ' style="cursor:pointer;user-select:none" onclick="overviewSetSort(' + i + ')" title="Click to sort">' + esc(x) + arrow + '</th>';
     }).join('') + '</tr></thead><tbody>';
+    const maxSize = Math.max(1, ...rows.map(r => +r[3] || 0));
     rows.forEach(row => {
         h += '<tr data-db="' + esc(String(row[0])) + '"><td>' + esc(String(row[0])) + '</td>'
-            + '<td class=num>' + (+row[1] || 0) + '</td>'
-            + '<td class=num>' + (+row[2] || 0) + '</td>'
-            + '<td class=num>' + fmtBytes(row[3]) + '</td>'
-            + '<td class=num>' + (+row[4] || 0) + '</td><td class=num>' + (+row[5] || 0) + '</td><td class=num>' + (+row[6] || 0) + '</td>'
-            + '<td class=num>' + (+row[7] || 0) + '</td><td class=num>' + (+row[8] || 0) + '</td>'
+            + '<td class=num>' + fmtCount(+row[1] || 0) + '</td>'
+            + '<td class=num>' + fmtCount(+row[2] || 0) + '</td>'
+            + '<td class=num>' + fmtBytes(row[3]) + '<div class="szbar"><i style="width:' + Math.max(1, Math.round((+row[3] || 0) / maxSize * 100)) + '%"></i></div></td>'
+            + '<td class=num>' + fmtCount(+row[4] || 0) + '</td><td class=num>' + fmtCount(+row[5] || 0) + '</td><td class=num>' + fmtCount(+row[6] || 0) + '</td>'
+            + '<td class=num>' + fmtCount(+row[7] || 0) + '</td><td class=num>' + fmtCount(+row[8] || 0) + '</td>'
             + '<td>' + esc(row[9] || '') + '</td><td>' + esc(row[10] || '') + '</td></tr>';
     });
     // Totals reflect the currently visible (filtered) rows, not the whole server - matches what
@@ -1814,9 +2143,9 @@ function renderOverview() {
     if (rows.length) {
         const sum = (idx) => rows.reduce((a, row) => a + (+row[idx] || 0), 0);
         h += '<tr style="font-weight:600;border-top:2px solid var(--bd)"><td>Total</td>'
-            + '<td class=num>' + sum(1) + '</td><td class=num>' + sum(2) + '</td><td class=num>' + fmtBytes(sum(3)) + '</td>'
-            + '<td class=num>' + sum(4) + '</td><td class=num>' + sum(5) + '</td><td class=num>' + sum(6) + '</td>'
-            + '<td class=num>' + sum(7) + '</td><td class=num>' + sum(8) + '</td><td></td><td></td></tr>';
+            + '<td class=num>' + fmtCount(sum(1)) + '</td><td class=num>' + fmtCount(sum(2)) + '</td><td class=num>' + fmtBytes(sum(3)) + '</td>'
+            + '<td class=num>' + fmtCount(sum(4)) + '</td><td class=num>' + fmtCount(sum(5)) + '</td><td class=num>' + fmtCount(sum(6)) + '</td>'
+            + '<td class=num>' + fmtCount(sum(7)) + '</td><td class=num>' + fmtCount(sum(8)) + '</td><td></td><td></td></tr>';
     }
     h += '</tbody></table><div class="muted" style="margin-top:10px;font-size:11px">Click a row to browse that database. Click a column header to sort by it.</div>';
     ov.innerHTML = h;
@@ -1888,7 +2217,7 @@ function objMenu(e,db,type,name){const b=[];
   b.push(['Design / Alter...',()=>designTable(name,db)]);b.push(['Show CREATE',()=>openDdl(db,type,name)]);
   const _trigMap=(objData&&objData.r&&objData.r.triggerTables)||{};const _existingTriggers=Object.keys(_trigMap).filter(tn=>_trigMap[tn]===name);
   if(_existingTriggers.length){b.push(['Existing triggers ('+_existingTriggers.length+')',_existingTriggers.map(tn=>[tn,()=>openDdl(db,'trigger',tn)])]);}
-  b.push(['New trigger on this table...',()=>newTrigger(db,name)]);b.push(['Inspect...',()=>inspect(db,name)]);b.push(['Import CSV into table...',()=>importCsv(db,name)]);b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')]);b.push(['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')]);b.push('-');
+  b.push(['New trigger on this table...',()=>newTrigger(db,name)]);b.push(['Inspect...',()=>inspect(db,name)]);b.push(['Import CSV into table...',()=>importCsv(db,name)]);b.push(['Export SQL (mysqldump)...',()=>openExport({db,table:name})]);b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')]);b.push(['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')]);b.push('-');
   b.push(['Rename...',()=>renameTable(db,name)]);b.push(['Duplicate table...',()=>duplicateTable(db,name)]);b.push(['Truncate...',()=>truncateTable(db,name)]);b.push(['Drop table...',()=>dropObject(db,type,name)]);b.push('-');
   b.push(['Optimize',()=>maint(db,name,'OPTIMIZE')]);b.push(['Analyze',()=>maint(db,name,'ANALYZE')]);b.push(['Check',()=>maint(db,name,'CHECK')]);b.push(['Repair',()=>maint(db,name,'REPAIR')]);}
  else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)]);b.push(['Show CREATE / edit',()=>openDdl(db,type,name)]);b.push(['Drop view...',()=>dropObject(db,type,name)]);}
@@ -1991,7 +2320,12 @@ async function openDdl(db,type,name){const r=await api('/api/ddl',{db,type,name}
 function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqueTabTitle(title||'Query');const tab={id,title,db:db||null,table:table||null,ddl:ddl||null,genSql:sql||'',sqlEdited:false,pk:null,cols:null,rows:null,limit:1000,offset:0,pending:null,filter:null,hiddenCols:new Set()};
  tabs.push(tab);
  const tb=document.createElement('div');tb.className='tab';tb.id='tabbtn_'+id;tb.draggable=true;tb.innerHTML='<span class="tablabel">'+esc(tab.title)+'</span><span class="x">&times;</span>';
- tb.onclick=()=>activate(id);tb.querySelector('.x').onclick=e=>{e.stopPropagation();closeTabAsk(id);};tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],['Close others',()=>closeOthers(id)],['Close all',()=>closeAll()]]);};
+ tb.onclick=()=>activate(id);tb.querySelector('.x').onclick=e=>{e.stopPropagation();closeTabAsk(id);};
+ // Middle-click closes it, as everywhere else with tabs. auxclick is the one that reports the
+ // middle button after the browser has had its say; mousedown only stops the paste-on-click that
+ // X11-style middle-click would otherwise start.
+ tb.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();closeTabAsk(id);}});
+ tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],['Close others',()=>closeOthers(id)],['Close all',()=>closeAll()]]);};
  tb.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);tb.classList.add('dragging');});
  tb.addEventListener('dragend',()=>{tb.classList.remove('dragging');});
  tb.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';tb.classList.add('dragover');});
@@ -1999,26 +2333,26 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  tb.addEventListener('drop',e=>{e.preventDefault();tb.classList.remove('dragover');const srcId=e.dataTransfer.getData('text/plain');if(!srcId||srcId===id)return;reorderTab(srcId,id);});
  $('tabsbar').appendChild(tb);saveSession();
  const pane=document.createElement('div');pane.className='tabpane';pane.id='pane_'+id;
- const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')">\u21C4 Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
- const pager='<span class="tbsep"></span><span id="pager_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>';
+ const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')" data-ic="lastq" data-icalways>Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
+ const pager='<span id="pager_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>';
  pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
   '<div class="edsplit" id="es_'+id+'" title="Drag to resize the editor"></div>'+
   // Run Query and Cancel are mutually-exclusive states of the same "primary action" slot, not
   // two independent buttons - stacked in one shared grid cell (both always in layout, only one
   // ever visible) so swapping between them on every run/cancel never shifts Run Query Selection/
   // Explain/Format, which display:none toggling used to do on every single query execution.
-  '<div class="toolbar"><span style="display:inline-grid"><button class="primary" id="runbtn_'+id+'" style="grid-area:1/1" title="Run the query (F5)" onclick="runTab(\''+id+'\')">Run Query</button><button class="warn" id="cancelbtn_'+id+'" style="grid-area:1/1;visibility:hidden" title="Cancel the running query" onclick="cancelQuery(\''+id+'\')">Cancel</button></span><button title="Run the selected text (Ctrl+Enter) - or, if nothing is selected, whichever statement the cursor is currently inside" onclick="runSel(\''+id+'\')">Run Query Selection</button><button title="Prepend EXPLAIN to the current statement and run it" onclick="explainTab(\''+id+'\')">Explain</button><button title="Reformat the query for readability (safe - only changes whitespace/line breaks, never the query itself)" onclick="formatTabSql(\''+id+'\')">Format</button>'+
+  '<div class="toolbar"><span style="display:inline-grid"><button class="primary" id="runbtn_'+id+'" style="grid-area:1/1" title="Run the query (F5)" onclick="runTab(\''+id+'\')">Run Query</button><button class="warn" id="cancelbtn_'+id+'" style="grid-area:1/1;visibility:hidden" title="Cancel the running query" onclick="cancelQuery(\''+id+'\')">Cancel</button></span><button title="Run the selected text (Ctrl+Enter) - or, if nothing is selected, whichever statement the cursor is currently inside" onclick="runSel(\''+id+'\')" data-ic="runsel">Run Query Selection</button><button title="Prepend EXPLAIN to the current statement and run it" onclick="explainTab(\''+id+'\')" data-ic="explain">Explain</button><button title="Reformat the query for readability (safe - only changes whitespace/line breaks, never the query itself)" onclick="formatTabSql(\''+id+'\')" data-ic="format">Format</button>'+
   '<span class="tbsep"></span>'+
   lastBtn+selBtn+applyBtn+
-  '<label title="If a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT." style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="coe_'+id+'"> Continue on error</label>'+
+  '<label title="If a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT." style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="coe_'+id+'"><span class="coetxt"> Continue on error</span></label>'+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'" style="display:none;gap:9px;align-items:center" class="tbgroup">'+
-  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search results" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')">Clear filters</button>'+
-  '<span class="tbsep"></span></span>'+
+  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf">Clear filters</button>'+
+  '</span>'+
   '<span style="flex:1 1 auto"></span>'+
   '<span id="edit_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>'+pager+'</div>'+
   '<div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="status" id="st_'+id+'">Ready.</div>';
- $('panes').appendChild(pane);const ta=$('ed_'+id);ta.value=sql||'';
+ $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{e.preventDefault();const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
   const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(44,Math.min(h,Math.max(80,maxH)));ew.style.height=h+'px';syncHl(id);};
@@ -2129,7 +2463,13 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  });
  syncHl(id);activate(id);if(run)runTab(id);return id;}
 function activate(id){activeTab=id;const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
-function updateSchemaBadge(id){const el=$('schemaBadge');if(!el)return;if(document.body.classList.contains('disconnected')){el.style.display='none';el.textContent='';return;}const t=T(id);const db=t?dbOf(t):null;el.textContent=db?('Schema: '+db):'';el.title=el.textContent;el.style.display=db?'inline-flex':'none';}
+// Where the active tab's queries run: that schema's row in the list is marked (.runs). It was a
+// "Schema: x" chip in the top bar; the list already names every schema, so marking the row says
+// the same without the room a label takes. A table or DDL tab keeps the schema it was opened from
+// while the sidebar browses others (see dbOf), so the mark follows the tab, not the selection.
+function updateSchemaBadge(id){const t=(id&&!document.body.classList.contains('disconnected'))?T(id):null;markRunSchema(t?dbOf(t):null);}
+function markRunSchema(db){const box=$('schemas');if(!box)return;const note=" - the active tab's queries run here";
+ [...box.children].forEach(c=>{if(!c.dataset.schema)return;const on=!!db&&c.dataset.schema===db;c.classList.toggle('runs',on);const base=c.title.endsWith(note)?c.title.slice(0,-note.length):c.title;c.title=on?base+note:base;});}
 function pendingCount(t){if(!t||!t.pending)return 0;return Object.keys(t.pending.upd||{}).length+((t.pending.del&&t.pending.del.size)||0)+((t.pending.ins&&t.pending.ins.length)||0);}
 function uniqueTabTitle(base){
   let title=base, n=2;
@@ -2194,7 +2534,7 @@ function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=l
 });}}
 // Closes every tab without the "unsaved changes" prompt - only called right after the user has
 // already confirmed switching connections (connect() asks that separately, once, up front).
-function clearAllTabsSilently(){[...tabs].forEach(t=>{const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();const _sb=$('schemaBadge');if(_sb){_sb.style.display='none';_sb.textContent='';}}
+function clearAllTabsSilently(){[...tabs].forEach(t=>{const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
 // Deliberately does NOT prepend "USE <schema>;" to the new tab's text - that's redundant
 // (Api-Query/Api-Script already receive the schema via a SEPARATE db parameter, passed to
 // mysql.exe as --database=..., independent of whatever text is in the query itself), and it was
@@ -2573,7 +2913,7 @@ function updatePager(id){const t=T(id);const p=$('pager_'+id);if(!p)return;const
  p.innerHTML='<span class="muted">'+fmtCount(total)+(t.hasMore?'+':'')+' row(s) loaded</span>';}
 function toggleLast(id){const t=T(id);const ta=$('ed_'+id);if(t.prevRun==null){log('No previous query to toggle to yet.');return;}ta.value=t.prevRun;if(typeof syncHl==='function')syncHl(id);runSql(id,t.prevRun);}
 function toggleAll(id){const t=T(id);if(!t.table)return;const ta=$('ed_'+id);const base='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+';';const cur=(ta.value||'').trim();if(cur!==base.trim()){t.beforeAll=ta.value;ta.value=base;}else if(t.beforeAll!=null){ta.value=t.beforeAll;}else{ta.value=base;}if(typeof syncHl==='function')syncHl(id);runSql(id,ta.value);}
-function selBtnHtml(id,table){return table?'<button title="Toggle between your query and SELECT * (the whole table)" onclick="toggleAll(\''+id+'\')">⇄ Base query</button>':'';}
+function selBtnHtml(id,table){return table?'<button title="Toggle between your query and SELECT * (the whole table)" onclick="toggleAll(\''+id+'\')" data-ic="wholetable" data-icalways>Base query</button>':'';}
 // t.table (and thus row-edit capability, export-as-table, quick filter, ...) used to be fixed
 // at whatever the tab was opened with and never revisited - so a tab opened as a non-editable
 // "SELECT COUNT(*)" stayed permanently non-editable even after retyping it into a plain
@@ -2861,7 +3201,7 @@ function maybePrefetchNextBatch(id,wrap){
  const t=T(id);if(!t||!t.hasMore||t.fetchingMore||!wrap)return;
  if((wrap.scrollTop+wrap.clientHeight)>=(wrap.scrollHeight-200))fetchNextBatch(id);
 }
-function toggleWrap(id){const t=T(id);t.wrap=!t.wrap;const wrap=$('res_'+id);if(wrap)wrap.classList.toggle('wraptext',t.wrap);const btn=$('wrapbtn_'+id);if(btn)btn.textContent='Wrap: '+(t.wrap?'On':'Off');}
+function toggleWrap(id){const t=T(id);t.wrap=!t.wrap;const wrap=$('res_'+id);if(wrap)wrap.classList.toggle('wraptext',t.wrap);const btn=$('wrapbtn_'+id);if(btn){(btn.querySelector('.lbl')||btn).textContent='Wrap: '+(t.wrap?'On':'Off');btn.classList.toggle('ison',!!t.wrap);}}
 // The filter row's sticky "top" offset needs to sit at exactly the main header row's actual
 // height, or a gap opens up between them that the first scrolled-past data row peeks through -
 // a thin sliver of ghosted text right where the filter row should meet the header row. Rather
@@ -2988,7 +3328,7 @@ function updateEditBar(id){const t=T(id);const el=$('edit_'+id);if(!el)return;if
  const sig=n+':'+hasSel;
  if(el.dataset.sig===sig)return;
  el.dataset.sig=sig;
- el.innerHTML='<button class="write" onclick="addRow(\''+id+'\')">+ Row</button><button class="warn write" '+(hasSel?'':'disabled')+' title="Mark all checked rows for deletion (applied on Apply)" onclick="deleteSel(\''+id+'\')">Delete selected</button><span class="tbsep"></span><button class="go write" '+(n?'':'disabled')+' onclick="applyChanges(\''+id+'\')">Apply</button><button '+(n?'':'disabled')+' onclick="revertChanges(\''+id+'\')">Revert</button><span class="pill">'+n+' pending</span>';}
+ el.innerHTML='<button class="write" onclick="addRow(\''+id+'\')" data-ic="plus">+ Row</button><button class="warn write" '+(hasSel?'':'disabled')+' title="Mark all checked rows for deletion (applied on Apply)" onclick="deleteSel(\''+id+'\')" data-ic="trash">Delete selected</button><span class="tbsep"></span><button class="go write" '+(n?'':'disabled')+' onclick="applyChanges(\''+id+'\')">Apply</button><button '+(n?'':'disabled')+' onclick="revertChanges(\''+id+'\')" data-ic="undo" data-fit="2">Revert</button><span class="pill">'+n+' pending</span>';}
 // MySQL's own DATE/DATETIME/TIME text format <-> what a native <input type="date"/"datetime-
 // local"/"time"> needs. Deliberately conservative: anything the native widget can't faithfully
 // round-trip - a zero-date ('0000-00-00'), a zero month/day, a TIME past the widget's 00:00:00-
@@ -3494,7 +3834,7 @@ async function inlineEdit(td,id,ri,ci){const t=T(id);const key=ri+':'+ci;const c
  // No inp.select() here on purpose - auto-selecting the whole value made entering edit mode look
  // like a big blue highlight box instead of just dropping into the text, so the cursor is placed
  // at the end of the existing value instead (still lets you type to replace via Home+shift, etc).
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" title="Set NULL" style="padding:0 4px">&empty;</button>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur===null?'':cur);inp.focus();const vlen=inp.value.length;inp.setSelectionRange(vlen,vlen);let done=false,dirty=false;
+ td.classList.add('cellEditing');td.innerHTML='<div class="celled">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" title="Set NULL" style="padding:0 4px">&empty;</button></div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur===null?'':cur);inp.focus();const vlen=inp.value.length;inp.setSelectionRange(vlen,vlen);let done=false,dirty=false;
  const set=v=>{done=true;setUpd(id,ri,ci,v);};
  inp.addEventListener('input',()=>dirty=true);
  nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
@@ -3505,7 +3845,7 @@ async function inlineEdit(td,id,ri,ci){const t=T(id);const key=ri+':'+ci;const c
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else cellRevert(td,id,ri,ci);}},120));}
 function inlineEditIns(td,id,ii,col){const t=T(id);const cur=t.pending.ins[ii][col];
  const isMulti=cur!=null&&/[\r\n]/.test(String(cur));
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" style="padding:0 4px" title="Set NULL">&empty;</button>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
+ td.classList.add('cellEditing');td.innerHTML='<div class="celled">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" style="padding:0 4px" title="Set NULL">&empty;</button></div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
  const set=v=>{done=true;t.pending.ins[ii][col]=v;renderGrid(id);};
  inp.addEventListener('input',()=>dirty=true);
  nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
@@ -3984,7 +4324,8 @@ function erdClusterOrder(sortedNames,fks,tables){
  sortedNames.forEach(n=>adj[n]=new Set());
  fks.forEach(row=>{
   const tbl=row[0],refTbl=row[2];
-  if(tables[tbl]&&tables[refTbl]&&tbl!==refTbl){adj[tbl].add(refTbl);adj[refTbl].add(tbl);}
+  // adj holds only the tables being drawn; a key that leaves the set is not a link within it.
+  if(adj[tbl]&&adj[refTbl]&&tbl!==refTbl){adj[tbl].add(refTbl);adj[refTbl].add(tbl);}
  });
  const visited=new Set();const order=[];
  sortedNames.forEach(start=>{
@@ -4175,6 +4516,23 @@ function erdPanEnd(){
  document.removeEventListener('mousemove',erdPanMove);
  document.removeEventListener('mouseup',erdPanEnd);
 }
+// The table the diagram is narrowed to, or null for the whole schema. Right-clicking a table
+// sets it: a schema of a hundred tables says nothing about the five that matter, and the diagram
+// then draws that table, whatever points at it, and whatever it points at - one step out, not the
+// whole chain, which in a well-linked schema is the schema again.
+window._erdFocus=null;
+function erdNeighbours(name,fks){const keep=new Set([name]);
+ (fks||[]).forEach(row=>{const tbl=row[0],refTbl=row[2];if(tbl===name)keep.add(refTbl);if(refTbl===name)keep.add(tbl);});
+ return keep;}
+function erdFocusTable(name){window._erdFocus=name||null;erdRender();}
+function erdMenu(e,ni){e.preventDefault();e.stopPropagation();
+ const name=(window._erdTableNames||[])[ni];if(!name)return;
+ const data=window._erdRawData,fks=(data&&data.r&&data.r.fks)||[];
+ const n=erdNeighbours(name,fks).size-1;
+ const items=[[n?('Show only its relations ('+n+')'):'No relations to show',n?(()=>erdFocusTable(name)):null]];
+ if(window._erdFocus)items.push(['Show all tables',()=>erdFocusTable(null)]);
+ items.push('-',['Open the table',()=>{hide('mErd');objOpen(data.db,'table',name);}]);
+ menu(e.clientX,e.clientY,items.filter(x=>x==='-'||x[1]));}
 function erdRelatedNames(tables,fks){
  const related=new Set();
  fks.forEach(row=>{
@@ -4199,7 +4557,11 @@ function erdRender(){
  // still shows that column as 'PRI'.
  (r.pks||[]).forEach(row=>{const tbl=row[0],col=row[1];if(tables[tbl])tables[tbl].pk.add(col);});
  let allNames=Object.keys(tables).sort();
- const onlyRelated=$('erdOnlyRelated')&&$('erdOnlyRelated').checked;
+ // A table the diagram is narrowed to (right-click) decides on its own which tables are drawn -
+ // the "only related" tick has nothing left to say about a set that is already one table's own.
+ const focus=window._erdFocus&&tables[window._erdFocus]?window._erdFocus:(window._erdFocus=null);
+ const onlyRelated=!focus&&$('erdOnlyRelated')&&$('erdOnlyRelated').checked;
+ if(focus){const keep=erdNeighbours(focus,r.fks||[]);allNames=allNames.filter(n=>keep.has(n));}
  if(onlyRelated){
   const related=erdRelatedNames(tables,r.fks||[]);
   allNames=allNames.filter(n=>related.has(n));
@@ -4261,10 +4623,14 @@ function erdRender(){
  names.forEach(n=>{pos[n].y=bandY[pos[n].cy];});
  let totalH=yAcc;
 
- // Manually-dragged positions override the computed grid layout, and persist across re-renders
- // within the same schema view (toggling the filter checkbox, searching) - only a fresh
- // openErd() load resets them. If a drag moves a table outside the originally-computed bounds,
- // the diagram's own dimensions expand to keep it fully visible rather than clipping it off.
+ // Manually-dragged positions override the computed grid layout and persist across re-renders -
+ // but only while the same tables are drawn. The grid lays out whatever it is given, so with a
+ // different set (the "only related" tick, a table's own relations) the untouched tables move to
+ // new places while a dragged one stays where it was put, and one lands on top of another. When
+ // the set changes the diagram is laid out afresh instead, and the drags are let go.
+ {const key=names.join('\u0000');if(window._erdPosKey!==key){window._erdPos={};window._erdPosKey=key;}}
+ // If a drag moves a table outside the originally-computed bounds, the diagram's own dimensions
+ // expand to keep it fully visible rather than clipping it off.
  names.forEach(n=>{
   if(window._erdPos[n]){pos[n].x=window._erdPos[n].x;pos[n].y=window._erdPos[n].y;}
   totalW=Math.max(totalW,pos[n].x+pos[n].w+padX);
@@ -4301,7 +4667,7 @@ function erdRender(){
  window._erdTableNames=names;
  names.forEach((n,ni)=>{
   const p=pos[n];
-  svg+='<g id="erd_tbl_'+ni+'">';
+  svg+='<g id="erd_tbl_'+ni+'" oncontextmenu="erdMenu(event,'+ni+')">';
   svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" fill="var(--panel,#1e1e1e)" stroke="var(--bd2,#444)" stroke-width="1.5" rx="4"/>';
   svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+headerH+'" fill="#2d4a6b" rx="4" style="cursor:move" onmousedown="erdStartDrag(event,'+ni+')" ondblclick="event.stopPropagation()"/>';
   svg+='<text x="'+(p.x+8)+'" y="'+(p.y+16)+'" fill="#fff" font-size="12" font-weight="600" style="cursor:move;user-select:none" onmousedown="erdStartDrag(event,'+ni+')" ondblclick="event.stopPropagation()">'+esc(n)+'</text>';
@@ -4323,11 +4689,12 @@ function erdRender(){
  });
  svg+='</svg>';
  $('erdBox').innerHTML=svg;
+ {const st=$('erdStatus');if(st&&focus){st.innerHTML='Showing <b>'+esc(focus)+'</b> and what it is related to ('+(names.length-1)+' table(s)). <a href="#" style="color:var(--accent)" onclick="erdFocusTable(null);return false">Show all tables</a>';}}
  erdApplyZoomStyle();
  show('mErd');
 }
 async function openErd(db){
- $('erdFind').value='';
+ $('erdFind').value='';window._erdFocus=null;
  window._erdPos={};
  const r=await api('/api/schema-erd',{db});
  if(!r.ok){toast(r.error||'Could not load schema.',true);return;}
@@ -5288,13 +5655,21 @@ async function closeAll(){const dirty=tabs.filter(t=>pendingCount(t)>0);if(dirty
  // the DOM nodes out and drop the tab objects, silently leaking every running query in the batch.
  await Promise.all(tabs.filter(t=>t.runningReqId).map(t=>cancelQuery(t.id)));
  tabs.forEach(closeCursorFor);
- [...tabs].forEach(t=>{$('tabbtn_'+t.id).remove();$('pane_'+t.id).remove();});tabs=[];activeTab=null;saveSession();toggleOverview();const _sb=$('schemaBadge');if(_sb){_sb.style.display='none';_sb.textContent='';}}
+ [...tabs].forEach(t=>{$('tabbtn_'+t.id).remove();$('pane_'+t.id).remove();});tabs=[];activeTab=null;saveSession();toggleOverview();markRunSchema(null);}
 async function closeOthers(id){const dirty=tabs.filter(t=>t.id!==id&&pendingCount(t)>0);if(dirty.length){if(!(await ask(dirty.length+' other tab(s) have unsaved changes. Close them and discard the changes?')))return;}
  await Promise.all(tabs.filter(t=>t.id!==id&&t.runningReqId).map(t=>cancelQuery(t.id)));
  tabs.filter(t=>t.id!==id).forEach(closeCursorFor);
  tabs.filter(t=>t.id!==id).forEach(t=>{$('tabbtn_'+t.id).remove();$('pane_'+t.id).remove();});tabs=tabs.filter(t=>t.id===id);activate(id);}
 
 // ---- keyboard navigation for side lists ----
+// The sidebar folds like the Action Output panel: a click on the header's button, and the divider
+// it leaves behind is what opens it again. Kept per browser, as its width is.
+function setSideFolded(on){document.body.classList.toggle('side-folded',!!on);
+ const b=$('sideFoldBtn');if(b){b.textContent=on?'\u00BB':'\u00AB';b.title=on?'Show the sidebar':'Hide the sidebar';}
+ const rz=$('sideResize');if(rz)rz.title=on?'Click to show the sidebar':'Drag to resize the sidebar (double-click to reset)';
+ try{localStorage.setItem('sideFolded',on?'1':'');}catch(e){}}
+function toggleSide(){setSideFolded(!document.body.classList.contains('side-folded'));}
+try{if(localStorage.getItem('sideFolded'))setSideFolded(true);}catch(e){}
 function focusList(box){box.focus();const items=[...box.querySelectorAll('.item')];if(items.length){items.forEach(x=>x.classList.remove('kbsel'));items[0].classList.add('kbsel');items[0].scrollIntoView({block:'nearest'});}}
 function listNav(box,e){const items=[...box.querySelectorAll('.item')];if(!items.length)return;let i=items.findIndex(x=>x.classList.contains('kbsel'));
  if(e.key==='ArrowDown'){e.preventDefault();i=Math.min(items.length-1,i+1);}
@@ -5465,7 +5840,7 @@ async function openUpdatePage(){
 function dismissUpdate(){if(!_update)return;try{localStorage.setItem('updateDismissed',_update.latest);}catch(e){}const el=$('updNote');if(el)el.style.display='none';}
 setTimeout(()=>{checkForUpdate(false);},3000);
 window.addEventListener('beforeunload',e=>{saveSession();if(anyPending()){e.preventDefault();e.returnValue='';return '';}});
-(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{sd.style.width='280px';localStorage.setItem('sideW','280');});}initSideResize();})();
+(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{if(document.body.classList.contains('side-folded')){toggleSide();return;}drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{if(document.body.classList.contains('side-folded'))return;sd.style.width='280px';localStorage.setItem('sideW','280');});}initSideResize();})();
 if(window.__TAURI__&&window.__TAURI__.window&&window.__TAURI__.window.getCurrentWindow){try{const _w=window.__TAURI__.window.getCurrentWindow();_w.onCloseRequested(async(ev)=>{
  // Quitting with a query still running must cancel it the same way closing its tab would -
  // otherwise it keeps executing against the DB after the window (and the user's ability to

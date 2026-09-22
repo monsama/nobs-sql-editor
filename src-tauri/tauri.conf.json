@@ -16,7 +16,8 @@
         "width": 1280,
         "height": 860,
         "resizable": true,
-        "minWidth": 1100,
+        "minWidth": 1220,
+        "minHeight": 760,
         "maximized": true,
         "dragDropEnabled": false
       }

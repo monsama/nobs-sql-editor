@@ -145,3 +145,19 @@ test('a hidden column is stepped over, and an edit is what is searched', () => {
   assert.deepEqual(step(1), [0, 1, 1, 2]);
   assert.deepEqual(step(1), [0, 2, 2, 2]);
 });
+
+// The status line's "LIMIT n in the query": which LIMIT counts as the result's own.
+const trailingLimit = new Function(`${extractFunction(html, 'trailingLimit')}
+return trailingLimit;`)();
+
+test('only a LIMIT at the end of the statement limits the result, and it reads the row count', () => {
+  for (const [sql, want] of [
+  ['SELECT * FROM t LIMIT 1000', 1000],
+  ['select * from t limit 10, 20;', 20],
+  ['SELECT * FROM t LIMIT 5 OFFSET 10 ;  ', 5],
+  ['SELECT * FROM t WHERE id IN (SELECT id FROM u LIMIT 3)', null],
+  ['SELECT * FROM (SELECT 1 LIMIT 3) x', null],
+  ['SELECT * FROM t', null],
+  ['SELECT limit_col FROM t', null],
+]) assert.equal(trailingLimit(sql), want, sql);
+});
