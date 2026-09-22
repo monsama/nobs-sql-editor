@@ -4289,14 +4289,20 @@ fn parse_mysql_download_page(html: &str) -> Option<(String, String, Option<Strin
         .captures(window).map(|m| m[1].to_lowercase());
     Some((c[1].to_string(), c[2].to_string(), md5))
 }
-// Only the two binaries the app runs. Both are self-contained - OpenSSL and MySQL 8's default
-// authentication are built in, which was checked by running them from an otherwise empty folder.
-fn mysql_zip_member(name: &str) -> Option<&'static str> {
+// The two binaries the app runs, and the OpenSSL libraries they load. They are NOT self-contained,
+// whatever an earlier reading of this said: mysql.exe and mysqldump.exe from the winx64 zip import
+// libcrypto-3-x64.dll and libssl-3-x64.dll. Taking only the .exe files left them working on a
+// machine that happens to have MySQL installed - its bin is on PATH, and that is where Windows
+// found the libraries - and failing on one that does not, with "libcrypto-3-x64.dll was not
+// found" from the loader. MariaDB's client tools do not import them, so this is only here.
+fn mysql_zip_member(name: &str) -> Option<String> {
     let n = name.replace('\\', "/");
     let mut parts = n.split('/');
     let (_root, bin, file) = (parts.next()?, parts.next()?, parts.next()?);
     if parts.next().is_some() || bin != "bin" { return None; }
-    match file { "mysql.exe" => Some("mysql.exe"), "mysqldump.exe" => Some("mysqldump.exe"), _ => None }
+    let keep = file == "mysql.exe" || file == "mysqldump.exe"
+        || ((file.starts_with("libcrypto") || file.starts_with("libssl")) && file.ends_with(".dll"));
+    if keep { Some(file.to_string()) } else { None }
 }
 fn mysql_tools_dir() -> std::path::PathBuf { tools_dir().join("mysql") }
 
@@ -4359,16 +4365,20 @@ fn download_mysql_tools_blocking() -> R {
     let mut zipf = zip::ZipArchive::new(tmp).map_err(|e| e.to_string())?;
     let dest = mysql_tools_dir();
     std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
-    let mut got: Vec<&str> = Vec::new();
+    let mut got: Vec<String> = Vec::new();
     for i in 0..zipf.len() {
         let mut f = zipf.by_index(i).map_err(|e| e.to_string())?;
         let Some(base) = mysql_zip_member(f.name()) else { continue };
-        let mut o = std::fs::File::create(dest.join(base)).map_err(|e| e.to_string())?;
+        let mut o = std::fs::File::create(dest.join(&base)).map_err(|e| e.to_string())?;
         std::io::copy(&mut f, &mut o).map_err(|e| e.to_string())?;
         got.push(base);
     }
-    if got.len() < 2 {
+    if !got.iter().any(|g| g == "mysql.exe") || !got.iter().any(|g| g == "mysqldump.exe") {
         return Ok(json!({"ok":false,"error":format!("{file_name} was downloaded and checked, but mysql.exe and mysqldump.exe were not both inside.")}));
+    }
+    // Without these the binaries above do not start at all on a machine with no MySQL of its own.
+    if !got.iter().any(|g| g.starts_with("libcrypto")) {
+        return Ok(json!({"ok":false,"error":format!("{file_name} held the client binaries but not the OpenSSL libraries they load (libcrypto-3-x64.dll), so they would not run on a machine without MySQL installed.")}));
     }
     let mut cfg = load_cfg();
     cfg["mysql_bin_mysql"] = json!(dest.join("mysql.exe").to_string_lossy());
@@ -5008,11 +5018,16 @@ mod tests {
     }
 
     #[test]
-    fn only_the_two_client_binaries_are_taken_from_the_archive() {
-        assert_eq!(mysql_zip_member("mysql-8.4.11-winx64/bin/mysql.exe"), Some("mysql.exe"));
-        assert_eq!(mysql_zip_member(r"mysql-8.4.11-winx64\bin\mysqldump.exe"), Some("mysqldump.exe"));
+    fn the_client_binaries_and_their_openssl_are_taken_from_the_archive() {
+        let want = |n: &str| mysql_zip_member(n).as_deref().map(String::from);
+        assert_eq!(want("mysql-8.4.11-winx64/bin/mysql.exe"), Some("mysql.exe".into()));
+        assert_eq!(want(r"mysql-8.4.11-winx64\bin\mysqldump.exe"), Some("mysqldump.exe".into()));
+        // The libraries the two import - without them the loader refuses to start either.
+        assert_eq!(want("mysql-8.4.11-winx64/bin/libcrypto-3-x64.dll"), Some("libcrypto-3-x64.dll".into()));
+        assert_eq!(want("mysql-8.4.11-winx64/bin/libssl-3-x64.dll"), Some("libssl-3-x64.dll".into()));
         for n in ["mysql-8.4.11-winx64/bin/mysqld.exe", "mysql-8.4.11-winx64/lib/plugin/mysql.exe",
-                  "mysql-8.4.11-winx64/mysql.exe", "mysql-8.4.11-winx64/bin/sub/mysql.exe", "mysql.exe"] {
+                  "mysql-8.4.11-winx64/mysql.exe", "mysql-8.4.11-winx64/bin/sub/mysql.exe", "mysql.exe",
+                  "mysql-8.4.11-winx64/lib/libcrypto-3-x64.dll", "mysql-8.4.11-winx64/bin/abseil_dll.dll"] {
             assert_eq!(mysql_zip_member(n), None, "{n}");
         }
     }
