@@ -94,7 +94,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .wraptext table.grid td{white-space:normal;word-break:break-word}
 .grid th input[type=checkbox],.grid td input[type=checkbox]{vertical-align:middle;margin:0;display:inline-block}
  table.grid th:first-child,table.grid td:first-child{text-align:center;padding-left:2px;padding-right:2px} table.grid input[type=checkbox]{margin:0;vertical-align:middle}
- table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} table.grid tbody td.hit{background:var(--hit)}
+ table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} table.grid tbody td.hit{background:var(--hit)} input.gsearch.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
  table.grid tr.insrow td{background:rgba(80,200,120,.14);border-bottom:1px solid rgba(80,200,120,.25)}
  table.grid tr.insrow td.editable:hover{background:rgba(80,200,120,.22)}
  table.grid tr.insrow td.delcell{color:#7ee0a0}
@@ -180,6 +180,13 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
     a line of their own: a flex item breaks onto the next line at its full width, and only shrinks
     - wrapping inside, a chunk at a time - once it has a line to itself and still does not fit.
     topActions is display:contents so its chunks wrap with Settings's, not as one block. */
+ /* Below the width the whole group needs, Export/Import/Compare DB move into a "More" menu, and
+    below the next step Users/Processes/History/Library join them - so Settings and Quit keep
+    company down to a phone-narrow window. The widths are the group's own, measured: 891px in
+    full, about 740px without the first set; change a button's label and they move. */
+ #topActions .tbmore{display:none}
+ @media (max-width:920px){#topActions .tbfold2{display:none} #topActions .tbmore{display:inline-flex}}
+ @media (max-width:770px){#topActions .tbfold1{display:none}}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
  body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:auto;min-width:60%} table.ovgrid th{border:none;border-bottom:2px solid var(--bd);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-bottom:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} table.ovgrid th{background:var(--gridh);font-weight:600} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
 .expdbrow{margin:1px 0}
@@ -211,7 +218,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 	<select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()">New</button><button class="sm" title="Save these connection details" onclick="saveConn()">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span id="pwChip" title="This connection has a saved password" style="display:none;font-size:14px;cursor:default;flex:none">&#128274;</span><span id="connStatus" class="chip bad">Not connected</span><span id="envChip" class="chip bad" style="display:none"></span><span id="schemaBadge" class="chip ok" style="display:none"></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab">+ New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()">Compare DB</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab">+ New Query</button></span><span class="tbchunk tbfold1"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()">Library</button></span><span class="tbchunk tbfold2"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()">Compare DB</button></span><span class="tbchunk tbmore"><span class="tbsep"></span><button class="sm" title="The buttons this window is too narrow to show" onclick="event.stopPropagation();moreMenu(this)">More &#9662;</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -982,16 +989,18 @@ function renderAllDbs(){
       curSchema=it.schema;
       $('objdb').textContent=it.schema;$('objdb').title=it.schema;
 
-      // Highlight the schema in the schemas list
+      // Highlight the schema in the schemas list - by its name, not by what its row's text
+      // contains, which also lit "shop_archive" (and "shop (12 KB)" holds "shop" too) for "shop".
       const schemasBox = $('schemas');
       if (schemasBox) {
         [...schemasBox.children].forEach(c => {
-          c.classList.remove('sel');
-          if (c.textContent.includes(it.schema)) {
-            c.classList.add('sel');
-          }
+          const on = c.dataset.schema === it.schema;
+          c.classList.toggle('sel', on);
+          if (on) c.scrollIntoView({block: 'nearest'});
         });
       }
+      // The same as clicking the schema: a plain query tab now runs there, so the badge says so.
+      if (activeTab) updateSchemaBadge(activeTab);
 
       loadObjects(it.schema).then(()=>objOpen(it.schema,it.type,it.name));
     };
@@ -1173,6 +1182,10 @@ function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre
 function connTitle(){const s=$('connlist');if(s)s.title=(s.selectedIndex>0?s.options[s.selectedIndex].text:'Saved connections');}
 // --- Connections: dropdown, New/Save/pick, and the 'primary' (auto-open) flag.
 function updatePrimeBtn(){const b=$('primeBtn');if(!b)return;const n=$('connlist').value;const isP=(n&&n===window._primaryConn);b.textContent=(isP?'\u2605':'\u2606')+' Primary';b.style.color=isP?'#f5c518':'';b.title=isP?'This is the primary connection (opens on startup). Click to unset.':'Set as primary connection (opens automatically on startup)';}
+// "More": whichever top-bar buttons the width has folded away, in their order, a set at a time.
+function moreMenu(btn){const items=[];document.querySelectorAll('#topActions .tbchunk').forEach(c=>{if(getComputedStyle(c).display!=='none')return;
+ const bs=[...c.querySelectorAll('button')];if(!bs.length)return;if(items.length)items.push('-');bs.forEach(b=>items.push([b.textContent,()=>b.click()]));});
+ const r=btn.getBoundingClientRect();menu(r.left,r.bottom+2,items);}
 function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],['Clear password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with different details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items);}
 async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:''},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if($('connlist').value===n)setPass('');}else toast(r.error||'Failed',true);}
 async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Failed',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
@@ -1386,6 +1399,7 @@ async function loadSchemas() {
         const sizeStr = sc.size > 0 ? ' (' + fmtBytes(sc.size) + ')' : '';
         d.textContent = sc.name + sizeStr;
         d.title = sc.name + sizeStr;
+        d.dataset.schema = sc.name;
 
         d.onclick = () => {
             [...box.children].forEach(c => c.classList.remove('sel'));
@@ -1527,7 +1541,8 @@ async function loadObjects(db, force) {
 
     leaveAllDbs();
     objData = { db, r, sizes: cachedSizes, rowCounts: cachedRowCounts };
-    $('objFilter').value = '';
+    // The filter is kept: looking for the same name in the next schema, or in the one a match
+    // from All DBs just opened, should not mean typing it again.
     renderObjects();
     buildColHints(db);
 
@@ -1612,11 +1627,13 @@ function openObjTypePicker(btn){const p=$('objTypePicker');const s=window._objTy
 // ones are folded is one layout choice for every schema and connection, kept like the sidebar's
 // width - a group folded in one schema stays folded in the next.
 function objCollapsed(){try{return new Set(JSON.parse(localStorage.getItem('objCollapsed')||'[]'));}catch(e){return new Set();}}
-function toggleObjGroup(key){const s=objCollapsed();if(s.has(key))s.delete(key);else s.add(key);try{localStorage.setItem('objCollapsed',JSON.stringify([...s]));}catch(e){}renderObjects();}
+// Shift+click does it to every group: all folded when the clicked one was open, else all open.
+function toggleObjGroup(key,all){let s=objCollapsed();const fold=!s.has(key);
+ if(all)s=fold?new Set(['pinned',...OBJ_TYPES.map(t=>t[0])]):new Set();else if(fold)s.add(key);else s.delete(key);try{localStorage.setItem('objCollapsed',JSON.stringify([...s]));}catch(e){}renderObjects();}
 // Adds a group's header and says whether its items should follow.
-function objGroupHdr(box,key,text,folded){const h=document.createElement('div');h.className='ohdr';h.title=folded?'Click to show':'Click to hide';
+function objGroupHdr(box,key,text,folded){const h=document.createElement('div');h.className='ohdr';h.title=(folded?'Click to show':'Click to hide')+' (Shift+click: every group)';
  const c=document.createElement('span');c.className='caret';c.textContent=folded?'\u25B8':'\u25BE';h.appendChild(c);h.appendChild(document.createTextNode(text));
- h.onclick=()=>toggleObjGroup(key);box.appendChild(h);return !folded;}
+ h.onclick=e=>toggleObjGroup(key,e.shiftKey);box.appendChild(h);return !folded;}
 function renderObjects(){if(allDbs){renderAllDbs();return;}const box=$('objects');box.innerHTML='';if(!objData)return;const db=objData.db,r=objData.r;const f=($('objFilter').value||'').toLowerCase();const tf=window._objTypeFilter;const folded=objCollapsed();
  const pinned=tf.has('table')?pinnedTables(db):[];
  if(pinned.length){
@@ -1996,7 +2013,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<label title="If a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT." style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="coe_'+id+'"> Continue on error</label>'+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'" style="display:none;gap:9px;align-items:center" class="tbgroup">'+
-  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search results" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="if(event.key===\'Escape\'&&this.value){event.stopPropagation();this.value=\'\';setGridSearch(\''+id+'\',\'\');}" style="width:170px;font-size:12px">'+
+  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search results" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')">Clear filters</button>'+
   '<span class="tbsep"></span></span>'+
   '<span style="flex:1 1 auto"></span>'+
   '<span id="edit_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>'+pager+'</div>'+
@@ -2548,7 +2565,10 @@ async function cancelQuery(id){const t=T(id);if(!t)return;if(t.abortCtrl){try{t.
 // control. "+" means the server has more than what's shown; scrolling near the bottom of the
 // grid (maybePrefetchNextBatch) is what actually goes and fetches it.
 function updatePager(id){const t=T(id);const p=$('pager_'+id);if(!p)return;const total=(t._total!=null?t._total:(t.rows?t.rows.length:0));const loaded=t.rows?t.rows.length:0;
- if(t.search&&loaded){p.innerHTML='<span class="muted">'+fmtCount(total)+' of '+fmtCount(loaded)+(t.hasMore?'+':'')+' loaded row(s) match</span>';return;}
+ // With a column filter or the search on, the grid shows what matches, out of what is loaded.
+ const filtered=!!t.search||Object.values(t.filters||{}).some(v=>v);
+ const at=(t.search&&t._hitAt)?' \u00B7 match '+fmtCount(t._hitAt[0])+' of '+fmtCount(t._hitAt[1]):'';
+ if(filtered&&loaded){p.innerHTML='<span class="muted">'+fmtCount(total)+' of '+fmtCount(loaded)+(t.hasMore?'+':'')+' loaded row(s) match'+at+'</span>';return;}
  if(!total){p.innerHTML='';return;}
  p.innerHTML='<span class="muted">'+fmtCount(total)+(t.hasMore?'+':'')+' row(s) loaded</span>';}
 function toggleLast(id){const t=T(id);const ta=$('ed_'+id);if(t.prevRun==null){log('No previous query to toggle to yet.');return;}ta.value=t.prevRun;if(typeof syncHl==='function')syncHl(id);runSql(id,t.prevRun);}
@@ -2827,7 +2847,7 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
  t.cols.forEach((c,ci)=>{h+='<th style="top:24px;padding:1px"><input data-ci="'+ci+'" oninput="setFilter(\''+id+'\','+ci+',this.value)" value="'+esc(t.filters[ci]||'')+'" placeholder="filter" style="width:100%;font-weight:400;font-size:11px"></th>';});
  h+='<th style="top:24px"></th>';
  h+='</tr></thead><tbody id="tbody_'+id+'"></tbody></table>';
- $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);
+ $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);
  const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{if(e.ctrlKey&&!e.shiftKey&&!e.altKey&&(e.key==='f'||e.key==='F')){const q=$('gsearch_'+id);if(q&&q.offsetParent){e.preventDefault();q.focus();q.select();return;}}gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('td.editable');if(td){const tr=td.closest('tr[data-r]');if(tr){const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0)gridSetFocus(id,ri,ci,false);}}});
   let _vraf=null;wrap.addEventListener('scroll',()=>{if(_vraf)return;_vraf=requestAnimationFrame(()=>{_vraf=null;renderBody(id);maybePrefetchNextBatch(id,wrap);});});
   wrap.dataset.kbWired='1';}}
@@ -2872,10 +2892,29 @@ function syncFilterRowTop(id){
 // neighbour that paints earlier - the whole band is there, centred on the line, at 100%, 125% and
 // 150% display scaling alike. The last column's handle goes on the filler cell at the end.
 function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');h+='<th style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
-function setFilter(id,ci,v){const t=T(id);t.filters[ci]=v;renderBody(id);updatePager(id);updateStatusLine(id);}
+function setFilter(id,ci,v){const t=T(id);t.filters[ci]=v;t._hitAt=null;syncFilterUi(id);renderBody(id);updatePager(id);updateStatusLine(id);}
 // The toolbar's search box. It belongs to the tab, not to one result, so it keeps applying when
 // another result of a script is picked or the query is run again - the box still shows it.
-function setGridSearch(id,v){const t=T(id);if(!t)return;t.search=v;renderResultSetTabs(id);if(!$('tbody_'+id))return;const w=$('res_'+id);if(w)w.scrollTop=0;renderBody(id);updatePager(id);updateStatusLine(id);}
+function setGridSearch(id,v){const t=T(id);if(!t)return;t.search=v;t._hitAt=null;syncFilterUi(id);renderResultSetTabs(id);if(!$('tbody_'+id))return;const w=$('res_'+id);if(w)w.scrollTop=0;renderBody(id);updatePager(id);updateStatusLine(id);}
+function gsearchKey(e,id,box){
+ if(e.key==='Escape'&&box.value){e.stopPropagation();box.value='';setGridSearch(id,'');}
+ else if(e.key==='Enter'){e.preventDefault();gridSearchStep(id,e.shiftKey?-1:1);}}
+// Enter / Shift+Enter in the search box: the next / previous cell holding the text, in the order
+// the grid shows them, from the focused cell on. The box keeps the focus, so Enter can go on.
+// A hidden column is skipped - there would be nothing to see.
+function gridSearchStep(id,dir){const t=T(id);if(!t||!t.search||!$('tbody_'+id))return;const q=String(t.search).toLowerCase();const hidden=t.hiddenCols||new Set();
+ const hits=[];viewIndices(id).forEach(ri=>t.rows[ri].forEach((v,ci)=>{if(hidden.has(ci))return;const key=ri+':'+ci;const val=t.pending&&(key in t.pending.upd)?t.pending.upd[key]:v;if(val!=null&&String(val).toLowerCase().includes(q))hits.push([ri,ci]);}));
+ if(!hits.length){t._hitAt=null;updatePager(id);return;}
+ const f=gridFocus[id];let i=f?hits.findIndex(h=>h[0]===f.ri&&h[1]===f.ci):-1;
+ i=i<0?(dir>0?0:hits.length-1):(i+dir+hits.length)%hits.length;
+ gridSetFocus(id,hits[i][0],hits[i][1]);t._hitAt=[i+1,hits.length];updatePager(id);
+ const box=$('gsearch_'+id);if(box)box.focus();}
+// A search or a column filter left in place hides rows without saying so from the grid itself -
+// the box is lit and "Clear filters" shows while either is.
+function syncFilterUi(id){const t=T(id);if(!t)return;const on=!!t.search,any=on||Object.values(t.filters||{}).some(v=>v);
+ const box=$('gsearch_'+id);if(box)box.classList.toggle('on',on);const b=$('clrflt_'+id);if(b)b.style.display=any?'':'none';}
+function clearGridFilters(id){const t=T(id);if(!t)return;t.filters={};const fr=$('filterrow_'+id);if(fr)fr.querySelectorAll('input').forEach(i=>i.value='');
+ const box=$('gsearch_'+id);if(box)box.value='';setGridSearch(id,'');}
 // q is already lower-cased. The same case-insensitive "contains" a column filter uses, on any column.
 function rowHasText(row,q){return row.some(v=>v!=null&&String(v).toLowerCase().includes(q));}
 function sortBy(id,ci){const t=T(id);if(t.sortCol===ci){if(t.sortDir>0){t.sortDir=-1;}else{t.sortCol=-1;t.sortDir=1;}}else{t.sortCol=ci;t.sortDir=1;}$('sortrow_'+id).innerHTML=sortHeader(id,!!t.pk);renderBody(id);syncFilterRowTop(id);wireColResize(id);updatePager(id);updateStatusLine(id);}

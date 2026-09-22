@@ -29,6 +29,7 @@ function extractFunction(src, name) {
 
 const viewIndicesSrc = extractFunction(html, 'viewIndices');
 const rowHasTextSrc = extractFunction(html, 'rowHasText');
+const stepSrc = extractFunction(html, 'gridSearchStep');
 
 // Builds viewIndices with a stub T() returning a tab made of the given column values.
 function sortColumn(values, { dir = 1, filters = {} } = {}) {
@@ -116,4 +117,31 @@ test('an empty search keeps every row, and a NULL never matches', () => {
 test('the search and a column filter must both match', () => {
   const rows = [['alpha', 'x'], ['alpha', 'y'], ['beta', 'x']];
   assert.deepEqual(search(rows, 'x', { 0: 'alpha' }), [0]);
+});
+
+// Enter / Shift+Enter in the search box: which cell it goes to next.
+function stepper(rows, q, extra = {}) {
+  const tab = { rows, filters: {}, sortCol: -1, sortDir: 1, search: q, ...extra };
+  const gridFocus = {};
+  const make = new Function('T', 'gridFocus', 'gridSetFocus', 'updatePager', '$',
+    `${rowHasTextSrc}
+${viewIndicesSrc}
+${stepSrc}
+return gridSearchStep;`);
+  const step = make(() => tab, gridFocus, (id, ri, ci) => { gridFocus[id] = { ri, ci }; }, () => {}, () => ({ focus() {} }));
+  return dir => { step('t1', dir); const f = gridFocus.t1; return [f.ri, f.ci, ...tab._hitAt]; };
+}
+
+test('Enter goes through the matching cells in order, and wraps round', () => {
+  const step = stepper([['zug', 'x'], ['y', 'y'], ['a', 'Zurich']], 'zu');
+  assert.deepEqual(step(1), [0, 0, 1, 2]);
+  assert.deepEqual(step(1), [2, 1, 2, 2]);
+  assert.deepEqual(step(1), [0, 0, 1, 2]);
+  assert.deepEqual(step(-1), [2, 1, 2, 2]);
+});
+
+test('a hidden column is stepped over, and an edit is what is searched', () => {
+  const step = stepper([['zu', 'zu', 'old']], 'zu', { hiddenCols: new Set([0]), pending: { upd: { '0:2': 'zulu' } } });
+  assert.deepEqual(step(1), [0, 1, 1, 2]);
+  assert.deepEqual(step(1), [0, 2, 2, 2]);
 });
