@@ -28,6 +28,7 @@ function extractFunction(src, name) {
 }
 
 const viewIndicesSrc = extractFunction(html, 'viewIndices');
+const rowHasTextSrc = extractFunction(html, 'rowHasText');
 
 // Builds viewIndices with a stub T() returning a tab made of the given column values.
 function sortColumn(values, { dir = 1, filters = {} } = {}) {
@@ -88,4 +89,31 @@ test('NULLs sort last and do not make the column non-numeric', () => {
 test('filtering still narrows the view', () => {
   const got = sortColumn(['alpha', 'beta', 'alphabet'], { filters: { 0: 'alpha' } });
   assert.deepEqual(got, ['alpha', 'alphabet']);
+});
+
+// The toolbar's search: rows holding the text in any column, over whatever columns the rows have.
+function search(rows, q, filters = {}) {
+  const tab = { rows, filters, sortCol: -1, sortDir: 1, search: q };
+  const viewIndices = new Function('T', `${rowHasTextSrc}
+${viewIndicesSrc}
+return viewIndices;`)(() => tab);
+  return viewIndices('t1');
+}
+
+test('the search keeps the rows holding the text in any column, ignoring case', () => {
+  const rows = [['1', 'Alice', 'Zurich'], ['2', 'Bob', 'Bern'], ['3', 'Carol', 'ZUG'], ['4', null, 'Basel']];
+  assert.deepEqual(search(rows, 'zu'), [0, 2]);
+  assert.deepEqual(search(rows, '3'), [2]);
+  assert.deepEqual(search(rows, 'nobody'), []);
+});
+
+test('an empty search keeps every row, and a NULL never matches', () => {
+  const rows = [['a', null], ['b', 'null']];
+  assert.deepEqual(search(rows, ''), [0, 1]);
+  assert.deepEqual(search(rows, 'null'), [1]);
+});
+
+test('the search and a column filter must both match', () => {
+  const rows = [['alpha', 'x'], ['alpha', 'y'], ['beta', 'x']];
+  assert.deepEqual(search(rows, 'x', { 0: 'alpha' }), [0]);
 });
