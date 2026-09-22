@@ -152,7 +152,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #ctx .item{padding:5px 12px} #ctx .sep{height:1px;background:var(--bd2);margin:3px 0}
  .item.kbsel{background:var(--hover);outline:1px solid var(--accent);outline-offset:-1px}
  #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px}
- #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff}
+ #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff} #allSchemasBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
  table.dz{border-collapse:collapse;width:100%;margin:8px 0} table.dz th{border:none;border-bottom:2px solid var(--bd);padding:6px 6px;text-align:left;color:var(--muted);font-weight:600;font-size:12px} table.dz td{border:none;border-bottom:1px solid var(--bd2);padding:6px 4px} table.dz tr:last-child td{border-bottom:none} table.dz input,table.dz select{width:100%}
 .pill{background:var(--accent);color:#fff;border-radius:10px;padding:0 7px;font-size:11px}
 #toasts{position:fixed;bottom:16px;right:16px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:360px}
@@ -232,9 +232,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
        line of its own (sidebar width minus padding, ~264px at the 280px default). -->
   <div class="hdr" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:2px"><span>OBJECTS</span><span id="objdb" class="muted" style="width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
 <div style="display:flex;gap:4px;margin:4px 6px;align-items:center">
-<input id="objFilter" placeholder="filter objects..." oninput="renderObjects()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('objects'));}" style="flex:1;min-width:0;font-size:12px">
+<input id="objFilter" placeholder="filter objects..." oninput="objFilterInput()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('objects'));}" style="flex:1;min-width:0;font-size:12px">
 <button class="sm" id="objTypeBtn" title="Show or hide object types (tables, views, procedures...)" onclick="event.stopPropagation();toggleObjTypePicker(this)" style="padding:2px 6px;font-size:11px">Types &#9662;</button>
-<button class="sm" id="allSchemasBtn" title="Search this name across all schemas" onclick="searchAllSchemas()" style="padding:2px 6px;font-size:11px">All DBs</button>
+<button class="sm" id="allSchemasBtn" title="Search this name across all schemas" onclick="toggleAllDbs()" style="padding:2px 6px;font-size:11px">All DBs</button>
 </div>
   <div id="objects" tabindex="0"></div>
  </div>
@@ -488,7 +488,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mAbout')">Close</button></div></div></div>
 <div class="modal floating" id="mShortcuts"><div class="box" style="width:560px;max-width:92vw;top:70px;left:170px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts &amp; tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
- <table style="border-collapse:collapse;font-size:13px"><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the results grid)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close a dialog or the autocomplete popup</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr></table>
+ <table style="border-collapse:collapse;font-size:13px"><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the results grid)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Double-click a cell</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close a dialog or the autocomplete popup</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr></table>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mShortcuts')">Close</button></div></div></div>
 <div class="modal floating" id="mInput"><div class="box" style="width:460px;max-width:92vw;display:flex;flex-direction:column;overflow:hidden;top:90px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInput')" title="Drag to move"><h3 id="inpTitle" style="margin:0 0 10px">Input</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInput')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="inpFields" style="flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>
@@ -945,15 +945,37 @@ function litAs(v,bin){
 // statement unless --binary-mode is on.
 function strLit(v){return "'"+String(v).replace(/\\/g,'\\\\').replace(/'/g,"''").replace(/\r/g,'\\r').replace(/\0/g,'\\0')+"'";}
 
+// "All DBs" is a toggle. On, the filter box searches every schema, again after each pause in
+// typing; a second click, opening a schema or opening one of the matches goes back to one schema.
+// The matches are kept, so whatever else redraws the sidebar while they are up - the table sizes
+// arriving, the Types picker - redraws them, instead of dropping back to the schema with the
+// button still lit.
+let allDbs=null; // null, or {term, items}; items is null while a search is out
+let allDbsSeq=0,allDbsTimer=null;
+function setAllDbsBtn(){const b=$('allSchemasBtn');if(!b)return;b.classList.toggle('on',!!allDbs);b.title=allDbs?'Back to '+(objData?objData.db:'the selected schema')+' only':'Search this name across all schemas';}
+function toggleAllDbs(){if(allDbs){leaveAllDbs();renderObjects();return;}allDbs={term:'',items:null};setAllDbsBtn();searchAllSchemas();$('objFilter').focus();}
+function leaveAllDbs(){if(!allDbs)return;allDbs=null;allDbsSeq++;clearTimeout(allDbsTimer);setAllDbsBtn();}
+function objFilterInput(){if(!allDbs){renderObjects();return;}clearTimeout(allDbsTimer);allDbsTimer=setTimeout(searchAllSchemas,300);}
 async function searchAllSchemas(){
-  const term=($('objFilter').value||'').trim();
-  if(!term){toast('Type something in the filter box first, then click "All DBs".',true);return;}
+  if(!allDbs)return;
+  const term=($('objFilter').value||'').trim();const seq=++allDbsSeq;
+  allDbs={term,items:null};renderAllDbs();
+  if(!term)return;
   const r=await api('/api/search-all-schemas',{term});
-  if(!r.ok){toast(r.error,true);return;}
-  const box=$('objects');box.innerHTML='';
-  if(!r.items.length){box.innerHTML='<div class="muted" style="padding:8px">No matches for "'+esc(term)+'" in any schema.</div>';return;}
-  const h=document.createElement('div');h.className='ohdr';h.textContent='Matches across all schemas ('+r.items.length+')';box.appendChild(h);
-  r.items.forEach(it=>{
+  // A later keystroke, or leaving the mode, has already moved on from this answer.
+  if(!allDbs||seq!==allDbsSeq)return;
+  if(!r.ok)toast(r.error,true);
+  allDbs.items=r.ok?r.items:[];renderAllDbs();
+}
+function renderAllDbs(){
+  const box=$('objects');box.innerHTML='';const {term,items}=allDbs;
+  const note=m=>{box.innerHTML='<div class="muted" style="padding:8px">'+m+'</div>';};
+  if(!term)return note('Type a name in the filter box to search every schema.');
+  if(!items)return note('Searching every schema...');
+  const tf=window._objTypeFilter;const shown=items.filter(it=>tf.has(it.type));
+  if(!shown.length)return note('No matches for "'+esc(term)+'" in any schema.');
+  const h=document.createElement('div');h.className='ohdr';h.style.cursor='default';h.textContent='Matches across all schemas ('+shown.length+')';box.appendChild(h);
+  shown.forEach(it=>{
     const d=document.createElement('div');d.className='item';
     d.innerHTML='<span class="onm">'+esc(it.name)+'</span><span class="osz">'+esc(it.schema)+' \u00B7 '+esc(it.type)+'</span>';
     d.onclick=()=>{
@@ -1503,6 +1525,7 @@ async function loadObjects(db, force) {
         }
     } catch (e) { /* ignore cache read errors */ }
 
+    leaveAllDbs();
     objData = { db, r, sizes: cachedSizes, rowCounts: cachedRowCounts };
     $('objFilter').value = '';
     renderObjects();
@@ -1594,7 +1617,7 @@ function toggleObjGroup(key){const s=objCollapsed();if(s.has(key))s.delete(key);
 function objGroupHdr(box,key,text,folded){const h=document.createElement('div');h.className='ohdr';h.title=folded?'Click to show':'Click to hide';
  const c=document.createElement('span');c.className='caret';c.textContent=folded?'\u25B8':'\u25BE';h.appendChild(c);h.appendChild(document.createTextNode(text));
  h.onclick=()=>toggleObjGroup(key);box.appendChild(h);return !folded;}
-function renderObjects(){const box=$('objects');box.innerHTML='';if(!objData)return;const db=objData.db,r=objData.r;const f=($('objFilter').value||'').toLowerCase();const tf=window._objTypeFilter;const folded=objCollapsed();
+function renderObjects(){if(allDbs){renderAllDbs();return;}const box=$('objects');box.innerHTML='';if(!objData)return;const db=objData.db,r=objData.r;const f=($('objFilter').value||'').toLowerCase();const tf=window._objTypeFilter;const folded=objCollapsed();
  const pinned=tf.has('table')?pinnedTables(db):[];
  if(pinned.length){
    const fil=pinned.filter(n=>r.tables.includes(n)&&(!f||n.toLowerCase().includes(f)));
@@ -2906,7 +2929,7 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
   if(ed)h+='<td class="delcell" onclick="toggleDel(\''+id+'\','+ri+')">'+(del?'\u21A9':'\u00D7')+'</td>';
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
    const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'');
-   const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+')" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" ':'')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
+   const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+')" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" ':'ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
@@ -3358,9 +3381,11 @@ function binaryEditMode(flaggedBinary,v){
  if(typeof v==='string'&&/^0x[0-9A-Fa-f]+$/.test(v))return 'hexShownAsText';
  return null;
 }
-async function editCell(td,id,ri,ci){clearTimeout(clickTimer);const t=T(id);const key=ri+':'+ci;const cur=(key in t.pending.upd)?t.pending.upd[key]:t.rows[ri][ci];
+async function editCell(td,id,ri,ci){clearTimeout(clickTimer);const t=T(id);t._fullEditAt=Date.now();const key=ri+':'+ci;const cur=(key in t.pending.upd)?t.pending.upd[key]:t.rows[ri][ci];
  const ew=await editWidgetFor(id,t.cols[ci],cur);
  viewText('Cell - '+t.cols[ci]+(cur===null?'  (currently NULL)':''),cur,{onSave:v=>setUpd(id,ri,ci,v),onNull:()=>setUpd(id,ri,ci,null),...ew});}
+// The cell window for a result that cannot be edited: the whole value, to read and copy.
+function viewCell(id,ri,ci){const t=T(id);if(!t||!t.rows[ri])return;const v=t.rows[ri][ci];viewText('Cell - '+t.cols[ci]+(v===null?'  (NULL)':''),v===null?'':v,{readonly:true});}
 function setUpd(id,ri,ci,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){toast('Column "'+t.cols[ci]+'" is part of the primary key and cannot be set to NULL.',true);return;}const key=ri+':'+ci;if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;renderGrid(id);}
 let clickTimer=null;
 let gridFocus={}; // per-tab: {ri, ci} of the currently keyboard-focused cell
@@ -3390,11 +3415,15 @@ function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id
  else if(e.key==='Escape'){gridClearFocus(id);}
 }
 // No delay/timer here to disambiguate a single click from the first click of a double-click - the
-// "if input already present" guard already makes a second click a no-op, and a genuine
+// "editor already present" guard already makes a second click a no-op, and a genuine
 // double-click's dblclick handler (editCell/editIns) opens the full modal regardless of whether an
 // inline edit is mid-flight, so waiting around just made the tint feel laggy for no real benefit.
-function cellClick(td,id,ri,ci){if(td.querySelector('input'))return;inlineEdit(td,id,ri,ci);}
-function insClick(td,id,ii,col){if(td.querySelector('input'))return;inlineEditIns(td,id,ii,col);}
+// The guard has to know both editors. A value with a line break is edited in a textarea, which an
+// "input" check missed: the second click of a double-click built the box anew, the dblclick then
+// landed on the box it had just replaced - no longer in the page, so it never reached the cell -
+// and a double-click on any multi-line value left the small box instead of opening the window.
+function cellClick(td,id,ri,ci){if(td.querySelector('input,textarea'))return;inlineEdit(td,id,ri,ci);}
+function insClick(td,id,ii,col){if(td.querySelector('input,textarea'))return;inlineEditIns(td,id,ii,col);}
 // Reverts a single cell back to its plain display markup - same output renderBody would have
 // produced for it, but touching only this one <td> instead of tearing down and rebuilding the
 // entire grid. Discarding an inline edit (Escape, or blur with nothing typed) used to call the
@@ -3412,7 +3441,11 @@ function insCellRevert(td,id,ii,col){const t=T(id);const v=t.pending.ins[ii][col
 async function inlineEdit(td,id,ri,ci){const t=T(id);const key=ri+':'+ci;const cur=(key in t.pending.upd)?t.pending.upd[key]:t.rows[ri][ci];
  // Enum/boolean columns always go through editCell's dropdown - a plain inline text input would
  // let you type a value the column can't actually hold, which the double-click path already avoids.
- const colType=await getColType(id,t.cols[ci]);
+ const started=Date.now();const colType=await getColType(id,t.cols[ci]);
+ // The type can take a round trip to arrive. A double-click that opened the window meanwhile, or a
+ // click that already put a box here, wins: a box made now would sit behind the window and take
+ // the focus from it.
+ if(!td.isConnected||td.querySelector('input,textarea')||(t._fullEditAt||0)>=started)return;
  if(colType&&(/^enum\(/i.test(colType)||/^tinyint\(1\)/i.test(colType))){editCell(td,id,ri,ci);return;}
  // A value with embedded newlines used to jump straight to the big modal on a single click, which
  // read as "one click opened the double-click editor" - it's a plain multi-line <textarea> inline
@@ -3439,7 +3472,7 @@ function inlineEditIns(td,id,ii,col){const t=T(id);const cur=t.pending.ins[ii][c
  nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&(!isMulti||e.ctrlKey||e.metaKey)){e.preventDefault();if(dirty)set(inp.value);else{done=true;insCellRevert(td,id,ii,col);}}else if(e.key==='Escape'){done=true;insCellRevert(td,id,ii,col);}});
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else insCellRevert(td,id,ii,col);}},120));}
-function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],['Copy rows (selected)',()=>copySelRows(id)],['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],['Paste rows as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],['Copy rows (selected)',()=>copySelRows(id)],['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],['Paste rows as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   if(fkd&&cur!=null){items.push(['Go to referenced row ('+fkd[1]+'.'+fkd[2]+')',()=>goToFkRow(t.db,fkd[1],fkd[2],cur)]);}
   items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],['Export to CSV (selected rows)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],['Export to INSERTs (selected rows)...',()=>insSel(id)],'-',['Set NULL',()=>setUpd(id,ri,ci,null)],['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
