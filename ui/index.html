@@ -189,7 +189,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .wraptext table.grid td{white-space:normal;word-break:break-word}
 .grid th input[type=checkbox],.grid td input[type=checkbox]{vertical-align:middle;margin:0;display:inline-block}
  table.grid th:first-child,table.grid td:first-child{text-align:center;padding-left:2px;padding-right:2px} table.grid input[type=checkbox]{margin:0;vertical-align:middle}
- table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} table.grid tbody td.hit{background:var(--hit)} input.gsearch.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+ table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} /* While a block is being dragged the browser must not also be selecting the text under it. */
+ .dragsel{user-select:none;-webkit-user-select:none}
+ /* A picked cell: enough to see which ones are in, without hiding what is written in them. */
+ table.grid tbody td.cellpick{background:color-mix(in srgb,var(--accent) 22%,transparent);box-shadow:inset 0 0 0 1px var(--accent)}
+ table.grid tbody td.hit{background:var(--hit)} input.gsearch.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
  table.grid tr.insrow td{background:rgba(80,200,120,.14);border-bottom:1px solid rgba(80,200,120,.25)}
  table.grid tr.insrow td.editable:hover{background:rgba(80,200,120,.22)}
  table.grid tr.insrow td.delcell{color:#7ee0a0}
@@ -701,7 +705,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mAbout')">Close</button></div></div></div>
 <div class="modal floating" id="mShortcuts"><div class="box" style="width:900px;max-width:94vw;top:70px;left:170px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts &amp; tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
- <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the grid)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter / Shift + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: the next / previous matching cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: clear it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move from cell to cell in an editable grid</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab / Shift + Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">The next / previous cell, wrapping at the row ends</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter or F2</kbd></td><td style="padding:3px 0;color:var(--muted)">Edit the cell the keyboard is on</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In a cell holding several lines: keep the edit</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click a cell</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Middle-click a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Close it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &darr;, F4, Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the connections list (when it has the focus)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Type a name</kbd></td><td style="padding:3px 0;color:var(--muted)">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">From a filter box: step into the list below it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Shift + click a group</kbd></td><td style="padding:3px 0;color:var(--muted)">In the objects list: fold or unfold every group</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close the dialog in front</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click / Shift + double-click</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: zoom in / out</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: pan it, or move one table</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Right-click a table</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: show only it and its relations</td></tr></table></div></div>
+ <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Click</kbd></td><td style="padding:3px 0;color:var(--muted)">On a cell: pick it, or drop it. On a row's checkbox: the same for the row</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Shift + Click</kbd></td><td style="padding:3px 0;color:var(--muted)">On a cell: the block back to the last one picked. On a checkbox: the run of rows</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + A</kbd></td><td style="padding:3px 0;color:var(--muted)">In the results: pick every row shown, or clear the selection</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + C</kbd></td><td style="padding:3px 0;color:var(--muted)">Copy what is picked - the cells, or the rows if no cell is</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">In the results: let the picked cells go</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the grid)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter / Shift + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: the next / previous matching cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: clear it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move from cell to cell in an editable grid</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab / Shift + Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">The next / previous cell, wrapping at the row ends</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter or F2</kbd></td><td style="padding:3px 0;color:var(--muted)">Edit the cell the keyboard is on</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In a cell holding several lines: keep the edit</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click a cell</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Middle-click a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Close it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &darr;, F4, Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the connections list (when it has the focus)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Type a name</kbd></td><td style="padding:3px 0;color:var(--muted)">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">From a filter box: step into the list below it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Shift + click a group</kbd></td><td style="padding:3px 0;color:var(--muted)">In the objects list: fold or unfold every group</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close the dialog in front</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click / Shift + double-click</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: zoom in / out</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: pan it, or move one table</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Right-click a table</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: show only it and its relations</td></tr></table></div></div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mShortcuts')">Close</button></div></div></div>
 <div class="modal floating" id="mInput"><div class="box" style="width:460px;max-width:92vw;display:flex;flex-direction:column;overflow:hidden;top:90px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInput')" title="Drag to move"><h3 id="inpTitle" style="margin:0 0 10px">Input</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInput')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="inpFields" style="flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>
@@ -3445,7 +3449,23 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
  h+='<th style="top:24px"></th>';
  h+='</tr></thead><tbody id="tbody_'+id+'"></tbody></table>';
  $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);
- const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{if(e.ctrlKey&&!e.shiftKey&&!e.altKey&&(e.key==='f'||e.key==='F')){const q=$('gsearch_'+id);if(q&&q.offsetParent){e.preventDefault();q.focus();q.select();return;}}gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('td.editable');if(td){const tr=td.closest('tr[data-r]');if(tr){const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0)gridSetFocus(id,ri,ci,false);}}});
+ const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{
+   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.key==='c'||e.key==='C')){
+    const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
+    const t=T(id);
+    if(t&&t.cellSel&&t.cellSel.size){e.preventDefault();const n=t.cellSel.size;
+     copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');return;}
+    if(t&&t.selected&&t.selected.size){e.preventDefault();copySelRows(id);return;}
+    return;}
+   if(e.key==='Escape'){const t=T(id);if(t&&t.cellSel&&t.cellSel.size){e.preventDefault();clearCellPick(id);return;}}
+   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.key==='a'||e.key==='A')){
+    const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
+    e.preventDefault();const t=T(id);const view=viewIndices(id);
+    const all=view.length&&view.every(ri=>t.selected&&t.selected.has(ri));
+    selAll(id,!all);
+    toast(all?'Selection cleared.':('Selected '+view.length+' row'+(view.length===1?'':'s')+'.'));
+    return;}
+   if(e.ctrlKey&&!e.shiftKey&&!e.altKey&&(e.key==='f'||e.key==='F')){const q=$('gsearch_'+id);if(q&&q.offsetParent){e.preventDefault();q.focus();q.select();return;}}gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('td.editable');if(td){const tr=td.closest('tr[data-r]');if(tr){const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0)gridSetFocus(id,ri,ci,false);}}});
   let _vraf=null;wrap.addEventListener('scroll',()=>{if(_vraf)return;_vraf=requestAnimationFrame(()=>{_vraf=null;renderBody(id);maybePrefetchNextBatch(id,wrap);});});
   wrap.dataset.kbWired='1';}}
 // Silently tops up a tab's loaded rows once the user scrolls near the bottom of the grid's own
@@ -3585,11 +3605,11 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
  let h='';
  if(topH>0)h+='<tr class="vpad" style="height:'+topH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  slice.forEach(ri=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+'">';
-  h+='<td style="text-align:center;width:22px"><input type="checkbox" class="rowsel" '+(t.selected.has(ri)?'checked':'')+' onclick="toggleSel(\''+id+'\','+ri+',this.checked)"></td>';
+  h+='<td style="text-align:center;width:22px"><input type="checkbox" class="rowsel" '+(t.selected.has(ri)?'checked':'')+' onclick="rowSelClick(event,\''+id+'\','+ri+',this)"></td>';
   if(ed)h+='<td class="delcell" onclick="toggleDel(\''+id+'\','+ri+')">'+(del?'\u21A9':'\u00D7')+'</td>';
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
-   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'');
-   const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+')" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" ':'ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
+   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+((t.cellSel&&t.cellSel.has(key))?' cellpick':'');
+   const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ':'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
@@ -4082,7 +4102,110 @@ function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id
 // "input" check missed: the second click of a double-click built the box anew, the dblclick then
 // landed on the box it had just replaced - no longer in the page, so it never reached the cell -
 // and a double-click on any multi-line value left the small box instead of opening the window.
-function cellClick(td,id,ri,ci){if(td.querySelector('input,textarea'))return;inlineEdit(td,id,ri,ci);}
+function cellClick(td,id,ri,ci,e){
+ if(window._gridDragJustEnded)return;
+ // Ctrl or shift held: this click is about which cells are picked, not about the value in one.
+ // Whole rows are picked in the checkbox column, where ctrl and shift work the same way.
+ if(e&&(e.ctrlKey||e.metaKey||e.shiftKey)){e.preventDefault();cellPickClick(e,id,ri,ci,td);return;}
+ // A plain click starts again: whatever was picked is let go, as in any grid.
+ if(!e||!e.shiftKey)clearCellPick(id);
+ if(td.querySelector('input,textarea'))return;
+ // A result with no key is read-only: the click is for picking rows, never for an editor.
+ const t=T(id);if(!(t&&t.pk&&t.pending))return;
+ inlineEdit(td,id,ri,ci);}
+// --- Picking cells --------------------------------------------------------------------------
+// A cell is remembered as "row:column", the same key the pending edits use. The anchor is the last
+// cell picked outright, so a shift-click takes the block between the two corners.
+// The picks live on the cells as a class. Repainting them is a handful of class changes; the
+// rebuild it replaces threw away the rows, the hover and the scroll position on every mouse move.
+function paintCellPick(id){const t=T(id),wrap=$('res_'+id);if(!wrap)return;
+ wrap.querySelectorAll('table.grid tbody td.cellpick').forEach(td=>td.classList.remove('cellpick'));
+ if(!t||!t.cellSel)return;
+ t.cellSel.forEach(k=>{const p=k.split(':'),td=gridCellEl(id,+p[0],+p[1]);if(td)td.classList.add('cellpick');});}
+// The block between two cells, by where they are on screen rather than by row number, so a sorted
+// or filtered result picks what the eye sees.
+function cellBlock(id,fromRi,fromCi,toRi,toCi){const out=[],view=viewIndices(id);
+ const a=view.indexOf(fromRi),b=view.indexOf(toRi);
+ if(a<0||b<0)return out;
+ const lo=Math.min(a,b),hi=Math.max(a,b),c1=Math.min(fromCi,toCi),c2=Math.max(fromCi,toCi);
+ for(let k=lo;k<=hi;k++)for(let c=c1;c<=c2;c++)out.push(view[k]+':'+c);
+ return out;}
+// Pressing on a cell and moving is a selection; pressing and letting go without moving is still a
+// click, so a cell still opens the way it always did.
+function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
+ // Ctrl or shift held: the press belongs to the grid, not to the browser's text selection, which
+ // would otherwise streak from wherever the caret last was to the cell that was clicked.
+ if(e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();dropTextSelection();}
+ window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null};}
+function dropTextSelection(){if(!window.getSelection)return;
+ try{const s=window.getSelection();if(s&&!s.isCollapsed)s.removeAllRanges();}catch(_){}}
+function gridDragOver(e,id,ri,ci){const d=window._gridDrag;
+ if(d&&d.moved)dropTextSelection();
+ if(!d||d.id!==id||(e.buttons!==undefined&&!(e.buttons&1)))return;
+ if(!d.moved&&d.ri===ri&&d.ci===ci)return;
+ const t=T(id);if(!t.cellSel)t.cellSel=new Set();
+ if(!d.moved){d.moved=true;
+  if(!d.add)t.cellSel.clear();
+  d.base=new Set(t.cellSel);
+  const wrap=$('res_'+id);if(wrap)wrap.classList.add('dragsel');
+  if(window.getSelection)try{window.getSelection().removeAllRanges();}catch(_){}}
+ t.cellSel=new Set(d.base);
+ cellBlock(id,d.ri,d.ci,ri,ci).forEach(k=>t.cellSel.add(k));
+ t._cellAnchor=d.ri+':'+d.ci;
+ paintCellPick(id);}
+function gridDragEnd(){const d=window._gridDrag;if(!d)return;window._gridDrag=null;
+ const wrap=$('res_'+d.id);if(wrap)wrap.classList.remove('dragsel');
+ if(d.moved){
+  // The click that ends a drag is not a click on a cell - it must not open one.
+  window._gridDragJustEnded=true;setTimeout(()=>{window._gridDragJustEnded=false;},0);
+  const w=$('res_'+d.id);if(w)try{w.focus({preventScroll:true});}catch(_){}}}
+document.addEventListener('mouseup',gridDragEnd);
+function cellPickClick(e,id,ri,ci,td){const t=T(id);if(!t.cellSel)t.cellSel=new Set();
+ if(e.shiftKey&&t._cellAnchor){
+  dropTextSelection();
+  const [ar,ac]=t._cellAnchor.split(':').map(Number);
+  cellBlock(id,ar,ac,ri,ci).forEach(k=>t.cellSel.add(k));
+ }else{
+  const k=ri+':'+ci;
+  if(t.cellSel.has(k))t.cellSel.delete(k);else t.cellSel.add(k);
+  t._cellAnchor=k;
+ }
+ paintCellPick(id);
+ // Without this the keyboard still belongs to whatever had it before - the editor, or nothing at
+ // all - and Ctrl+C never reaches the results.
+ const w=$('res_'+id);if(w&&document.activeElement!==w){try{w.focus({preventScroll:true});}catch(_){w.focus();}}
+}
+function clearCellPick(id){const t=T(id);if(t&&t.cellSel&&t.cellSel.size){t.cellSel.clear();t._cellAnchor=null;paintCellPick(id);}}
+// What the picked cells are worth on a clipboard: their values, in the order they are on screen,
+// tabs between the columns and a line per row - which is what a spreadsheet and a text editor both
+// expect. A NULL goes out as an empty field; the grid's own way of drawing one is not a value.
+// The tab the user is looking at, for the copy handler - which hears about a copy from the whole
+// document and has to decide which result it is about.
+function shownTabId(){const t=tabs.find(x=>{const p=$('pane_'+x.id);return p&&p.classList.contains('active');});return t?t.id:null;}
+function pickedCellsText(id){const t=T(id);if(!t.cellSel||!t.cellSel.size)return '';
+ const byRow=new Map();
+ t.cellSel.forEach(k=>{const p=k.split(':'),ri=+p[0],ci=+p[1];if(!byRow.has(ri))byRow.set(ri,[]);byRow.get(ri).push(ci);});
+ const view=viewIndices(id);
+ return [...byRow.keys()].sort((x,y)=>view.indexOf(x)-view.indexOf(y)).map(ri=>
+  byRow.get(ri).sort((x,y)=>x-y).map(ci=>{const key=ri+':'+ci;
+   const v=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
+   return cellCopyValue(v);}).join('\t')).join('\n');}
+// One place decides what a click does to the selection, whether it landed on the checkbox or on
+// the row. Shift extends from the row picked last; anything else sets that row and becomes the
+// new anchor, so a range always runs from somewhere the user actually pointed at.
+function rowSelClick(e,id,ri,box){const t=T(id);if(!t.selected)t.selected=new Set();
+ if(e&&e.shiftKey&&t._selAnchor!=null&&t._selAnchor!==ri){
+  const view=viewIndices(id),a=view.indexOf(t._selAnchor),b=view.indexOf(ri);
+  if(a>=0&&b>=0){const lo=Math.min(a,b),hi=Math.max(a,b);
+   // A range picks rows - it never unpicks them, as in any file list. The anchor stays where it
+   // was, so a second shift-click somewhere else re-draws the run from the same place.
+   for(let k=lo;k<=hi;k++)t.selected.add(view[k]);}
+ }else{
+  const want=box?box.checked:!t.selected.has(ri);
+  if(want)t.selected.add(ri);else t.selected.delete(ri);
+  t._selAnchor=ri;
+ }
+ renderBody(id);updateEditBar(id);}
 function insClick(td,id,ii,col){if(td.querySelector('input,textarea'))return;inlineEditIns(td,id,ii,col);}
 // Reverts a single cell back to its plain display markup - same output renderBody would have
 // produced for it, but touching only this one <td> instead of tearing down and rebuilding the
@@ -4140,7 +4263,12 @@ function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+
  const rows=n=>n===1?'row':n+' rows';
  // A copied row belongs to the table it came from: one with a different number of columns cannot
  // be pasted here, so it is not offered here.
- const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+ const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
+ // Where the two copies would part company: bytes, or something written as bytes. On anything else
+ // 'Copy value as hex' does exactly what 'Copy value' does.
+ const asHex=cur!=null&&(/^0x[0-9A-Fa-f]*$/.test(String(cur))||!!(t.binCols&&t.binCols[ci])||!!(t.bitCols&&t.bitCols[ci]));
+ const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
+  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   if(fkd&&cur!=null){items.push(['Go to referenced row ('+fkd[1]+'.'+fkd[2]+')',()=>goToFkRow(t.db,fkd[1],fkd[2],cur)]);}
   items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],'-',editable&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
@@ -4192,6 +4320,16 @@ function clipWrite(text,alsoTry){
 // pasting it into another row and saving stores a different one.
 ['copy','cut'].forEach(type=>document.addEventListener(type,e=>{
  const t=e.target;
+ // Cells picked in the result showing now: that is what a copy means, wherever the focus happens
+ // to be - as long as it is not inside a box where the user is selecting text of their own.
+ if(type==='copy'&&!(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'))){
+  const _id=shownTabId(),_t=_id!=null?T(_id):null;
+  if(_t&&_t.cellSel&&_t.cellSel.size){
+   const txt=pickedCellsText(_id);
+   if(e.clipboardData){e.preventDefault();e.clipboardData.setData('text/plain',txt);
+    log('Copied '+_t.cellSel.size+' cell'+(_t.cellSel.size===1?'':'s')+'.');return;}
+  }
+ }
  const inBox=t&&(t.tagName==='TEXTAREA'||t.tagName==='INPUT')&&typeof t.selectionStart==='number';
  const text=inBox?String(t.value==null?'':t.value).slice(t.selectionStart,t.selectionEnd)
                  :String((document.getSelection&&document.getSelection())||'');

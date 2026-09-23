@@ -86,6 +86,15 @@
   m = open(j, 0, 0);
   G.check('a result with no key is not offered edits or pastes', !m.includes('Set NULL') && !m.includes('Set empty') && !m.some(x => /^Paste/.test(x)), m);
   G.check('but is still copied and exported', m.includes('Copy value') && m.some(x => /Export to CSV \(all/.test(x)), m);
+
+  // "Copy value as hex" is a second command only where it would do something else: the plain copy
+  // decodes a value written as hex, so on a name or a number the two are the same thing.
+  const h = openTab('hex', 'SELECT 1', db, false, null);
+  await runSql(h, "SELECT 'plain text' AS t, '0x414243' AS looksHex;");
+  await G.until(() => T(h).rows && T(h).rows.length, 20000);
+  const hm = open(h, 0, 0), hx = open(h, 0, 1);
+  G.check('a text value is not offered a hex copy', !hm.includes('Copy value as hex'), hm);
+  G.check('a value written as hex is', hx.includes('Copy value as hex'), hx);
   $('ctx').style.display = 'none';
   return G.report();
 })()
