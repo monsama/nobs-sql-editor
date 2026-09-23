@@ -4032,10 +4032,48 @@ fn tool_version_label(version_text: &str) -> Option<String> {
     let mysql = regex::Regex::new(r"Ver (\d+\.\d+\.\d+)\b.*MySQL").unwrap();
     mysql.captures(version_text).map(|c| format!("MySQL {}", &c[1]))
 }
+// Windows' loader refuses to start a program whose DLLs are missing, and reports it as this exit
+// status rather than anything on stdout. Naming the library turns "no version" into the one thing
+// worth knowing: the tools are there but incomplete, and downloading them again is the fix.
+const STATUS_DLL_NOT_FOUND: i32 = 0xC000_0135u32 as i32;
+// Reading a tool's --version means starting a process, and Settings asks for four of them every
+// time it opens - noticeable on a machine whose antivirus inspects each start. The answer cannot
+// change unless the file does, so it is remembered per path, with the file's length and mtime as
+// the receipt. Kept beside the config so it survives a restart, which is when the wait was worst.
+fn tool_stamp(path: &str) -> Option<String> {
+    let md = std::fs::metadata(path).ok()?;
+    let t = md.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    Some(format!("{}:{}", md.len(), t))
+}
+fn tool_version_cache_file() -> std::path::PathBuf { config_file().with_file_name("tool-versions.json") }
+fn tool_version_cached(path: &str, stamp: &str) -> Option<String> {
+    let raw = std::fs::read_to_string(tool_version_cache_file()).ok()?;
+    let v: Value = serde_json::from_str(&raw).ok()?;
+    let e = v.get(path)?;
+    if e.get("stamp")?.as_str()? != stamp { return None; }
+    e.get("version")?.as_str().map(String::from)
+}
+fn tool_version_remember(path: &str, stamp: &str, version: &str) {
+    let file = tool_version_cache_file();
+    let mut v: Value = std::fs::read_to_string(&file).ok()
+        .and_then(|r| serde_json::from_str(&r).ok()).unwrap_or_else(|| json!({}));
+    v[path] = json!({"stamp": stamp, "version": version});
+    let _ = std::fs::write(&file, serde_json::to_string_pretty(&v).unwrap_or_default());
+}
 fn tool_version(path: &str) -> Option<String> {
     if path.is_empty() || path == "(not found)" { return None; }
+    let stamp = tool_stamp(path);
+    if let Some(st) = stamp.as_deref() {
+        if let Some(v) = tool_version_cached(path, st) { return if v.is_empty() { None } else { Some(v) }; }
+    }
     let out = Command::new(path).arg("--version").output().ok()?;
-    tool_version_label(&String::from_utf8_lossy(&out.stdout))
+    let label = if out.status.code() == Some(STATUS_DLL_NOT_FOUND) {
+        Some("cannot start - a library it needs is missing (download the tools again)".to_string())
+    } else {
+        tool_version_label(&String::from_utf8_lossy(&out.stdout))
+    };
+    if let Some(st) = stamp.as_deref() { tool_version_remember(path, st, label.as_deref().unwrap_or("")); }
+    label
 }
 
 #[tauri::command]
@@ -4059,14 +4097,14 @@ fn tools_status(app: tauri::AppHandle) -> R {
     let (d, ds) = describe(&app, "mysqldump", &["mysqldump", "mariadb-dump"], "MYSQLDUMP_BIN");
     // A handful of export options only exist on one dump-tool flavor: --set-gtid-purged is
     // MySQL 5.6+ only, --column-statistics is MySQL 8+ only - MariaDB's mysqldump has neither,
-    // and checking either against it aborts the whole export with "unknown variable". Running
-    // `--version` once here lets the export dialog grey those options out up front instead of
-    // letting the user discover it mid-export. This is the one check here that genuinely needs to
-    // launch the binary - the version STRING is the only way to tell the two flavors apart -
-    // unlike resolve_bin's PATH fallback below, which only needs to know the binary exists.
+    // and checking either against it aborts the whole export with "unknown variable". Knowing which
+    // flavor the dump tool is lets the export dialog grey those options out up front instead of
+    // letting the user discover it mid-export. The version string is the only way to tell them
+    // apart - but tool_version has already read it (and remembers it per binary), so this reads the
+    // answer rather than starting the program a second time.
+    let dump_version = tool_version(&d);
     let dump_is_mariadb = if d != "(not found)" {
-        Command::new(&d).arg("--version").output().ok()
-            .map(|o| String::from_utf8_lossy(&o.stdout).to_lowercase().contains("mariadb"))
+        dump_version.as_deref().map(|v| v.to_lowercase().contains("mariadb"))
     } else { None };
     let (my_m, my_d) = (mysql_flavor_tool("mysql"), mysql_flavor_tool("mysqldump"));
     let result = json!({
@@ -4074,7 +4112,7 @@ fn tools_status(app: tauri::AppHandle) -> R {
         "mysql": m, "mysql_source": ms,
         "mysqldump": d, "mysqldump_source": ds,
         "mysqldump_is_mariadb": dump_is_mariadb,
-        "mysql_version": tool_version(&m), "mysqldump_version": tool_version(&d),
+        "mysql_version": tool_version(&m), "mysqldump_version": dump_version,
         "mysql_for_mysql_version": my_m.as_ref().and_then(|x| tool_version(&x.0)),
         "mysqldump_for_mysql_version": my_d.as_ref().and_then(|x| tool_version(&x.0)),
         "mysql_for_mysql": my_m.as_ref().map(|x| x.0.clone()), "mysql_for_mysql_source": my_m.as_ref().map(|x| x.1.clone()),

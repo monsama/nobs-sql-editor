@@ -1180,7 +1180,10 @@ if(localStorage.getItem('theme')!=='light')document.body.classList.add('dark');
 // context menu
 function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k)continue;if(k.indexOf('overviewCache')===0||k.indexOf('tableSizes')===0){keys.push(k);}else if(includeAll&&['session','history','connmeta','accents','theme'].indexOf(k)>=0){keys.push(k);}}keys.forEach(k=>localStorage.removeItem(k));return keys.length;}
 async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis permanently deletes:\n\u2022 saved connections (host / user / password)\n\u2022 the query library\n\u2022 caches, accent colors, environment labels, history and session tabs.\n\nThis cannot be undone.')))return;const n=_clearKeys(true);try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}log('Cleared '+n+' local entr'+(n===1?'y':'ies')+' + saved connections + library. Reloading...');setTimeout(()=>location.reload(),500);}
-async function openSettings(){$('cfgLog').textContent='';try{const r=await api('/api/get-config');const c=(r&&r.config)||{};$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');refreshToolsStatus();}
+async function openSettings(){$('cfgLog').textContent='';try{const r=await api('/api/get-config');const c=(r&&r.config)||{};$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
+ // The first call answers from what is remembered about each binary; the second re-reads them and
+ // updates the cards if a tool was replaced behind the app's back.
+ await refreshToolsStatus();setTimeout(()=>refreshToolsStatus(false,true),50);}
 function resetDownloadUrl(){$('cfgDownloadUrl').value=window._mariadbDownloadUrlDefault||'';}
 // The version comes from app_info (the Tauri package info) rather than being written into the
 // markup, so it can never drift from what was actually built and shipped.
@@ -1238,7 +1241,9 @@ async function showToolsInUse(st){
  el.textContent='The connected server is '+(r.serverIsMariadb?'MariaDB':'MySQL')+', so it uses the tools for '+(ownMysql?'MySQL servers.':'MariaDB servers'+(r.serverIsMariadb?'.':' - there are no MySQL tools.'));
  mark(ownMysql?my:ma);
 }
-async function refreshToolsStatus(manual){const el=$('cfgStatus');if(!el)return;el.innerHTML='Checking...';
+// Opening Settings shows what was found last time straight away and asks again behind it, so the
+// cards are never blank while four processes start; "Checking..." is only for a check you asked for.
+async function refreshToolsStatus(manual,quiet){const el=$('cfgStatus');if(!el)return;if(!quiet)el.innerHTML='Checking...';
  const icon=$('cfgRecheckIcon'),btn=$('cfgRecheckBtn');
  if(manual&&icon){icon.classList.add('spinning');btn.classList.add('disabled');}
  try{const r=await api('/api/tools-status');if(!r||!r.ok){el.textContent='';return;}renderToolsStatus(r);
