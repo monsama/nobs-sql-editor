@@ -60,7 +60,11 @@ function cdp(wsUrl) {
     const n = ++id;
     const reply = new Promise((res, rej) => pending.set(n, { res, rej }));
     ws.send(JSON.stringify({ id: n, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
-    const r = await reply;
+    // A page that stops answering fails here within a minute. 1.3.17 froze after connecting and
+    // this waited on it for as long as the job was allowed to run.
+    let timer;
+    const late = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('the page stopped answering: no reply in 60s to ' + expression.replace(/\s+/g, ' ').slice(0, 80))), 60000); });
+    const r = await Promise.race([reply, late]).finally(() => clearTimeout(timer));
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
     return r.result.value;
   };
