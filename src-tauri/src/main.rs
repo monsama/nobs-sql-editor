@@ -4837,6 +4837,24 @@ mod tests {
         let e = endpoint(&json!({"host":"db","port":"3306","ssl":"verify","sshHost":"bastion.invalid"})).unwrap_err();
         assert!(e.contains("verify-ca"), "{e}");
     }
+    // A real tunnel: NOBS_TEST_SSH = host|port|user|key file, and NOBS_TEST_DSN the database the SSH
+    // server reaches. Run with --ignored; there is no SSH server in CI.
+    #[test]
+    #[ignore]
+    fn a_query_goes_through_a_real_tunnel() {
+        let (Ok(ssh), Ok(dsn)) = (std::env::var("NOBS_TEST_SSH"), std::env::var("NOBS_TEST_DSN")) else { return };
+        let s: Vec<&str> = ssh.split('|').collect();
+        let d: Vec<&str> = dsn.splitn(4, ':').collect();
+        let conn = json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default",
+            "sshHost":s[0],"sshPort":s[1],"sshUser":s[2],"sshKey":s.get(3).copied().unwrap_or("")});
+        for _ in 0..2 {
+            let mut c = build_conn(&conn).expect("connect through the tunnel");
+            let v: Option<u64> = c.query_first("SELECT 1+1").unwrap();
+            assert_eq!(v, Some(2));
+        }
+        assert_eq!(tunnels().lock().unwrap().len(), 1, "the second connection reused the tunnel");
+        close_tunnels();
+    }
     #[test]
     fn a_tunnel_that_cannot_open_says_why() {
         let e = endpoint(&json!({"host":"db","port":"3306","sshHost":"127.0.0.1","sshPort":"1","sshUser":"nobody"})).unwrap_err();
