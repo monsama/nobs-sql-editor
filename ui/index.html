@@ -38,6 +38,10 @@
  body{display:flex;flex-direction:column}
  #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .brand{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:2px;letter-spacing:.2px} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
  input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:3px;padding:3px 6px;box-sizing:border-box}
+ /* In a dialog's row a box and its button are one thing: a path with Browse..., a name with Save.
+    The grid's own editors keep their size - a cell must not change height when it is clicked. */
+ .modal .box .row input:not([type=checkbox]):not([type=radio]),.modal .box .row select{height:28px}
+ .modal .box .row input[type=checkbox],.modal .box .row input[type=radio]{height:auto}
  #bar input,#bar select{height:28px}
  #bar input.h{width:130px}#bar input.s{width:52px}#bar input.p{width:120px} #pass{-webkit-text-security:disc;text-security:disc}
  /* white-space:nowrap: a button squeezed by a flex-shrinking sibling (e.g. the OBJECTS panel's
@@ -60,7 +64,7 @@
  #connStatus{display:inline-block;position:relative}
  /* Disconnected, the connection form is showing, which says it plainly - a "Not connected" chip
     beside it was only noise. The text stays for whatever reads it. */
- body.disconnected #connStatus,body.disconnected #connX{display:none !important}
+ body.disconnected #connX{display:none !important}
  /* The chips in the top bar are as tall as its buttons and boxes, so the row is one height. */
  /* The x that disconnects sits on the pill's right end while connected: its own button, not
     part of the label, so a long name cut short with an ellipsis never takes the x with it. */
@@ -70,6 +74,11 @@
  /* The charset box is as wide as its choice, and never narrower than "charset: server" - it is
     the one thing in the bar that says the text is not read as the server sends it. */
  #bar #browseCs{field-sizing:content;min-width:110px;max-width:none !important;flex:none}
+ /* The charset carries an icon like the buttons around it, so that when the bar is tight and it
+    reads just "utf8mb4", it still says what the word is about. */
+ .csic{display:inline-flex;align-items:center;color:var(--muted);margin-right:-2px}
+ .csic.on{color:var(--accent)}
+ .fit1 #bar #browseCs,#bar.fit1 #browseCs,.fit1 #browseCs{min-width:0}
  /* The environment tag and the saved-password lock sit inside the connections box, over its
     right end before the arrow, rather than beside it - see syncConnTags. Clicks go through them
     to the box, so what they say is in the box's tooltip too. */
@@ -77,6 +86,9 @@
  #connlist{text-overflow:ellipsis}
  #connTags{position:absolute;right:22px;top:0;bottom:0;display:inline-flex;align-items:center;gap:5px;pointer-events:none}
  #pwChip{color:var(--muted);display:inline-flex}
+ /* The primary connection's star, beside the lock rather than in front of the name. */
+ #primChip,#connListPop .clp{color:#f5c518;display:inline-flex;align-items:center}
+ #connListPop .clp{width:13px;justify-content:center}
  .chip .roeye{display:inline-flex;vertical-align:-1px} .chip .roeye.after{margin-left:5px}
  /* The list the connections box opens - see openConnList. */
  #connListPop{display:none;position:fixed;z-index:9999;background:var(--panel);border:1px solid var(--bd);border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,.35);padding:3px 0;max-height:60vh;overflow:auto;max-width:440px}
@@ -92,6 +104,12 @@
  #bar .chip{height:28px;box-sizing:border-box;padding:0 9px;font-size:12px;letter-spacing:.2px} #bar #connStatus{line-height:26px}
  #connStatus.ok{background:var(--panel2);color:var(--fg);border-color:var(--bd);box-shadow:none;min-width:0}
  #connStatus.ok::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;margin-right:6px;vertical-align:1px}
+ /* Nothing but the dot: no gap after it, and no room kept for a name that is not there. */
+ #bar #connStatus.dotonly{padding:0 7px} #connStatus.dotonly::before{margin-right:0}
+ /* Not connected is the same dot in the same spot, hollow: a state you can learn the place of,
+    rather than a chip that is there or not there depending on the answer. */
+ #bar #connStatus.off{background:transparent;border-color:var(--bd);box-shadow:none;padding:0 7px}
+ #connStatus.off::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 2px var(--muted);margin-right:0;vertical-align:1px}
  /* The schema the active tab's queries run in - see updateSchemaBadge. The same green as the dot,
     and not the accent, which is already the selected row's background. */
  #schemas .item.runs{box-shadow:inset 3px 0 0 #3fb950;font-weight:600} button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.go{background:#2e7d32;color:#fff;border-color:#276b2b} button.sm{padding:0 6px;font-size:12px} button.warn{background:#b23b3b;color:#fff;border-color:#933}
@@ -248,6 +266,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:#c0504d;color:#fff}
 .modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
  #mInput{z-index:9600} #mRowForm{z-index:9500}
+ /* Every floating dialog's header is spaced the same way: the title with no margin of its own,
+    one gap under the row, and the paragraph beneath it given the leading to be read. */
+ .modal .box>div[onmousedown]{margin-bottom:9px}
+ .modal .box>div[onmousedown] h2,.modal .box>div[onmousedown] h3{margin:0 !important}
+ .modal .box>div[onmousedown]+.muted,.modal .box>div[onmousedown]+div>.muted:first-child{line-height:1.55}
  .modal.show{display:flex} .box{background:var(--bg);color:var(--fg);border-radius:6px;padding:16px;max-width:900px;width:94%;max-height:92%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
  .box h3{margin:0 0 10px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}
  label.ck{display:block;padding:2px 0} .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap} .muted{color:var(--muted);font-size:12px}
@@ -289,7 +312,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  /* topActions is hidden outright while disconnected, like any .needsconn. It used to be kept
     laid out but invisible, to hold Settings/Quit in place; they sit at the right end of a
     right-aligned group now, so they stay put either way - and invisible buttons made a bar that
-    has room for everything that shows turn it into icons. */
+    has room for everything that shows turn it into icons. Laying them out for the length of a
+    measurement was tried too: it resizes what the bar's ResizeObserver watches, so the fit asks
+    for another fit and the app never finishes starting. The spacing of that group is pinned
+    instead - see .tbfixed. */
  /* Everything right of the connection status is one group, so a window too narrow for the whole
     bar moves the group down as a unit instead of leaving Settings, the coffee button and Quit on
     a line of their own: a flex item breaks onto the next line at its full width, and only shrinks
@@ -304,31 +330,45 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  [data-ic]{gap:5px} [data-ic] .ic{display:inline-flex;align-items:center}
  /* Step by step: the buttons nobody needs by name give theirs up first (no data-fit), then the
     everyday ones (data-fit="2"), and only in the tightest window the rest (data-fit="3"). */
- .fit1 [data-ic]:not([data-fit]) .lbl,
- .fit2 [data-ic]:not([data-fit="3"]) .lbl,
- .fit3 [data-ic] .lbl{display:none}
- .fit1 [data-ic]:not([data-fit]),.fit2 [data-ic]:not([data-fit="3"]),.fit3 [data-ic]{padding-left:6px;padding-right:6px}
+ .icoonly .lbl{display:none}
+ .icoonly{padding-left:6px !important;padding-right:6px !important}
  .ison .ic{color:var(--accent)}
  .fit1 input.gsearch{width:120px !important} .fit3 input.gsearch{width:90px !important} .fit3 .coetxt{display:none}
  .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
- .fit3 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fitb .brand{display:none} .fit3 .tbsep{margin:2px 3px !important} .fit3 .tbchunk{gap:4px} .fit3#barTop,.fit3 #barRight{column-gap:4px} .fit3 #barRight button.warn{margin-left:4px !important}
+ .fit3 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 3px !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
+ /* Settings, the coffee and Quit are spaced the same whatever step the bar is on: a window's
+    corner is aimed at from memory, and it must not move because a connection came up. */
+ #barRight .tbfixed{column-gap:4px !important}
  .toolbar.fitbar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden} .toolbar.fitbar>*{flex-shrink:0}
- .toolbar.fit3{gap:4px} .toolbar.fit3 .tbsep{margin:2px !important} .toolbar.fit3 [id^="resultActions_"],.toolbar.fit3 [id^="edit_"]{gap:4px !important} .toolbar.fit3>label{margin-left:0 !important}
+ .toolbar.tight{gap:4px} .toolbar.tight .tbsep{margin:2px !important} .toolbar.tight [id^="resultActions_"],.toolbar.tight [id^="edit_"]{gap:4px !important} .toolbar.tight>label{margin-left:0 !important}
  .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
  body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
     eye loses which column it is in halfway along a wide window. */
  table.ovgrid th+th,table.ovgrid td+td{border-left:1px solid var(--bd2)}
- .ovcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-bottom:16px}
+ /* The server as columns of plain lines, not tiles: tiles gave every fact the same weight and a
+    card's worth of padding, and pushed the database table off the page. Columns wrap when the
+    window is too narrow to hold them all. */
+ /* The overview's own heading line: what this server is, and the one button that reloads the
+    page - it used to sit among the database filter, where it read as filtering. */
+ .ovtop{display:flex;align-items:center;gap:10px;margin:2px 0 10px}
+ #overview .ovtop h2{margin:0}
+ .ovtitle{display:flex;align-items:baseline;gap:8px;min-width:0}
+ .ovupd{color:var(--muted);font-size:11px}
+ .ovwhere{color:var(--muted);font-size:12px}
+ .ovgap{flex:1}
+ .ovsrv{display:flex;flex-wrap:wrap;gap:0 30px;margin-bottom:12px}
+ .ovsg{flex:1 1 210px;min-width:0;max-width:340px;margin-bottom:8px}
+ .ovsh{font-size:10px;font-weight:700;letter-spacing:.7px;color:var(--muted);padding-bottom:3px;margin-bottom:3px;border-bottom:1px solid var(--bd)}
+ .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:17px}
+ .ovr .l{color:var(--muted);white-space:nowrap}
+ .ovr .v{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ /* Only the few lines worth noticing are coloured; the rest stay out of the way. */
+ .ovr.note .v{color:var(--accent)}
+ .ovr.warn .v{color:#e06c6c}
  /* Parts the server from what is on it, so the page reads as two things rather than one long one. */
- .ovsep{border-top:1px solid var(--bd);margin:0 0 16px}
- .ovcard{border:1px solid var(--bd);border-radius:6px;padding:9px 12px;background:var(--panel2);min-width:0}
- .ovcard .k{font-size:10.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
- .ovcard .v{font-size:14px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .ovcard .s{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- /* A path is long by nature, so its card takes two columns rather than a second line. */
- .ovcard.path{grid-column:span 2}
+ .ovsep{border-top:1px solid var(--bd);margin:0 0 14px}
  /* How big a database is compared with the biggest one here - the numbers alone make that a
     reading exercise, and which ones are worth attention is the point of the list. */
  .szbar{height:3px;border-radius:2px;background:var(--bd2);margin-top:3px}
@@ -339,6 +379,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .exptbls{margin:2px 0 6px 22px;max-height:170px;overflow:auto;border-left:2px solid var(--bd2);padding-left:8px}
 /* Parts one group of controls from the next inside a single row of options. */
  .optsep{width:1px;align-self:stretch;min-height:18px;background:var(--bd2);margin:0 4px;flex:none}
+ /* The shortcuts in two columns, each section kept whole: a list this long in one column is
+    mostly scrolling. One column again when the window is too narrow to hold two. */
+ .sccols{columns:2;column-gap:28px}
+ @media (max-width:820px){.sccols{columns:1}}
+ .scsec{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 14px}
+ .sch{font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted);margin:0 0 4px}
  .toolcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
 .toolcard{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:var(--panel2);min-width:0}
@@ -361,10 +407,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
   <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
-	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span>
+	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><span id="connStatus" class="chip off dotonly" title="Not connected"></span><button id="connX" title="Disconnect" aria-label="Disconnect" onclick="disconnectAsk()">&times;</button>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
-  <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select><span id="connStatus" class="chip bad">Not connected</span><button id="connX" title="Disconnect" aria-label="Disconnect" onclick="disconnectAsk()">&times;</button></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="3">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img id="coffeeImg" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
+  <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 3px"></span><img id="coffeeImg" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:4px" data-ic="power">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -481,7 +527,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
       window's extra room, instead of capping out with empty space below it. -->
  <div id="impLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 
-<div class="modal floating" id="mCompare"><div class="box" style="width:820px;max-width:94vw;height:360px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0 0 2px">Compare Databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mCompare"><div class="box" style="width:820px;max-width:94vw;height:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0">Compare Databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="font-size:11px;margin-bottom:8px;flex:none">Connects to both sides independently of whatever's currently active, using each saved connection's stored password - so both the source and target connection need "Save password" checked (Edit... on the connection) or this will fail to log in.</div>
  <div class="row" style="display:flex;gap:10px;flex:none">
    <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:3px">Source</div>
@@ -506,7 +552,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <span id="cmpSummary" class="muted" style="font-size:11px"></span>
    <span style="display:inline-flex;gap:6px"><button onclick="previewCompareSql()">Preview SQL</button><button class="go write" onclick="applyCompare()">Apply to target</button><button onclick="cmpCloseAndCancel()">Close</button></span>
  </div>
- <div id="cmpLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:140px;overflow:auto;margin-top:6px;flex:none"></div>
+ <div id="cmpLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:140px;overflow:auto;margin-top:6px;flex:0 1 auto;min-height:0"></div>
 </div></div>
 
 <div class="modal floating" id="mCompareRows"><div class="box" style="width:900px;max-width:96vw;display:flex;flex-direction:column;overflow:hidden;top:50px;left:110px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompareRows')" title="Drag to move"><h3 id="cmprTitle" style="margin:0 0 10px">Row comparison</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompareRows')" title="Maximize" id="maxBtn_mCompareRows" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompareRows')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -650,8 +696,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   tools, when downloaded, are &copy; MariaDB Foundation under GPLv2 and come from mariadb.org.
  </div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mAbout')">Close</button></div></div></div>
-<div class="modal floating" id="mShortcuts"><div class="box" style="width:560px;max-width:92vw;top:70px;left:170px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts &amp; tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
- <table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td colspan="2" style="padding:2px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">EDITOR</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr><tr><td colspan="2" style="padding:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">RESULTS</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the grid)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter / Shift + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: the next / previous matching cell</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: clear it</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move from cell to cell in an editable grid</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab / Shift + Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">The next / previous cell, wrapping at the row ends</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter or F2</kbd></td><td style="padding:3px 0;color:var(--muted)">Edit the cell the keyboard is on</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In a cell holding several lines: keep the edit</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click a cell</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr><tr><td colspan="2" style="padding:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">TABS</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Middle-click a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Close it</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Reorder the tabs</td></tr><tr><td colspan="2" style="padding:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">CONNECTION AND SIDEBAR</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &darr;, F4, Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the connections list (when it has the focus)</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Type a name</kbd></td><td style="padding:3px 0;color:var(--muted)">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">From a filter box: step into the list below it</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Shift + click a group</kbd></td><td style="padding:3px 0;color:var(--muted)">In the objects list: fold or unfold every group</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr><tr><td colspan="2" style="padding:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">WINDOWS AND DIAGRAMS</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close the dialog in front</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click / Shift + double-click</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: zoom in / out</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: pan it, or move one table</td></tr><tr><td style="padding:3px 14px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Right-click a table</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: show only it and its relations</td></tr></table>
+<div class="modal floating" id="mShortcuts"><div class="box" style="width:900px;max-width:94vw;top:70px;left:170px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts &amp; tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
+ <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>F5</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the whole query</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Run the selected text (or all, if nothing is selected)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Autocomplete</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Indent (in the editor)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + D</kbd></td><td style="padding:3px 0;color:var(--muted)">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + /</kbd></td><td style="padding:3px 0;color:var(--muted)">Toggle "-- " comment on the current line or selection</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &uarr; / &darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move the current line (or selection) up or down</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Shift + K</kbd></td><td style="padding:3px 0;color:var(--muted)">Delete the current line (or every line touched by the selection)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + L</kbd></td><td style="padding:3px 0;color:var(--muted)">Focus the editor and select all</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + F</kbd></td><td style="padding:3px 0;color:var(--muted)">Search the results (from the grid)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter / Shift + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: the next / previous matching cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">In the search box: clear it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td style="padding:3px 0;color:var(--muted)">Move from cell to cell in an editable grid</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Tab / Shift + Tab</kbd></td><td style="padding:3px 0;color:var(--muted)">The next / previous cell, wrapping at the row ends</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter or F2</kbd></td><td style="padding:3px 0;color:var(--muted)">Edit the cell the keyboard is on</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">In a cell holding several lines: keep the edit</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + S</kbd></td><td style="padding:3px 0;color:var(--muted)">Apply pending grid edits (save changes)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click a cell</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize a results column</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click column edge</kbd></td><td style="padding:3px 0;color:var(--muted)">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + T</kbd></td><td style="padding:3px 0;color:var(--muted)">New query tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Ctrl + W</kbd></td><td style="padding:3px 0;color:var(--muted)">Close current tab</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Middle-click a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Close it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag a tab</kbd></td><td style="padding:3px 0;color:var(--muted)">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Enter</kbd></td><td style="padding:3px 0;color:var(--muted)">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Alt + &darr;, F4, Space</kbd></td><td style="padding:3px 0;color:var(--muted)">Open the connections list (when it has the focus)</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Type a name</kbd></td><td style="padding:3px 0;color:var(--muted)">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>&darr;</kbd></td><td style="padding:3px 0;color:var(--muted)">From a filter box: step into the list below it</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Shift + click a group</kbd></td><td style="padding:3px 0;color:var(--muted)">In the objects list: fold or unfold every group</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Resize the schema/objects sidebar</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click sidebar divider</kbd></td><td style="padding:3px 0;color:var(--muted)">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table style="border-collapse:collapse;font-size:13px;width:100%"><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Esc</kbd></td><td style="padding:3px 0;color:var(--muted)">Close the dialog in front</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Double-click / Shift + double-click</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: zoom in / out</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Drag</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: pan it, or move one table</td></tr><tr><td style="padding:3px 12px 3px 0;white-space:nowrap;vertical-align:top"><kbd>Right-click a table</kbd></td><td style="padding:3px 0;color:var(--muted)">In the ER diagram: show only it and its relations</td></tr></table></div></div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mShortcuts')">Close</button></div></div></div>
 <div class="modal floating" id="mInput"><div class="box" style="width:460px;max-width:92vw;display:flex;flex-direction:column;overflow:hidden;top:90px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInput')" title="Drag to move"><h3 id="inpTitle" style="margin:0 0 10px">Input</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInput')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="inpFields" style="flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>
@@ -771,9 +817,16 @@ function renderBrowseCs(){
   el.appendChild(new Option('charset: server','',true,true));
   BROWSE_CHARSETS.forEach(c=>el.appendChild(new Option('charset: '+c,c)));
  }
+ // Once the bar has started giving up labels this drops its own prefix and reads "server" or
+ // "utf8mb4"; the icon beside it carries the meaning, as it does for every button in the row.
+ const short=!!($('barTop')&&$('barTop').classList.contains('fit1'));
+ if(el._short!==short){el._short=short;
+  for(let i=0;i<el.options.length;i++){const o=el.options[i];o.text=(short?'':'charset: ')+(o.value||'server');}
+ }
  el.value=window.browseCharset||'';
  el.style.borderColor=window.browseCharset?'var(--accent)':'';
  el.style.fontWeight=window.browseCharset?'600':'';
+ const ic=$('csIcon');if(ic)ic.className='csic needsconn'+(window.browseCharset?' on':'');
 }
 function roBlock(){if(window.readOnly){toast('This connection is marked READ-ONLY (safe mode). Writes are disabled.\nUncheck "Read-only" in the saved connection to allow changes.',true);return true;}return false;}
 function accMap(){const m=window._connMeta||{};const o={};for(const k in m){if(m[k]&&m[k].accent)o[k]=m[k].accent;}return o;}
@@ -1406,9 +1459,12 @@ function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre
 // connection profiles
 // The box's tooltip: what the picked connection is, one labelled line each - the tags inside
 // the box say the same in a word, and clicks go through them, so they cannot carry their own.
-function connTitle(){const s=$('connlist');if(!s)return;if(!s.value){s.title='Saved connections';return;}
+function connTitle(){const s=$('connlist');if(!s)return;
+ const pc=$('primChip');if(pc)pc.style.display=(s.value&&s.value===window._primaryConn)?'inline-flex':'none';
+ if(!s.value){s.title='Saved connections';return;}
  const m=connMeta()[s.value]||{},pw=$('pwChip');
  const t=['Name: '+s.value,'Password: '+(pw&&pw.style.display!=='none'?'saved':'not saved'),'Environment: '+(m.env||'none')];
+ if(s.value===window._primaryConn)t.push('Primary: opens at startup');
  if(m.readonly)t.push('Read-only: yes');s.title=t.join('\n');}
 // The box's text stops short of the tags inside it. They are measured whenever they change size -
 // shown, hidden, or an environment named by the user - and the tooltip says what they say.
@@ -1428,6 +1484,10 @@ function openConnList(){const s=$('connlist');if(!s||s.disabled)return;let m=$('
   // The picked connection's lock is the one the box shows, which follows a password just removed.
   const pw=name===s.value?$('pwChip').style.display!=='none':!!pws[name];
   const tg=envTag(cm.env,cm.readonly,cm.accent||'');if(tg)row.appendChild(tg);
+  // The star sits with the lock, in a slot of its own so the rows line up either way.
+  const st=document.createElement('span');st.className='clp';
+  if(name===window._primaryConn){st.innerHTML="<svg viewBox=\"0 0 24 24\" width=\"11\" height=\"11\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z\"/></svg>";st.title='Primary connection - opens at startup';}
+  row.appendChild(st);
   // The lock has a slot of its own at the row's end, filled or not, so every lock lines up.
   const l=document.createElement('span');l.className='cll';if(pw){l.innerHTML=$('pwChip').innerHTML;l.title='Password saved';}row.appendChild(l);
   row.onmousedown=e=>e.preventDefault();row.onclick=()=>pickFromConnList(name);m.appendChild(row);});
@@ -1473,6 +1533,8 @@ function updatePrimeBtn(){const b=$('primeBtn');if(!b)return;const n=$('connlist
 const ICONS={
  users:'<circle cx="9" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 12 0v1M16 4a4 4 0 0 1 0 8M22 21v-1a6 6 0 0 0-4-5.6"/>',
  activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+ gauge:'<path d="M4 19a9 9 0 1 1 16 0"/><path d="M12 14l4.5-4.5"/><circle cx="12" cy="14" r="1.6"/>',
+ power:'<path d="M12 3v9"/><path d="M6.8 6.8a8 8 0 1 0 10.4 0"/>',
  history:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
  book:'<path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/>',
  export:'<path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
@@ -1513,12 +1575,34 @@ function barWraps(row){let lo=Infinity,hi=-Infinity;
 // what is in it only ever tightens. Running a query hides the result and edit buttons until the
 // answer comes, and a bar that loosened on that showed its labels for the length of the run, then
 // went back to icons - the labels flashed on every click.
-function fitBar(row,loosen){if(!row||!row.offsetParent)return;const was=row.className;if(loosen)row.classList.remove('fitb','fit1','fit2','fit3');
+function fitBar(row,loosen){if(!row||!row.offsetParent)return;const was=row.className;if(loosen){row.classList.remove('fitb','tight','fit1','fit2','fit3');row.querySelectorAll('.icoonly').forEach(b=>b.classList.remove('icoonly'));}
  // The rungs, in the order a bar gives things up: the brand, then the labels of the buttons that
  // need them least, then the everyday ones, then the rest along with tighter spacing.
- if(barWraps(row)){row.classList.add('fitb');if(barWraps(row)){row.classList.add('fit1');if(barWraps(row)){row.classList.add('fit2');if(barWraps(row))row.classList.add('fit3');}}}
+ if(barWraps(row)){
+  row.classList.add('fitb');
+  // Labels go one button at a time, cheapest first, and the bar stops the moment it fits. Giving
+  // up a whole group at once left the bar in icons with a rung's worth of room to spare - at
+  // 1200px every label was gone and 177px sat unused. The search is a bisection, so this still
+  // costs about as many measurements as the four rungs it replaces. data-fit orders them: the
+  // buttons nobody needs by name have none, the everyday ones 2 and 3, the primary action 4.
+  const cand=[...row.querySelectorAll('[data-ic]')].map((b,i)=>[+(b.dataset.fit||1),i,b]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const apply=k=>cand.forEach(([,,b],i)=>b.classList.toggle('icoonly',i<k));
+  // A bar only tightens while its content changes (see refit), so the ones already given up stay.
+  const floor=loosen?0:cand.filter(([,,b])=>b.classList.contains('icoonly')).length;
+  const fewest=()=>{let lo=floor,hi=cand.length;while(lo<hi){const mid=(lo+hi)>>1;apply(mid);if(barWraps(row))lo=mid+1;else hi=mid;}apply(lo);return lo;};
+  // Tighter gaps cost nothing anyone reads, so they come before the first label does: at 1200px
+  // the ordinary gaps left room for no label at all, the tight ones for five.
+  row.classList.add('tight');
+  let lo=fewest();
+  // Still too narrow with every label gone: give up the widths as well - a shorter status, a
+  // narrower search box, the cup cropped - and see how many labels that hands back.
+  if(barWraps(row)){row.classList.add('fit3');lo=fewest();}
+  // The rungs still carry the widths of everything that is not a button.
+  if(lo)row.classList.add('fit1');
+  if(lo&&cand[lo-1][0]>=2)row.classList.add('fit2');
+ }
  // The connections box is narrower in the tightest step, so its own width follows the step.
- if(row.id==='barTop'&&row.className!==was&&typeof syncConnTags==='function')syncConnTags();}
+ if(row.id==='barTop'&&row.className!==was&&typeof syncConnTags==='function'){syncConnTags();if(typeof renderBrowseCs==='function')renderBrowseCs();}}
 // Refitted when a bar's width changes (a window resize, a hidden tab shown) and when what is in it
 // changes (the counter, the edit buttons, a chip's text) - right away. Both observers call back
 // before the page is next drawn, so a rebuilt button goes straight to its icon; putting this off to
@@ -1544,7 +1628,7 @@ async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a c
 async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
   // Just the name: the environment and READ-ONLY are the tag beside it, in the box and in its
   // list (openConnList), and repeating them made the entry read as part of the name.
-  o.textContent=(c.primary?'\u2605 ':'')+c.name;
+  o.textContent=c.name;
   sel.appendChild(o);});sel.disabled=(n===0);sel.title=(n===0?'No saved connections yet - fill in the details and Save':'Saved connections');connTitle();updatePrimeBtn();}
 // Manually forces #connFormRow visible even while connected, overriding the CSS rule that
 // hides it by default at that point - see the CSS comment above body:not(.disconnected) for
@@ -1697,7 +1781,13 @@ async function connect() {
   window.mariadb = !!r.mariadb;
   document.body.classList.remove('disconnected');
   document.body.classList.remove('show-connform');
-  const _cs = $('connStatus'); if (_cs) { const _sel=$('connlist'); _cs.innerHTML = '<span class="vh">Connected: </span>' + esc(_sel && _sel.value ? _sel.options[_sel.selectedIndex].text.replace(/^\u2605 /, '') : ($('user').value + '@' + $('host').value)); _cs.title = _cs.textContent; _cs.className = 'chip ok'; }
+  // The box to the left already shows a saved connection's name, so the chip beside it is the
+  // green dot and the disconnect alone - about 140px back at every width, which is what buys the
+  // buttons their labels. A connection typed in by hand has no name there, so it keeps one here.
+  const _cs = $('connStatus'); if (_cs) { const _sel=$('connlist'); const _named=!!(_sel && _sel.value);
+   const _who=_named?_sel.options[_sel.selectedIndex].text:($('user').value + '@' + $('host').value);
+   _cs.innerHTML = '<span class="vh">Connected: </span>' + (_named?'':esc(_who));
+   _cs.title = 'Connected: ' + _who; _cs.className = _named?'chip ok dotonly':'chip ok'; }
   applyAccent(window.curAccent || '');
   applyEnv($('connlist').value);
   // IMPORTANT: snapshot the active connection BEFORE restoring any tabs below - restoring a
@@ -1734,7 +1824,7 @@ async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirt
   if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped.')))return;
   await Promise.all(running.map(t=>cancelQuery(t.id)));}
  disconnect();}
-function disconnect(){window.mariadb=false;document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='Not connected';_cs.className='chip bad';}window.curAccent='';window.readOnly=false;window.curEnv='';
+function disconnect(){window.mariadb=false;document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
@@ -2153,47 +2243,95 @@ function overviewFilteredSortedRows() {
 }
 
 // What the server says about itself, for the overview. Two queries, both cheap: the settings in
-// one row, and the handful of counters worth showing - SHOW GLOBAL STATUS with a WHERE, rather
-// than information_schema.GLOBAL_STATUS (MariaDB) or performance_schema.global_status (MySQL 8),
-// which are not in the same place in both.
+// one row, and the counters worth showing - SHOW GLOBAL STATUS with a WHERE, rather than
+// information_schema.GLOBAL_STATUS (MariaDB) or performance_schema.global_status (MySQL 8), which
+// are not in the same place in both.
 async function loadServerInfo(){
  const vars="SELECT VERSION() v, @@version_comment vc, @@hostname hn, @@port pt, @@character_set_server cs, @@collation_server co, @@time_zone tz, @@max_connections mc, @@innodb_buffer_pool_size bp, @@read_only ro, CURRENT_USER() cu, NOW() nw, @@datadir dd, @@max_allowed_packet mp";
- const stat="SHOW GLOBAL STATUS WHERE Variable_name IN ('Uptime','Threads_connected','Threads_running','Questions','Slow_queries','Aborted_connects')";
+ const want=['Uptime','Threads_connected','Threads_running','Questions','Slow_queries','Aborted_connects','Aborted_clients',
+  'Max_used_connections','Innodb_buffer_pool_read_requests','Innodb_buffer_pool_reads','Created_tmp_tables','Created_tmp_disk_tables',
+  'Bytes_sent','Bytes_received','Com_select','Com_insert','Com_update','Com_delete','Table_locks_waited','Connections'];
+ const stat="SHOW GLOBAL STATUS WHERE Variable_name IN ('"+want.join("','")+"')";
  const [a,b]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null)]);
  if(!a||!a.ok||!a.rows.length)return null;
  const r=a.rows[0],st={};
- if(b&&b.ok)b.rows.forEach(x=>{st[String(x[0])]=x[1];});
+ if(b&&b.ok)b.rows.forEach(x=>{st[String(x[0])]=+x[1]||0;});
  return {v:r[0],vc:r[1],hn:r[2],pt:r[3],cs:r[4],co:r[5],tz:r[6],mc:r[7],bp:r[8],ro:r[9],cu:r[10],nw:r[11],dd:r[12],mp:r[13],st};
 }
 // "3d 4h", "4h 12m", "12m" - the exact seconds of an uptime are noise.
 function fmtUptime(sec){sec=+sec||0;const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);
  if(d)return d+'d '+h+'h';if(h)return h+'h '+m+'m';if(m)return m+'m';return sec+'s';}
-// The server, and what is on it, as cards: the value large, what it means under it. Cards rather
-// than a second table, because these are single numbers to glance at, not a list to compare.
-// Each line is kept to one line and carries its own tooltip, so a long value (a path, a
-// collation) ends in an ellipsis instead of making its card taller than the rest of the row.
-function ovCard(k,v,sub,cls){return '<div class="ovcard'+(cls?' '+cls:'')+'"><div class="k">'+esc(k)+'</div><div class="v" title="'+esc(v)+'">'+esc(v)+'</div>'+(sub?('<div class="s" title="'+esc(sub)+'">'+esc(sub)+'</div>'):'')+'</div>';}
-function serverInfoHtml(rows){
- const s=window._serverInfo;const cards=[];
+// A share as a percentage, at the precision the number deserves: 99.7% says something 100% does not.
+function fmtPct(part,whole){if(!whole)return '';const p=part/whole*100;return (p>=99.95||p<0.05?p.toFixed(0):p.toFixed(1))+'%';}
+function fmtRate(n,sec){if(!sec)return '';const r=n/sec;return (r>=100?Math.round(r):r>=1?r.toFixed(1):r.toFixed(2))+'/s';}
+// One fact per line: what it is on the left, what it says on the right. "tone" colours the few that
+// are worth noticing - a panel where everything is emphasised emphasises nothing.
+function ovRow(k,v,tone,tip){if(v===''||v==null)return '';
+ return '<div class="ovr'+(tone?' '+tone:'')+'"'+(tip?(' title="'+esc(tip)+'"'):'')+'><span class="l">'+esc(k)+'</span><span class="v">'+esc(String(v))+'</span></div>';}
+function ovCol(name,rows){const r=rows.filter(Boolean);if(!r.length)return '';
+ return '<div class="ovsg"><div class="ovsh">'+esc(name)+'</div>'+r.join('')+'</div>';}
+// The server in four columns of plain lines rather than tiles: everything it knows fits above the
+// database table, which is what an overview is for.
+function serverInfoHtml(raw){
+ const s=window._serverInfo;
+ const cols=[];
  if(s){
+  const st=s.st||{},up=+st.Uptime||0;
   const flavour=/mariadb/i.test(String(s.v)+String(s.vc))?'MariaDB':'MySQL';
-  const ro=String(s.ro)==='1';
-  cards.push(ovCard('Server',flavour+' '+s.v,s.vc||''));
-  cards.push(ovCard('Host',String(s.hn||'')+':'+String(s.pt||''),'as '+String(s.cu||'')));
-  cards.push(ovCard('Uptime',fmtUptime(s.st.Uptime),s.nw?('server time '+String(s.nw)):''));
-  cards.push(ovCard('Threads',(s.st.Threads_connected||'?')+' / '+(s.st.Threads_running||'?'),'connected / running, max '+String(s.mc||'?')));
-  cards.push(ovCard('Queries',fmtCount(s.st.Questions||0),[+s.st.Slow_queries?(fmtCount(s.st.Slow_queries)+' slow'):'',+s.st.Aborted_connects?(fmtCount(s.st.Aborted_connects)+' aborted connects'):''].filter(Boolean).join(' \u00B7 ')||'since start'));
-  cards.push(ovCard('Charset',String(s.cs||''),String(s.co||'')+' \u00B7 time zone '+String(s.tz||'')));
-  cards.push(ovCard('Buffer pool',fmtBytes(s.bp),'max packet '+fmtBytes(s.mp)+(ro?' \u00B7 SERVER IS READ ONLY':'')));
-  if(s.dd)cards.push(ovCard('Data directory',String(s.dd),'','path'));
+  const ver=String(s.v||'').replace(/-mariadb$/i,'').replace(/-log$/i,'');
+  const conn=+st.Threads_connected||0,maxc=+s.mc||0,busy=maxc?conn/maxc:0;
+  const peak=+st.Max_used_connections||0;
+  const reads=+st.Innodb_buffer_pool_reads||0,reqs=+st.Innodb_buffer_pool_read_requests||0;
+  const tmp=+st.Created_tmp_tables||0,tmpDisk=+st.Created_tmp_disk_tables||0;
+  const writes=(+st.Com_insert||0)+(+st.Com_update||0)+(+st.Com_delete||0),selects=+st.Com_select||0;
+  const q=+st.Questions||0,slow=+st.Slow_queries||0;
+  const ab=(+st.Aborted_connects||0)+(+st.Aborted_clients||0);
+  cols.push(ovCol('WHAT IT IS',[
+   ovRow('Version',flavour+' '+ver,'',String(s.vc||'')),
+   ovRow('Host',String(s.hn||'')+':'+String(s.pt||'')),
+   ovRow('Signed in as',String(s.cu||'')),
+   ovRow('Read only',String(s.ro)==='1'?'yes, writes refused':'no',String(s.ro)==='1'?'warn':''),
+   ovRow('Server time',String(s.nw||''),'','Time zone '+String(s.tz||'')),
+   ovRow('Data directory',String(s.dd||''),'',String(s.dd||'')),
+  ]));
+  cols.push(ovCol('RIGHT NOW',[
+   ovRow('Uptime',fmtUptime(up),up<600?'note':'',up<600?'The server was restarted a few minutes ago':''),
+   ovRow('Connections',conn+' of '+maxc,busy>=0.8?'warn':(busy>=0.6?'note':''),'Threads connected against max_connections'),
+   ovRow('Peak',peak?peak+' of '+maxc:'',maxc&&peak/maxc>=0.9?'note':'','The most that were ever connected at once'),
+   ovRow('Running',(+st.Threads_running||0)+((+st.Threads_running||0)===1?' query':' queries')),
+   ovRow('Queries',fmtRate(q,up),'','Average since the server started'),
+   ovRow('Total',fmtCount(q)+' queries'),
+  ]));
+  cols.push(ovCol('HOW IT IS DOING',[
+   ovRow('Buffer pool hits',reqs?fmtPct(reqs-reads,reqs):'',reqs&&(reqs-reads)/reqs<0.95?'warn':'',
+    'Reads answered from memory - '+fmtCount(reads)+' had to go to disk.\nUnder 95%: give innodb_buffer_pool_size more memory.'),
+   ovRow('Temp tables on disk',tmp?fmtPct(tmpDisk,tmp):'',tmp&&tmpDisk/tmp>0.25?'warn':'',
+    fmtCount(tmpDisk)+' of '+fmtCount(tmp)+' temporary tables were too big for memory.\nOver 25%: raise tmp_table_size and max_heap_table_size, or index what is being sorted and grouped.'),
+   ovRow('Slow queries',slow?(fmtCount(slow)+(q&&slow/q>=0.001?(' ('+fmtPct(slow,q)+')'):'')):'none',q&&slow/q>0.01?'warn':'',
+    'Queries that ran longer than long_query_time.\nClimbing: turn on the slow query log and index whatever shows up in it.'),
+   ovRow('Lock waits',fmtCount(+st.Table_locks_waited||0),(+st.Table_locks_waited||0)>1000?'warn':'',
+    'Statements that had to queue for a table lock.\nClimbing: MyISAM tables locking each other out - move them to InnoDB.'),
+   ovRow('Aborted',ab?(fmtCount(+st.Aborted_connects||0)+' connects, '+fmtCount(+st.Aborted_clients||0)+' dropped'):'none',(+st.Aborted_connects||0)>100?'warn':'',
+    'Logins that failed, and sessions that ended without a goodbye.\nClimbing: wrong passwords or grants, or clients dropped by wait_timeout or the network.'),
+   ovRow('Read / write',(selects+writes)?fmtPct(selects,selects+writes)+' reads':'','',
+    fmtCount(selects)+' selects against '+fmtCount(writes)+' writes.\nMostly writes: check the indexes you are maintaining. Mostly reads: a bigger buffer pool or a replica pays off.'),
+  ]));
+  cols.push(ovCol('SET UP WITH',[
+   ovRow('Charset',String(s.cs||'')),
+   ovRow('Collation',String(s.co||'')),
+   ovRow('Time zone',String(s.tz||'')),
+   ovRow('Buffer pool',fmtBytes(s.bp)),
+   ovRow('Max packet',fmtBytes(s.mp)),
+   ovRow('Traffic',st.Bytes_sent!=null?(fmtBytes(+st.Bytes_sent||0)+' out, '+fmtBytes(+st.Bytes_received||0)+' in'):''),
+  ]));
  }
- if(rows&&rows.length){
-  const sum=i=>rows.reduce((a,r)=>a+(+r[i]||0),0);
-  cards.push(ovCard('Databases',fmtCount(rows.length),fmtCount(sum(1))+' tables \u00B7 '+fmtCount(sum(2))+' rows'));
-  cards.push(ovCard('Size',fmtBytes(sum(3)),'data and indexes, as the server estimates them'));
- }
- if(!cards.length)return '';
- return '<h2 style="margin:2px 0 10px">Server</h2><div class="ovcards">'+cards.join('')+'</div><div class="ovsep"></div>';
+ const c=cols.filter(Boolean);
+ if(!c.length)return '';
+ const where=s?(String(s.hn||'')+(s.pt?(':'+s.pt):'')):'';
+ let head='<div class="ovtop"><div class="ovtitle"><h2>Server</h2>'+(where?'<span class="ovwhere">'+esc(where)+'</span>':'')+'</div><span class="ovgap"></span>';
+ if(raw)head+='<span class="ovupd">Updated '+esc(overviewTimeAgo(raw.fetchedAt))+'</span>';
+ head+='<button class="sm" title="Read the server figures and the database list again" onclick="showOverview(true)">Refresh</button></div>';
+ return head+'<div class="ovsrv">'+c.join('')+'</div><div class="ovsep"></div>';
 }
 function renderOverview() {
     const ov = $('overview');
@@ -2214,12 +2352,10 @@ function renderOverview() {
     const rows = overviewFilteredSortedRows();
     const { col: sortCol, dir: sortDir } = window._overviewSort;
 
-    let h = serverInfoHtml(rows);
+    let h = serverInfoHtml(raw);
     h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
     h += '<h2 style="margin:0">Databases (' + rows.length + (rows.length !== allCount ? (' of ' + allCount) : '') + ')</h2>';
     h += '<input id="overviewFilter" placeholder="Filter databases..." style="width:200px" oninput="renderOverview()" value="' + esc(filterValue) + '">';
-    h += '<span class="muted" style="font-size:11px">Updated ' + esc(overviewTimeAgo(raw.fetchedAt)) + '</span>';
-    h += '<button class="sm" onclick="showOverview(true)">Refresh</button>';
     h += '</div>';
     h += '<table class="ovgrid"><thead><tr>' + H.map((x, i) => {
         const isNum = i >= 1 && i <= 8;
@@ -2286,6 +2422,16 @@ function clearOverviewCache() {
         showOverview(); // reload the overview panel if it is what is visible
     }
     log('Cache refreshed (' + n + ' cached entr' + (n === 1 ? 'y' : 'ies') + ' cleared).');
+}
+// Until now the overview only appeared when the last tab was closed, which made it something you
+// had to clear your desk for. This shows it over whatever is open; clicking a tab brings that tab
+// back, and the overview is refreshed on the way in if what it holds is older than its cache.
+async function openOverview(){
+ if(document.body.classList.contains('disconnected')){toast('Connect to a server first.',true);return;}
+ const ov=$('overview');if(!ov)return;
+ tabs.forEach(t=>{const p=$('pane_'+t.id);if(p)p.classList.remove('active');const b=$('tabbtn_'+t.id);if(b)b.classList.remove('active');});
+ ov.style.display='block';
+ await showOverview();
 }
 function toggleOverview() {
     const ov = $('overview');
