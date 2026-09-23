@@ -78,6 +78,10 @@ Export files are kept wherever you saved them.
 - Explain draws the plan: every table read as a card, a full scan in red and an
   index lookup in green, with the joins, sorts and subqueries around them.
 - A result charts as bars or a line, from the rows the grid shows.
+- Users and privileges: privileges as a checklist per server, database or table, with
+  the GRANT and REVOKE shown before they run; roles and default roles; clone an
+  account; sign-in method, SSL, password expiry and limits; who has access to a
+  database; and a transfer script that carries roles and can run again.
 - Export whole tables or query results to CSV or INSERT statements (streamed,
   handles large tables), or to Excel, JSON or Markdown; copy CSV/TSV/JSON to
   the clipboard.

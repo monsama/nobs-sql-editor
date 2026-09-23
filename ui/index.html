@@ -368,6 +368,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .chart .cline{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round} .chart .cdot{stroke:var(--bg);stroke-width:2} .chart .chit{fill:transparent} .chart .cross{stroke:var(--muted);stroke-width:1}
  .cleg{font-size:12px;display:inline-flex;align-items:center} .cleg i,.ctip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
  .ctip{position:absolute;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--bd);border-radius:4px;padding:6px 9px;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:nowrap} .ctip span{color:var(--muted);margin-left:6px}
+ .utag{font-size:10px;border:1px solid var(--bd);border-radius:3px;padding:0 4px;margin-left:6px;color:var(--muted)} .uitem.sel .utag{color:#fff;border-color:#fff}
+ .utag.urole{border-color:var(--accent);color:var(--accent)} .utag.uwarn,.uwarn{color:#d9822b;border-color:#d9822b}
+ .uinfo{font-size:12px;border:1px solid var(--bd2);border-radius:4px;padding:6px 8px;flex:none;line-height:1.6}
+ .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 12px} .psec{font-weight:600;font-size:12px;margin:10px 0 4px}
+ .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:4px;margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
  .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
  .fit3 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 3px !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
@@ -621,11 +626,17 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 
 <div class="modal floating" id="mUsers"><div class="box" style="width:1050px;max-width:96vw;height:620px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:70px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUsers')" title="Drag to move"><h3 style="margin:0 0 10px">Users &amp; Privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUsers')" title="Maximize" id="maxBtn_mUsers" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUsers')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="align-items:stretch;flex:1;min-height:0">
-  <div id="userSel" style="min-width:240px;overflow:auto;border:1px solid var(--bd2);border-radius:4px"></div>
-  <div style="flex:1;display:flex;min-width:0"><div id="grantsBox" class="muted" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;flex:1;overflow:auto;border:1px solid var(--bd2);padding:6px"></div></div>
+  <div style="min-width:260px;max-width:320px;display:flex;flex-direction:column;gap:6px"><input type="search" id="userFilter" placeholder="Filter accounts" oninput="usersRender()"><div id="userSel" style="flex:1;min-height:0;overflow:auto;border:1px solid var(--bd2);border-radius:4px"></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0"><div id="userInfo" class="uinfo"></div><div id="grantsBox" class="muted" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;flex:1;overflow:auto;border:1px solid var(--bd2);padding:6px"></div></div>
  </div>
- <div class="row" style="flex:none"><button onclick="newUser()">Create user...</button><span class="tbsep"></span><button onclick="grantUser()">Grant...</button><button onclick="revokeUser()">Revoke...</button><span class="tbsep"></span><button onclick="changePassword()">Change password...</button><button onclick="lockUser(true)" title="Disable this login (ACCOUNT LOCK)">Lock</button><button onclick="lockUser(false)" title="Re-enable this login (ACCOUNT UNLOCK)">Unlock</button><span class="tbsep"></span><button onclick="openUserTransfer()" title="Build CREATE USER + GRANT statements to migrate accounts to another server">Transfer script...</button><span class="tbsep"></span><button class="warn" onclick="dropUser()">Drop user</button><span style="flex:1"></span><button onclick="hide('mUsers')">Close</button></div></div></div>
+ <div class="row" style="flex:none"><button onclick="newUser()">Create user...</button><button onclick="roleCreate()">Create role...</button><button onclick="acctClone()" title="A new account with this one's settings, grants and roles">Clone...</button><span class="tbsep"></span><button onclick="privOpen()" title="Tick what the account may do - on the server, a database or a table">Privileges...</button><button onclick="rolesEdit()">Roles...</button><span class="tbsep"></span><button onclick="acctEdit()" title="Sign-in method, connection security, password expiry, limits">Account settings...</button><button onclick="changePassword()">Change password...</button><button onclick="lockUser(true)" title="Disable this login (ACCOUNT LOCK)">Lock</button><button onclick="lockUser(false)" title="Re-enable this login (ACCOUNT UNLOCK)">Unlock</button><span class="tbsep"></span><button onclick="whoHasAccess()" title="Everyone with privileges on a database">Who has access...</button><button onclick="openUserTransfer()" title="Build CREATE USER + GRANT statements to migrate accounts to another server">Transfer script...</button><span class="tbsep"></span><button class="warn" onclick="dropUser()" title="Drop the selected account or role">Drop</button><span style="flex:1"></span><button onclick="hide('mUsers')">Close</button></div></div></div>
 
+<div class="modal floating" id="mPriv"><div class="box" style="width:760px;max-width:95vw;height:620px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPriv')" title="Drag to move"><h3 id="privTitle" style="margin:0 0 10px">Privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPriv')" title="Maximize" id="maxBtn_mPriv" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPriv')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="row" style="flex:none"><span class="muted">On</span><select id="privScope" onchange="privScopeChanged()"><option value="global">the whole server</option><option value="db" selected>one database</option><option value="table">one table</option></select><select id="privDb" onchange="privScopeChanged()"></select><select id="privTable" onchange="privLoad()"></select></div>
+ <div id="privList" style="flex:1;min-height:0;overflow:auto;margin-top:4px"></div>
+ <label class="ck" style="flex:none;margin:6px 0"><input type="checkbox" id="privGO" onchange="privPreview()"> With grant option - may give these privileges to others</label>
+ <pre id="privSql" class="privsql"></pre>
+ <div class="row" style="justify-content:space-between;flex:none"><span><button class="sm" onclick="hide('mPriv');grantUser()">Type a GRANT...</button> <button class="sm" onclick="hide('mPriv');revokeUser()">Type a REVOKE...</button></span><span><button class="go" id="privApply" onclick="privApply()">Apply</button> <button onclick="hide('mPriv')">Close</button></span></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Generate User Transfer Script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">Uses SHOW CREATE USER and SHOW GRANTS FOR against this connection - the same statements the server itself would emit, so the correct auth plugin, password hash, column/routine grants, and grant options all come through correctly (works on MySQL and MariaDB alike). CREATE USER statements are listed first so the grants below can reference them. Copy or save the result and run it on the TARGET server.</div>
  <div class="row" style="flex:none"><b>Exclude these accounts</b> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -5639,11 +5650,7 @@ async function killProcess(pid){
  if(r.ok){log('Killed process '+pid+'.');refreshProcessList();}
  else{toast(r.error||('Could not kill process '+pid+'.'),true);}
 }
-async function openUsers(){const r=await api('/api/query',{sql:"SELECT User,Host FROM mysql.user ORDER BY User,Host"});const sel=$('userSel');sel.innerHTML='';$('grantsBox').textContent='';window._selUser='';
- if(!r.ok){toast(r.error,true);return;}r.rows.forEach(u=>{const d=document.createElement('div');d.className='uitem';d.textContent=u[0]+'@'+u[1];d.dataset.v=u[0]+'\x01'+u[1];d.onclick=()=>{[...sel.children].forEach(c=>c.classList.remove('sel'));d.classList.add('sel');window._selUser=d.dataset.v;showGrants();};sel.appendChild(d);});show('mUsers');}
-async function showGrants(){const v=window._selUser;if(!v)return;const[u,h]=v.split('\x01');const r=await api('/api/query',{sql:"SHOW GRANTS FOR "+strLit(u)+"@"+strLit(h)});$('grantsBox').textContent=r.ok?r.rows.map(x=>x[0]).join('\n'):r.error;}
-async function newUser(){const res=await inputBox({title:'New user',okText:'Create',fields:[{key:'user',label:'User name'},{key:'host',label:'Host',value:'%'},{key:'pw',label:'Password',type:'password'}]});if(!res||!res.user.trim())return;const h=res.host.trim()||'%';if(await exec("CREATE USER "+strLit(res.user.trim())+"@"+strLit(h)+" IDENTIFIED BY "+strLit(res.pw),'Created user'))openUsers();}
-async function revokeUser(){const v=window._selUser;if(!v){toast('Select a user first.',true);return;}const[u,h]=v.split('\x01');const res=await grantRevokeDialog('revoke');if(!res||!res.g.trim())return;if(await exec("REVOKE "+res.g.trim()+" FROM "+strLit(u)+"@"+strLit(h),'Revoked')){await exec('FLUSH PRIVILEGES','Flush');showGrants();}}
+async function revokeUser(){const v=window._selUser;if(!v){toast('Select a user first.',true);return;}const[u,h]=v.split('\x01');const res=await grantRevokeDialog('revoke');if(!res||!res.g.trim())return;if(await exec("REVOKE "+res.g.trim()+" FROM "+uRef(window._selAcct),'Revoked')){await exec('FLUSH PRIVILEGES','Flush');showGrants();}}
 // Common privilege combos, similar to what Workbench's own privilege list offers - not exhaustive
 // (there's dozens of individual MySQL privileges), just the handful actually reached for often. The
 // free-text field underneath stays the source of truth: picking a preset/schema/table just (re)writes
@@ -5700,13 +5707,243 @@ async function changePassword(){const v=window._selUser;if(!v){toast('Select a u
  // password: lit()'s hex-literal passthrough (returning e.g. "0xdead" unquoted) is meant for cell
  // values, not a password field, and would silently reinterpret a password that happens to look
  // like hex as raw bytes instead of the literal text the user typed.
- const sql="ALTER USER "+strLit(u)+"@"+strLit(h)+" IDENTIFIED BY "+strLit(res.pw)+";";
+ // MariaDB's IDENTIFIED BY switches an ed25519 account to its default plugin; its plugin is named.
+ const sa=window._selAcct,keep=window.mariadb&&sa&&['ed25519','parsec'].includes(sa.plugin)?sa.plugin:'';
+ const sql="ALTER USER "+strLit(u)+"@"+strLit(h)+" "+identifiedBy(keep,res.pw)+";";
  const r=await api('/api/exec',{sql:sql});
  if(r.ok){log('Password changed for '+u+'@'+h+'.');toast('Password changed for '+u+'@'+h+'.','ok');}else{toast('Failed: '+(r.error||'unknown'),true);}}
-async function dropUser(){const v=window._selUser;if(!v)return;const[u,h]=v.split('\x01');if(!(await ask('DROP USER '+u+'@'+h+' ?')))return;if(await exec("DROP USER "+strLit(u)+"@"+strLit(h),'Dropped user'))openUsers();}
+async function dropUser(){const a=window._selAcct;if(!a)return;const what=a.role?'DROP ROLE':'DROP USER';if(!(await ask(what+' '+uName(a)+' ?')))return;if(await exec(what+' '+uRef(a),a.role?'Dropped role':'Dropped user'))openUsers();}
 async function grantUser(){const v=window._selUser;if(!v){toast('Select a user first.',true);return;}const[u,h]=v.split('\x01');const res=await grantRevokeDialog('grant');if(!res||!res.g.trim())return;
- const sql="GRANT "+res.g.trim()+" TO "+strLit(u)+"@"+strLit(h)+(res.wgo?' WITH GRANT OPTION':'');
+ const sql="GRANT "+res.g.trim()+" TO "+uRef(window._selAcct)+(res.wgo?' WITH GRANT OPTION':'');
  if(await exec(sql,'Granted')){await exec('FLUSH PRIVILEGES','Flush');showGrants();}}
+
+// ---- users: the list, an account's details, and what can be done to one ----
+// Accounts and roles, each read with what the server knows about it: how it signs in, whether it
+// must use SSL, its limits, whether it is locked or its password has expired, and its roles. A
+// column a server does not have comes back empty rather than failing the list - mysql.user is not
+// the same on MySQL and MariaDB, nor across their versions.
+let _uaccts=[],_uRoleSupport=false;
+const SYSTEM_ACCTS=['mysql.sys','mysql.session','mysql.infoschema','mariadb.sys'];
+function uKey(u,h){return u+'\x01'+h;}
+// How a statement names the account: 'user'@'host', or a MariaDB role by its name alone.
+function uRef(a){return a.role&&window.mariadb?qid(a.u):strLit(a.u)+'@'+strLit(a.h);}
+function uName(a){return a.role&&window.mariadb?a.u:a.u+'@'+a.h;}
+async function usersLoad(){
+ const cr=await api('/api/query',{sql:"SELECT LOWER(COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user'"});
+ const have=new Set((cr.ok?cr.rows:[]).map(r=>String(r[0])));
+ const col=(c,a)=>(have.has(c)?c:'NULL')+' AS '+a;
+ const r=await api('/api/query',{sql:'SELECT User,Host,'+[col('plugin','plugin'),col('account_locked','locked'),col('password_expired','expired'),col('password_lifetime','lifetime'),col('ssl_type','ssltype'),col('max_questions','mq'),col('max_updates','mu'),col('max_connections','mc'),col('max_user_connections','muc'),col('is_role','isrole'),col('default_role','defrole')].join(',')+
+  (have.has('authentication_string')?",authentication_string='' AS nopw":',NULL AS nopw')+' FROM mysql.user ORDER BY User,Host'});
+ if(!r.ok){toast(r.error,true);return false;}
+ const acc=r.rows.map(x=>({u:x[0],h:x[1],plugin:x[2]||'',locked:x[3]==='Y',expired:x[4]==='Y',lifetime:x[5]==null?null:+x[5],ssl:x[6]||'',mq:+x[7]||0,mu:+x[8]||0,mc:+x[9]||0,muc:+x[10]||0,
+  role:x[11]==='Y',defrole:x[12]||'',nopw:String(x[13])==='1',roles:[],defaults:[]}));
+ const byKey=new Map(acc.map(a=>[uKey(a.u,a.h),a]));
+ _uRoleSupport=false;
+ if(window.mariadb){
+  // MariaDB: roles are rows marked is_role, granted through mysql.roles_mapping, with the default
+  // role a column of the account.
+  // Its lock and its password lifetime are not columns of mysql.user there (10.4 on) but keys
+  // of mysql.global_priv's JSON: account_locked, and password_lifetime - absent for the server's
+  // default, 0 for never.
+  const gp=await api('/api/query',{sql:"SELECT User,Host,JSON_VALUE(Priv,'$.account_locked'),JSON_VALUE(Priv,'$.password_lifetime') FROM mysql.global_priv"});
+  if(gp.ok)gp.rows.forEach(([u,h,l,lt])=>{const a=byKey.get(uKey(u,h));if(a){a.locked=l==='true'||l==='1';a.lifetime=lt==null||lt===''?null:+lt;}});
+  const m=await api('/api/query',{sql:'SELECT User,Host,Role FROM mysql.roles_mapping'});
+  if(m.ok){_uRoleSupport=true;const roles=new Map(acc.filter(a=>a.role).map(a=>[a.u,a]));
+   m.rows.forEach(([u,h,role])=>{const a=byKey.get(uKey(u,h))||(h===''?roles.get(u):null),ro=roles.get(role);if(a&&ro&&a!==ro&&!a.roles.includes(ro))a.roles.push(ro);});
+   acc.forEach(a=>{const ro=a.defrole&&roles.get(a.defrole);if(ro)a.defaults=[ro];});}
+ }else{
+  // MySQL 8: a role is an account; the ones granted or set as a default are roles for certain, and
+  // one made with CREATE ROLE and not given to anyone yet is a locked account with no password.
+  const e=await api('/api/query',{sql:'SELECT FROM_USER,FROM_HOST,TO_USER,TO_HOST FROM mysql.role_edges'});
+  if(e.ok){_uRoleSupport=true;const isRole=new Set();
+   e.rows.forEach(([fu,fh,tu,th])=>{isRole.add(uKey(fu,fh));const a=byKey.get(uKey(tu,th)),ro=byKey.get(uKey(fu,fh));if(a&&ro&&!a.roles.includes(ro))a.roles.push(ro);});
+   const d=await api('/api/query',{sql:'SELECT USER,HOST,DEFAULT_ROLE_USER,DEFAULT_ROLE_HOST FROM mysql.default_roles'});
+   if(d.ok)d.rows.forEach(([u,h,ru,rh])=>{isRole.add(uKey(ru,rh));const a=byKey.get(uKey(u,h)),ro=byKey.get(uKey(ru,rh));if(a&&ro)a.defaults.push(ro);});
+   acc.forEach(a=>{if(isRole.has(uKey(a.u,a.h))||(a.locked&&a.nopw&&!SYSTEM_ACCTS.includes(a.u)))a.role=true;});}
+ }
+ _uaccts=acc;return true;}
+async function openUsers(){if(!(await usersLoad()))return;$('userFilter').value='';window._selUser='';window._selAcct=null;usersRender();$('grantsBox').textContent='';$('userInfo').innerHTML='<span class="muted">Select an account or a role.</span>';show('mUsers');}
+// The list: roles first, then accounts, each with what is unusual about it beside its name.
+function usersRender(){const box=$('userSel'),q=($('userFilter').value||'').trim().toLowerCase();box.innerHTML='';
+ const list=_uaccts.filter(a=>!q||uName(a).toLowerCase().includes(q));
+ [...list.filter(a=>a.role),...list.filter(a=>!a.role)].forEach(a=>{const d=document.createElement('div');d.className='uitem'+(window._selAcct===a?' sel':'');
+  const n=document.createElement('span');n.textContent=uName(a);d.appendChild(n);
+  const tags=[];if(a.role)tags.push(['role','urole']);if(SYSTEM_ACCTS.includes(a.u))tags.push(['system','']);if(a.locked&&!a.role)tags.push(['locked','uwarn']);if(a.expired&&!a.role)tags.push(['expired','uwarn']);
+  tags.forEach(([t,c])=>{const s=document.createElement('span');s.className='utag '+c;s.textContent=t;d.appendChild(s);});
+  d.onclick=()=>{window._selAcct=a;window._selUser=uKey(a.u,a.h);[...box.children].forEach(c=>c.classList.remove('sel'));d.classList.add('sel');showGrants();};box.appendChild(d);});
+ if(!list.length)box.innerHTML='<div class="muted" style="padding:8px">No account matches.</div>';}
+async function showGrants(){const a=window._selAcct;if(!a)return;$('userInfo').innerHTML=acctInfoHtml(a);
+ const r=await api('/api/query',{sql:'SHOW GRANTS FOR '+uRef(a)});$('grantsBox').textContent=r.ok?r.rows.map(x=>x[0]).join('\n'):r.error;}
+const SSL_SAYS={ANY:'SSL required',X509:'SSL with a client certificate required',SPECIFIED:'a specific client certificate required'};
+function acctInfoHtml(a){const p=[];
+ if(a.role)p.push('<b>'+esc(uName(a))+'</b> - a role: its privileges go to whoever it is granted to');
+ else{p.push('<b>'+esc(uName(a))+'</b>');if(a.plugin)p.push('signs in with '+esc(a.plugin));
+  p.push(SSL_SAYS[a.ssl]||'SSL not required');
+  p.push(a.lifetime==null?'password expiry: server default':(a.lifetime===0?'password never expires':'password expires every '+a.lifetime+' days'));
+  if(a.locked)p.push('<span class="uwarn">locked - cannot sign in</span>');if(a.expired)p.push('<span class="uwarn">password expired</span>');}
+ const lim=[['queries an hour',a.mq],['updates an hour',a.mu],['connections an hour',a.mc],['connections at once',a.muc]].filter(x=>x[1]>0).map(x=>x[1]+' '+x[0]);
+ if(lim.length)p.push('at most '+lim.join(', '));
+ if(a.roles.length)p.push('roles: '+a.roles.map(r=>esc(uName(r))+(a.defaults.includes(r)?' (default)':'')).join(', '));
+ return p.join(' &middot; ');}
+async function usersReloadKeep(){const k=window._selUser;await usersLoad();window._selAcct=_uaccts.find(a=>uKey(a.u,a.h)===k)||null;usersRender();if(window._selAcct)showGrants();}
+function usersSelect(u,h){window._selAcct=_uaccts.find(a=>a.u===u&&a.h===h)||null;window._selUser=window._selAcct?uKey(u,h):'';usersRender();if(window._selAcct)showGrants();}
+
+// ---- privileges as a checklist ----
+// The privileges at one level - the whole server, a database, a table - as boxes, ticked for what
+// the account has. What changes is shown as the GRANT and REVOKE it becomes before it is applied.
+// Which privileges a level offers is the server's own list (SHOW PRIVILEGES), so a MySQL-only or
+// MariaDB-only privilege appears where it exists and nowhere else.
+const PRIV_TABLE=['SELECT','INSERT','UPDATE','DELETE','CREATE','DROP','ALTER','INDEX','REFERENCES','CREATE VIEW','SHOW VIEW','TRIGGER','DELETE HISTORY'];
+const PRIV_DB=[...PRIV_TABLE,'CREATE TEMPORARY TABLES','LOCK TABLES','EXECUTE','CREATE ROUTINE','ALTER ROUTINE','EVENT'];
+let _priv={acct:null,known:[],had:new Set(),hadGO:false};
+async function privOpen(){const a=window._selAcct;if(!a){toast('Select an account or a role first.',true);return;}
+ _priv.acct=a;const sp=await api('/api/query',{sql:'SHOW PRIVILEGES'});
+ _priv.known=(sp.ok&&sp.rows.length?sp.rows.map(r=>String(r[0]).toUpperCase()):PRIV_DB).filter(p=>!['USAGE','PROXY','GRANT OPTION'].includes(p));
+ const sr=await api('/api/schemas');$('privDb').innerHTML=(sr.ok?sr.schemas:[]).map(s=>'<option>'+esc(s.name)+'</option>').join('');
+ if(curSchema)$('privDb').value=curSchema;
+ $('privTitle').textContent='Privileges of '+uName(a);show('mPriv');await privScopeChanged();}
+async function privScopeChanged(){const sc=$('privScope').value;$('privDb').style.display=sc==='global'?'none':'';$('privTable').style.display=sc==='table'?'':'none';
+ if(sc==='table'){const tr=await api('/api/query',{sql:'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='+lit($('privDb').value)+' ORDER BY TABLE_NAME'});
+  $('privTable').innerHTML=(tr.ok?tr.rows:[]).map(r=>'<option>'+esc(r[0])+'</option>').join('');}
+ await privLoad();}
+function privTarget(){const sc=$('privScope').value;return sc==='global'?'*.*':sc==='db'?qid($('privDb').value)+'.*':qid($('privDb').value)+'.'+qid($('privTable').value);}
+// information_schema names a grantee 'user'@'host', and a MariaDB role 'role' alone.
+function privGrantees(a){const u=String(a.u).replace(/'/g,"''"),h=String(a.h).replace(/'/g,"''");return ["'"+u+"'@'"+h+"'","'"+u+"'"].map(strLit).join(',');}
+async function privLoad(){const a=_priv.acct,sc=$('privScope').value;if(!a)return;const g=privGrantees(a);
+ if(sc==='table'&&!$('privTable').value){$('privList').innerHTML='<div class="muted">This database has no tables.</div>';_priv.had=new Set();_priv.hadGO=false;privPreview();return;}
+ const where=sc==='global'?'':' AND TABLE_SCHEMA='+lit($('privDb').value)+(sc==='table'?' AND TABLE_NAME='+lit($('privTable').value):'');
+ const t=sc==='global'?'USER_PRIVILEGES':sc==='db'?'SCHEMA_PRIVILEGES':'TABLE_PRIVILEGES';
+ const r=await api('/api/query',{sql:'SELECT PRIVILEGE_TYPE,IS_GRANTABLE FROM information_schema.'+t+' WHERE GRANTEE IN ('+g+')'+where});const rows=r.ok?r.rows:[];
+ _priv.had=new Set(rows.map(x=>String(x[0]).toUpperCase()).filter(p=>p!=='USAGE'));_priv.hadGO=rows.some(x=>x[1]==='YES');
+ const allowed=sc==='global'?_priv.known:(sc==='db'?PRIV_DB:PRIV_TABLE).filter(p=>_priv.known.includes(p));
+ const data=allowed.filter(p=>PRIV_DB.includes(p)),admin=allowed.filter(p=>!PRIV_DB.includes(p));
+ const box=p=>'<label class="ck"><input type="checkbox" value="'+esc(p)+'"'+(_priv.had.has(p)?' checked':'')+' onchange="privPreview()"> '+esc(p)+'</label>';
+ $('privList').innerHTML=(sc==='global'?'<div class="psec">Data and structure, in every database</div>':'')+'<div class="pgrid">'+data.map(box).join('')+'</div>'+
+  (admin.length?'<div class="psec">Running the server</div><div class="pgrid">'+admin.map(box).join('')+'</div>':'')+
+  (sc!=='global'?'<div class="muted" style="margin-top:8px;font-size:12px">Privileges on single columns or routines are not shown here - use Type a GRANT for those.</div>':'');
+ $('privGO').checked=_priv.hadGO;privPreview();}
+// The statements the boxes stand for: a GRANT for what was added, a REVOKE for what was taken away.
+function privSqlFor(){const a=_priv.acct;if(!a)return [];const on=privTarget(),who=uRef(a);
+ const shown=new Set([...$('privList').querySelectorAll('input[type=checkbox]')].map(b=>b.value));
+ const want=new Set([...$('privList').querySelectorAll('input:checked')].map(b=>b.value));
+ const add=[...want].filter(p=>!_priv.had.has(p)),del=[..._priv.had].filter(p=>shown.has(p)&&!want.has(p));
+ const go=$('privGO').checked,out=[];
+ // WITH GRANT OPTION belongs to the level, not to a privilege: given once, it covers them all.
+ if(add.length||(go&&!_priv.hadGO&&want.size))out.push('GRANT '+(add.length?add:[...want]).join(', ')+' ON '+on+' TO '+who+(go?' WITH GRANT OPTION':'')+';');
+ if(del.length)out.push('REVOKE '+del.join(', ')+' ON '+on+' FROM '+who+';');
+ if(!go&&_priv.hadGO)out.push('REVOKE GRANT OPTION ON '+on+' FROM '+who+';');
+ return out;}
+function privPreview(){const s=privSqlFor();$('privSql').textContent=s.length?s.join('\n'):'-- Nothing to change.';$('privApply').disabled=!s.length;}
+async function privApply(){const s=privSqlFor();if(!s.length)return;const r=await api('/api/script',{sql:s.join('\n')});
+ if(!r.ok){toast(r.error,true);return;}log(s.join('\n'));toast('Privileges changed.','ok');await privLoad();await usersReloadKeep();}
+
+// ---- roles ----
+async function roleCreate(){if(!_uRoleSupport){toast('This server has no roles - they came with MySQL 8.0 and MariaDB 10.0.5.',true);return;}
+ const res=await inputBox({title:'Create role',okText:'Create',fields:[{key:'n',label:'Role name'}]});if(!res||!res.n.trim())return;const n=res.n.trim();
+ if(await exec('CREATE ROLE '+(window.mariadb?qid(n):strLit(n)+'@'+strLit('%')),'Created role '+n)){await usersLoad();usersSelect(n,window.mariadb?'':'%');}}
+// Which roles an account has, and which one is active when it signs in.
+async function rolesEdit(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
+ if(!_uRoleSupport){toast('This server has no roles - they came with MySQL 8.0 and MariaDB 10.0.5.',true);return;}
+ const roles=_uaccts.filter(r=>r.role&&r!==a);if(!roles.length){toast('There are no roles yet - make one with Create role.',true);return;}
+ const cur=a.defaults.length>1?'__all__':a.defaults.length?String(roles.indexOf(a.defaults[0])):'';
+ const fields=roles.map((r,i)=>({key:'r'+i,label:uName(r),type:'checkbox',value:a.roles.includes(r)}));
+ fields.push({key:'def',label:'Default role - the one active when '+uName(a)+' signs in',type:'select',
+  options:[{value:'',label:'None'},...(window.mariadb?[]:[{value:'__all__',label:'All the roles it has'}]),...roles.map((r,i)=>({value:String(i),label:uName(r)}))],value:cur});
+ const res=await inputBox({title:'Roles of '+uName(a),okText:'Apply',fields});if(!res)return;
+ const who=uRef(a),out=[];
+ roles.forEach((r,i)=>{const has=a.roles.includes(r),want=!!res['r'+i];if(want&&!has)out.push('GRANT '+uRef(r)+' TO '+who+';');if(!want&&has)out.push('REVOKE '+uRef(r)+' FROM '+who+';');});
+ const d=res.def,defRole=d&&d!=='__all__'?roles[+d]:null;
+ if(defRole&&!res['r'+d]){toast('The default role has to be one of the roles the account has.',true);return;}
+ if(d!==cur)out.push(window.mariadb?'SET DEFAULT ROLE '+(defRole?uRef(defRole):'NONE')+' FOR '+who+';':'SET DEFAULT ROLE '+(d==='__all__'?'ALL':defRole?uRef(defRole):'NONE')+' TO '+who+';');
+ if(!out.length)return;const r=await api('/api/script',{sql:out.join('\n')});if(!r.ok){toast(r.error,true);return;}
+ log(out.join('\n'));toast('Roles changed.','ok');await usersReloadKeep();}
+
+// ---- account settings ----
+// The sign-in methods this server has switched on and a password can be given for.
+async function authPlugins(){const r=await api('/api/query',{sql:"SELECT PLUGIN_NAME FROM information_schema.PLUGINS WHERE PLUGIN_TYPE='AUTHENTICATION' AND PLUGIN_STATUS='ACTIVE' ORDER BY PLUGIN_NAME"});
+ return (r.ok?r.rows.map(x=>x[0]):[]).filter(p=>['mysql_native_password','caching_sha2_password','sha256_password','ed25519','parsec'].includes(p));}
+// The IDENTIFIED clause for a password: MariaDB names a plugin with VIA ... USING PASSWORD(), MySQL
+// with WITH ... BY. No plugin means the server's default.
+function identifiedBy(plugin,pw){if(!plugin)return 'IDENTIFIED BY '+strLit(pw);
+ return window.mariadb?'IDENTIFIED VIA '+plugin+' USING PASSWORD('+strLit(pw)+')':'IDENTIFIED WITH '+plugin+' BY '+strLit(pw);}
+function acctExpiry(a){return !a||a.lifetime==null?'default':a.lifetime===0?'never':'days';}
+function acctSettingFields(a,group){return [
+ {key:'ssl',label:'Connection security',type:'select',options:[{value:'NONE',label:'SSL not required'},{value:'ANY',label:'SSL required'},{value:'X509',label:'SSL with a client certificate required'}],value:a&&a.ssl==='X509'?'X509':a&&a.ssl==='ANY'?'ANY':'NONE',group},
+ {key:'exp',label:'Password expiry',type:'select',options:[{value:'default',label:'Server default'},{value:'never',label:'Never expires'},{value:'days',label:'Expires after the days below'}],value:acctExpiry(a),group},
+ {key:'days',label:'Days until the password expires',value:a&&a.lifetime>0?String(a.lifetime):'90',group},
+ {key:'mq',label:'Queries an hour (0 = no limit)',value:String(a?a.mq:0),group},
+ {key:'mu',label:'Updates an hour (0 = no limit)',value:String(a?a.mu:0),group},
+ {key:'mc',label:'Connections an hour (0 = no limit)',value:String(a?a.mc:0),group},
+ {key:'muc',label:'Connections at once (0 = no limit)',value:String(a?a.muc:0),group}];}
+// ALTER USER for what differs from a (everything that is not the default, for a new account).
+function acctSettingSql(who,res,a){const out=[],n=k=>Math.max(0,parseInt(res[k],10)||0),curSsl=a?(a.ssl==='X509'?'X509':a.ssl==='ANY'?'ANY':'NONE'):'NONE';
+ if(res.ssl!==curSsl)out.push('ALTER USER '+who+' REQUIRE '+(res.ssl==='ANY'?'SSL':res.ssl)+';');
+ const lim=[['MAX_QUERIES_PER_HOUR','mq'],['MAX_UPDATES_PER_HOUR','mu'],['MAX_CONNECTIONS_PER_HOUR','mc'],['MAX_USER_CONNECTIONS','muc']].filter(([,k])=>n(k)!==(a?a[k]:0));
+ if(lim.length)out.push('ALTER USER '+who+' WITH '+lim.map(([s,k])=>s+' '+n(k)).join(' ')+';');
+ const days=Math.max(1,n('days'));
+ if(res.exp!==acctExpiry(a)||(res.exp==='days'&&a&&a.lifetime!==days))
+  out.push('ALTER USER '+who+' '+(res.exp==='never'?'PASSWORD EXPIRE NEVER':res.exp==='days'?'PASSWORD EXPIRE INTERVAL '+days+' DAY':'PASSWORD EXPIRE DEFAULT')+';');
+ return out;}
+// Statements that carry a password are logged without it.
+function logNoSecrets(s){log(s.replace(/(BY|PASSWORD\()\s*'(?:[^'\\]|\\.|'')*'/gi,"$1 '***'"));}
+async function newUser(){const plugins=await authPlugins();
+ const res=await inputBox({title:'Create user',okText:'Create',width:'520px',fields:[{key:'user',label:'User name'},{key:'host',label:'Host - % for anywhere',value:'%'},{key:'pw',label:'Password',type:'password'},
+  {key:'plugin',label:'Sign-in method',type:'select',options:[{value:'',label:'Server default'},...plugins.map(p=>({value:p,label:p}))],value:''},
+  {key:'more',label:'More settings: connection security, password expiry, limits',type:'checkbox',value:false,reveals:'more'},...acctSettingFields(null,'more')]});
+ if(!res||!res.user.trim())return;const u=res.user.trim(),h=res.host.trim()||'%',who=strLit(u)+'@'+strLit(h);
+ const s=['CREATE USER '+who+' '+identifiedBy(res.plugin,res.pw)+';',...(res.more?acctSettingSql(who,res,null):[])];
+ const r=await api('/api/script',{sql:s.join('\n')});if(!r.ok){toast(r.error,true);return;}
+ logNoSecrets(s.join('\n'));toast('Created '+u+'@'+h+'.','ok');await usersLoad();usersSelect(u,h);}
+async function acctEdit(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
+ if(a.role){toast('A role does not sign in, so it has no account settings.',true);return;}
+ const plugins=await authPlugins();if(a.plugin&&!plugins.includes(a.plugin))plugins.unshift(a.plugin);
+ const res=await inputBox({title:'Account settings of '+uName(a),okText:'Apply',width:'520px',fields:[
+  {key:'plugin',label:'Sign-in method - to change it, give a password as well',type:'select',options:plugins.map(p=>({value:p,label:p})),value:a.plugin},
+  {key:'pw',label:'New password - only to change it, or the sign-in method',type:'password',value:''},
+  ...acctSettingFields(a),{key:'locked',label:'Locked - cannot sign in',type:'checkbox',value:a.locked}]});
+ if(!res)return;const who=uRef(a),out=acctSettingSql(who,res,a);
+ // MariaDB's IDENTIFIED BY switches the account to its default plugin, so the plugin is always named there.
+ if(res.pw)out.unshift('ALTER USER '+who+' '+identifiedBy(res.plugin!==a.plugin||window.mariadb?res.plugin:'',res.pw)+';');
+ else if(res.plugin!==a.plugin){toast('Changing the sign-in method needs the password as well.',true);return;}
+ if(res.locked!==a.locked)out.push('ALTER USER '+who+' ACCOUNT '+(res.locked?'LOCK':'UNLOCK')+';');
+ if(!out.length){toast('Nothing to change.');return;}
+ const r=await api('/api/script',{sql:out.join('\n')});if(!r.ok){toast(r.error,true);return;}
+ logNoSecrets(out.join('\n'));toast('Account settings changed.','ok');await usersReloadKeep();}
+
+// ---- clone ----
+// A new account like the selected one: its sign-in method, settings, grants and roles, with a name,
+// host and password of its own. The grants are the source's SHOW GRANTS with the new name put in;
+// MariaDB writes the source's password into its GRANT USAGE line, and that part is left out.
+function cloneGrantSql(lines,a,u,h){const bq=s=>'`'+String(s).replace(/`/g,'``')+'`',src=bq(a.u)+'@'+bq(a.h),dst=bq(u)+'@'+bq(h);
+ return lines.map(s=>{for(const kw of [' TO ',' FOR ']){const i=s.lastIndexOf(kw+src);if(i>=0){const t=s.slice(0,i)+kw+dst+s.slice(i+kw.length+src.length);
+   return t.replace(/\s+IDENTIFIED\s+(BY\s+PASSWORD\s+'[^']*'|VIA\s+.*?)(?=\s+(WITH|REQUIRE)\b|$)/i,'')+';';}}return null;}).filter(Boolean);}
+async function acctClone(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
+ if(a.role){toast('Clone makes accounts - select an account rather than a role.',true);return;}
+ const res=await inputBox({title:'Clone '+uName(a),okText:'Clone',fields:[{key:'user',label:'New user name',value:a.u+'_copy'},{key:'host',label:'Host',value:a.h},{key:'pw',label:'Password for the new account',type:'password'}]});
+ if(!res||!res.user.trim())return;const u=res.user.trim(),h=res.host.trim()||'%',who=strLit(u)+'@'+strLit(h);
+ const g=await api('/api/query',{sql:'SHOW GRANTS FOR '+uRef(a)});if(!g.ok){toast(g.error,true);return;}
+ const plugins=await authPlugins(),plugin=plugins.includes(a.plugin)?a.plugin:'';
+ const s=['CREATE USER '+who+' '+identifiedBy(plugin,res.pw)+';',
+  ...acctSettingSql(who,{ssl:a.ssl==='X509'?'X509':a.ssl==='ANY'?'ANY':'NONE',exp:acctExpiry(a),days:String(a.lifetime||90),mq:a.mq,mu:a.mu,mc:a.mc,muc:a.muc},null),
+  ...cloneGrantSql(g.rows.map(x=>String(x[0])),a,u,h)];
+ if(!window.mariadb&&a.defaults.length)s.push('SET DEFAULT ROLE '+a.defaults.map(uRef).join(', ')+' TO '+who+';');
+ const r=await api('/api/script',{sql:s.join('\n')});if(!r.ok){toast(r.error,true);return;}
+ logNoSecrets(s.join('\n'));toast('Cloned '+uName(a)+' as '+u+'@'+h+'.','ok');await usersLoad();usersSelect(u,h);}
+
+// ---- who has access ----
+// Everyone with privileges on a database: on the whole server (its data privileges), on the
+// database, on its tables and on their columns. Privileges that come through a role are listed
+// under the role.
+async function whoHasAccess(){const sr=await api('/api/schemas');const schemas=sr.ok?sr.schemas.map(s=>s.name):[];if(!schemas.length)return;
+ const res=await inputBox({title:'Who has access',okText:'Show',fields:[{key:'db',label:'Database',type:'select',options:schemas,value:schemas.includes(curSchema)?curSchema:schemas[0]}]});if(!res)return;
+ const db=res.db,sep=" SEPARATOR ', ')";
+ const qs=["SELECT GRANTEE,'the whole server',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.USER_PRIVILEGES WHERE PRIVILEGE_TYPE IN ("+PRIV_DB.map(strLit).join(',')+") GROUP BY GRANTEE",
+  "SELECT GRANTEE,'the database',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.SCHEMA_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE",
+  "SELECT GRANTEE,CONCAT('table ',TABLE_NAME),GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME",
+  "SELECT GRANTEE,CONCAT('column ',TABLE_NAME,'.',COLUMN_NAME),GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME,COLUMN_NAME"];
+ const by=new Map();for(const q of qs){const r=await api('/api/query',{sql:q});if(r.ok)r.rows.forEach(([g,sc,p])=>{if(!by.has(g))by.set(g,[]);by.get(g).push(sc+': '+p);});}
+ const txt=by.size?[...by.keys()].sort().map(g=>g+'\n'+by.get(g).map(x=>'    '+x).join('\n')).join('\n\n'):'Nobody has privileges on '+db+' of their own.';
+ viewText('Who has access to '+db,txt+'\n\nPrivileges that come through a role are listed under the role.',{readonly:true});}
 
 // ---- table designer ----
 const DTYPES=['INT','BIGINT','TINYINT','SMALLINT','MEDIUMINT','DECIMAL','FLOAT','DOUBLE','BIT','BOOLEAN','CHAR','VARCHAR','TEXT','MEDIUMTEXT','LONGTEXT','DATE','DATETIME','TIMESTAMP','TIME','YEAR','JSON','BLOB','LONGBLOB','ENUM','BINARY','VARBINARY'];

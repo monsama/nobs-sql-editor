@@ -31,14 +31,19 @@ function extractFunction(src, name) {
   throw new Error(`unbalanced braces while extracting ${name}`);
 }
 
-const NAMES = ['strLit', 'lit', 'newUser', 'dropUser', 'grantUser', 'revokeUser', 'lockUser'];
+const NAMES = ['strLit', 'lit', 'newUser', 'dropUser', 'grantUser', 'revokeUser', 'lockUser',
+  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql'];
 const bundle = NAMES.map(n => extractFunction(html, n)).join('\n');
 
 // Builds the dialog functions with everything they touch stubbed out, and returns both the
 // captured SQL and the harness so a test can set the selected user.
-function harness({ dialog = {}, selected = null } = {}) {
+function harness({ dialog = {}, selected = null, mariadb = false } = {}) {
   const sql = [];
+  const [u, h] = selected ? selected.split('\x01') : [];
   const env = {
+    api: async (path, p) => { if (path === '/api/script') { sql.push(...p.sql.split('\n')); return { ok: true }; } return { ok: true, rows: [] }; },
+    log: () => {}, usersLoad: async () => true, usersSelect: () => {},
+    qid: n => '`' + String(n).replace(/`/g, '``') + '`',
     inputBox: async () => dialog,
     grantRevokeDialog: async () => dialog,
     ask: async () => true,
@@ -46,10 +51,10 @@ function harness({ dialog = {}, selected = null } = {}) {
     openUsers: () => {},
     showGrants: () => {},
     exec: async (s) => { sql.push(s); return true; },
-    window: { _selUser: selected },
+    window: { _selUser: selected, _selAcct: selected ? { u, h, role: false } : null, mariadb },
   };
   const keys = Object.keys(env);
-  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser};`)(
+  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,cloneGrantSql};`)(
     ...keys.map(k => env[k]));
   return { sql, fns };
 }
@@ -59,7 +64,7 @@ const SEP = '\x01'; // how the Users list packs user+host into _selUser
 test('a user name containing a quote is escaped, not broken', async () => {
   const h = harness({ dialog: { user: "o'brien", host: 'localhost', pw: 'pw' } });
   await h.fns.newUser();
-  assert.equal(h.sql[0], "CREATE USER 'o''brien'@'localhost' IDENTIFIED BY 'pw'");
+  assert.equal(h.sql[0], "CREATE USER 'o''brien'@'localhost' IDENTIFIED BY 'pw';");
 });
 
 test('a user name that looks like a hex literal is still quoted as a name', async () => {
@@ -69,13 +74,13 @@ test('a user name that looks like a hex literal is still quoted as a name', asyn
   // this distinction deliberately - see sql_str_lit's comment in main.rs.
   const h = harness({ dialog: { user: '0xAB', host: '%', pw: 'pw' } });
   await h.fns.newUser();
-  assert.equal(h.sql[0], "CREATE USER '0xAB'@'%' IDENTIFIED BY 'pw'");
+  assert.equal(h.sql[0], "CREATE USER '0xAB'@'%' IDENTIFIED BY 'pw';");
 });
 
 test('a host that looks like a hex literal is quoted too', async () => {
   const h = harness({ dialog: { user: 'alice', host: '0xff', pw: 'pw' } });
   await h.fns.newUser();
-  assert.equal(h.sql[0], "CREATE USER 'alice'@'0xff' IDENTIFIED BY 'pw'");
+  assert.equal(h.sql[0], "CREATE USER 'alice'@'0xff' IDENTIFIED BY 'pw';");
 });
 
 test('an empty host defaults to %', async () => {
@@ -117,6 +122,49 @@ test('ALTER USER ... ACCOUNT LOCK/UNLOCK names the account correctly', async () 
   const unlock = harness({ selected: `0xAB${SEP}%` });
   await unlock.fns.lockUser(false);
   assert.equal(unlock.sql[0], "ALTER USER '0xAB'@'%' ACCOUNT UNLOCK");
+});
+
+test('a new account can be made with a sign-in method and its settings', async () => {
+  const h = harness({ dialog: { user: 'app', host: '%', pw: 'pw', plugin: 'caching_sha2_password', more: true, ssl: 'ANY', exp: 'days', days: '30', mq: '0', mu: '0', mc: '0', muc: '10' } });
+  await h.fns.newUser();
+  assert.deepEqual(h.sql, [
+    "CREATE USER 'app'@'%' IDENTIFIED WITH caching_sha2_password BY 'pw';",
+    "ALTER USER 'app'@'%' REQUIRE SSL;",
+    "ALTER USER 'app'@'%' WITH MAX_USER_CONNECTIONS 10;",
+    "ALTER USER 'app'@'%' PASSWORD EXPIRE INTERVAL 30 DAY;",
+  ]);
+});
+
+test('MariaDB names a sign-in method with VIA ... USING PASSWORD()', () => {
+  const my = harness(), ma = harness({ mariadb: true });
+  assert.equal(my.fns.identifiedBy('', 'p'), "IDENTIFIED BY 'p'");
+  assert.equal(my.fns.identifiedBy('mysql_native_password', 'p'), "IDENTIFIED WITH mysql_native_password BY 'p'");
+  assert.equal(ma.fns.identifiedBy('ed25519', "o'k"), "IDENTIFIED VIA ed25519 USING PASSWORD('o''k')");
+});
+
+test('account settings change only what differs', () => {
+  const h = harness();
+  const a = { ssl: 'ANY', lifetime: null, mq: 100, mu: 0, mc: 0, muc: 5 };
+  assert.deepEqual(h.fns.acctSettingSql("'a'@'%'", { ssl: 'ANY', exp: 'default', days: '90', mq: '100', mu: '0', mc: '0', muc: '5' }, a), []);
+  assert.deepEqual(h.fns.acctSettingSql("'a'@'%'", { ssl: 'NONE', exp: 'never', days: '90', mq: '0', mu: '0', mc: '0', muc: '5' }, a), [
+    "ALTER USER 'a'@'%' REQUIRE NONE;", "ALTER USER 'a'@'%' WITH MAX_QUERIES_PER_HOUR 0;", "ALTER USER 'a'@'%' PASSWORD EXPIRE NEVER;"]);
+});
+
+test('a clone gets the grants under its own name, and not the source password', () => {
+  const h = harness();
+  const got = h.fns.cloneGrantSql([
+    "GRANT USAGE ON *.* TO `src`@`%` IDENTIFIED BY PASSWORD '*ABC' WITH MAX_QUERIES_PER_HOUR 5",
+    'GRANT SELECT ON `d`.* TO `src`@`%` WITH GRANT OPTION',
+    'GRANT `role` TO `src`@`%`',
+    'SET DEFAULT ROLE `role` FOR `src`@`%`',
+    'GRANT PROXY ON `x`@`%` TO `other`@`%`',
+  ], { u: 'src', h: '%' }, 'new', 'localhost');
+  assert.deepEqual(got, [
+    'GRANT USAGE ON *.* TO `new`@`localhost` WITH MAX_QUERIES_PER_HOUR 5;',
+    'GRANT SELECT ON `d`.* TO `new`@`localhost` WITH GRANT OPTION;',
+    'GRANT `role` TO `new`@`localhost`;',
+    'SET DEFAULT ROLE `role` FOR `new`@`localhost`;',
+  ]);
 });
 
 test('nothing is sent when no user is selected', async () => {
