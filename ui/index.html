@@ -297,7 +297,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #vHexTabs button{border:1px solid var(--bd);background:var(--btn);color:var(--fg);border-radius:4px;padding:4px 12px;cursor:pointer;font:inherit}
  #vHexTabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
  #ctx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:180px}
- #colPicker,#objTypePicker,#impDbPicker{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9500;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
+ #colPicker,#objTypePicker,#impDbPicker{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
  #copyMenu{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9500;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
  .cphdr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 12px 6px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--bd2);margin-bottom:4px}
  .cplink{color:var(--accent);cursor:pointer}
@@ -419,6 +419,14 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .exptbls{margin:2px 0 6px 22px;max-height:170px;overflow:auto;border-left:2px solid var(--bd2);padding-left:8px}
 /* Parts one group of controls from the next inside a single row of options. */
  .optsep{width:1px;align-self:stretch;min-height:18px;background:var(--bd2);margin:0 4px;flex:none}
+ .xrow{display:flex;gap:8px;align-items:center;margin:5px 0;flex:none;flex-wrap:wrap} .xlbl{width:96px;flex:none;color:var(--muted);font-size:12px}
+ .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:6px;overflow:hidden;flex:none} .seg label{display:inline-flex;align-items:center;padding:4px 12px;cursor:pointer;font-size:12px;border-left:1px solid var(--bd2);user-select:none;white-space:nowrap} .seg label:first-child{border-left:0} .seg label:hover{background:var(--panel2)}
+ .seg input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none} .seg label:has(input:checked){background:var(--accent);color:#fff} .seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+ .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 16px} label.ck.xoff{opacity:.45}
+ .xadv{flex:none;margin:4px 0;border-top:1px solid var(--bd2);padding-top:2px} .xadv summary{cursor:pointer;color:var(--muted);font-size:12px;padding:4px 0;user-select:none} .xadv summary:hover{color:var(--fg)} .xgrp{grid-column:1/-1;font-weight:600;font-size:11px;color:var(--muted);margin-top:6px}
+ .implist{flex:1;min-height:80px;overflow:auto;border:1px solid var(--bd2);border-radius:4px} .improw{display:flex;align-items:center;gap:8px;padding:3px 6px 3px 8px;border-bottom:1px solid var(--bd2);font-size:12px} .improw:hover{background:var(--panel2)}
+ .impn{color:var(--muted);width:22px;text-align:right;flex:none;font-size:11px} .impname{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .impdir{flex:1;min-width:0;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .impsz{color:var(--muted);font-size:11px;flex:none;min-width:64px;text-align:right} .improw button{flex:none;padding:0 6px} .impempty{color:var(--muted);font-size:12px;padding:16px;text-align:center}
  /* The shortcuts in two columns, each section kept whole: a list this long in one column is
     mostly scrolling. One column again when the window is too narrow to hold two. */
  .sccols{columns:2;column-gap:28px}
@@ -520,30 +528,25 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" onclick="runCsvImport()">Import</button><button onclick="hide('mCsv')">Close</button></div>
  <div id="csvLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 <div class="modal floating" id="mExport"><div class="box" style="width:900px;max-width:95vw;height:840px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:120px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mExport')" title="Drag to move"><h3 style="margin:0 0 10px">Data Export</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mExport')" title="Maximize" id="maxBtn_mExport" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mExport')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <div class="row" style="flex:none"><b>Databases</b> <button onclick="expAll(true)">All</button><button onclick="expAll(false)">None</button></div>
- <!-- flex:1 (not a fixed max-height) so the database/table picker actually uses the extra room a
-      taller or maximized window gives it, instead of capping out with empty space below. -->
+ <div class="row" style="flex:none"><b>Databases</b><button class="sm" onclick="expAll(true)">All</button><button class="sm" onclick="expAll(false)">None</button><span class="muted">Open a database with &#9656; to leave some of its tables out.</span></div>
+ <!-- flex:1 (not a fixed max-height) so the database/table picker uses the extra room a taller or
+      maximized window gives it. -->
  <div id="expDbs" style="overflow:auto;border:1px solid var(--bd2);padding:6px;flex:1;min-height:80px"></div>
- <div class="row" style="flex:none"><b>Options</b></div><div class="grid2" id="expOpts" style="flex:none"></div>
- <div class="row" style="flex:none"><label title="How a NULL is written to CSV. \N is what LOAD DATA reads back; blank makes NULL and an empty string indistinguishable in the file.">NULL value <input id="expNullVal" value="\N" style="width:52px;font-family:Consolas,monospace"></label> Charset <select id="expCharset"><option>utf8mb4</option><option>utf8</option><option>latin1</option><option>binary</option></select>
-  <span class="optsep"></span><label title="One .sql file per table or view - lets you restore a single table (like Workbench Dump Project Folder). All files come from one dump of the database, so they are consistent with each other."><input type="radio" name="expmode" id="expTable" checked onchange="expSyncFilenameField()"> per table</label><label title="One .sql file per database."><input type="radio" name="expmode" id="expPer" onchange="expSyncFilenameField()"> per DB</label><label title="Everything in one combined .sql file."><input type="radio" name="expmode" id="expSingle" onchange="expSyncFilenameField()"> single file</label>
-  <label title="Append a date-time stamp to each file name."><input type="checkbox" id="expStamp" checked onchange="expUpdateFilenamePreview()"> timestamp</label>
-  <span class="optsep"></span><label title="mysqldump --max-allowed-packet. Raise this for very large rows or BLOBs (e.g. 1G).">max packet <input id="expMaxPacket" value="1G" style="width:56px"></label></div>
- <!-- Its own row (matching Folder's label/width/casing) instead of squeezed into the dense options
-      row above at 120px wide - plus a live preview of the actual resulting file name, since
-      "timestamp" silently changes what gets written and a plain text box alone doesn't show that. -->
- <!-- maxlength 100: well under NTFS's 255-character filename ceiling (which itself would need
-      room for the "_YYYYMMDD_HHMMSS" timestamp suffix and ".sql" extension this field doesn't
-      show while typing) - chosen instead for the GUI itself, so a typed name stays on one line
-      in both the input and the preview row below it without ever needing to ellipsize. -->
- <!-- The generated-name preview gets its own row underneath (full width to actually show a long
-      name) instead of squeezed to the right of the input, where it had almost no room and
-      ellipsized down to nothing. -->
- <div id="expFilenameRow" title="Only applies to “single file” mode - db/table mode each produce one file per object, so a manual name has nowhere to go. Leave blank to keep the default (all_selected)." style="display:none;flex-direction:column;gap:2px">
-  <div class="row" style="flex:none">Filename <input id="expFilename" placeholder="all_selected" maxlength="100" style="flex:1" oninput="expUpdateFilenamePreview()"><span id="expFilenameCount" class="muted" style="font-size:10px;white-space:nowrap;display:none"></span></div>
-  <div id="expFilenamePreview" class="muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+ <div class="xrow"><span class="xlbl">Export</span><span class="seg"><label title="Tables, views and routines with their rows - a full backup."><input type="radio" name="expwhat" id="expWhatAll" checked onchange="expWhatChanged()">Structure and data</label><label title="The CREATE statements only, without rows (mysqldump --no-data)."><input type="radio" name="expwhat" id="expWhatStructure" onchange="expWhatChanged()">Structure only</label><label title="The rows only, as INSERTs into tables that already exist (mysqldump --no-create-info)."><input type="radio" name="expwhat" id="expWhatData" onchange="expWhatChanged()">Data only</label></span></div>
+ <div class="xrow" style="align-items:flex-start"><span class="xlbl" style="padding-top:2px">Include</span><div class="grid3" id="expOpts" style="flex:1"></div></div>
+ <div class="xrow"><span class="xlbl">Files</span><span class="seg"><label title="One .sql file per table or view - lets you restore a single table. All files come from one dump of the database, so they are consistent with each other."><input type="radio" name="expmode" id="expTable" checked onchange="expSyncFilenameField()">One per table</label><label title="One .sql file per database."><input type="radio" name="expmode" id="expPer" onchange="expSyncFilenameField()">One per database</label><label title="Everything in one .sql file."><input type="radio" name="expmode" id="expSingle" onchange="expSyncFilenameField()">One file</label></span><label class="ck" title="Add the date and time to each file name, so an export never replaces an earlier one."><input type="checkbox" id="expStamp" checked onchange="expUpdateFilenamePreview()"> Date and time in the name</label></div>
+ <!-- The name only matters for "One file"; the preview below it shows what "Date and time in the
+      name" adds, which the box alone does not. maxlength 100 keeps a name on one line and well
+      under the 255-character file name limit with the stamp and ".sql" added. -->
+ <div id="expFilenameRow" title="Only for &#8220;One file&#8221; - the other modes write one file per object. Leave blank for all_selected." style="display:none;flex-direction:column;gap:2px;flex:none">
+  <div class="xrow"><span class="xlbl">File name</span><input id="expFilename" placeholder="all_selected" maxlength="100" style="flex:1" oninput="expUpdateFilenamePreview()"><span id="expFilenameCount" class="muted" style="font-size:10px;white-space:nowrap;display:none"></span></div>
+  <div id="expFilenamePreview" class="muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:104px"></div>
  </div>
- <div class="row" style="flex:none">Folder <input id="expFolder" style="flex:1" value="C:\temp"><button onclick="browse({title:'Select export folder',mode:'folder',start:$('expFolder').value,onPick:pp=>$('expFolder').value=pp})">Browse...</button></div>
+ <div class="xrow"><span class="xlbl">Folder</span><input id="expFolder" style="flex:1" value="C:\temp"><button onclick="browse({title:'Select export folder',mode:'folder',start:$('expFolder').value,onPick:pp=>$('expFolder').value=pp})">Browse...</button></div>
+ <details id="expAdv" class="xadv" ontoggle="expAdvToggled()"><summary>Advanced options</summary>
+  <div class="grid3" id="expOptsAdv"></div>
+  <div class="row"><label title="The character set mysqldump writes the file in.">Character set <select id="expCharset"><option>utf8mb4</option><option>utf8</option><option>latin1</option><option>binary</option></select></label><span class="optsep"></span><label title="mysqldump --max-allowed-packet. Raise this for very large rows or BLOBs (e.g. 1G).">Max packet <input id="expMaxPacket" value="1G" style="width:56px"></label><span class="optsep"></span><label title="How a NULL is written to CSV. \N is what LOAD DATA reads back; blank makes NULL and an empty string indistinguishable in the file.">NULL in CSV exports <input id="expNullVal" value="\N" style="width:52px;font-family:Consolas,monospace"></label></div>
+ </details>
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="expGoBtn" onclick="runExport()">Start Export</button><button class="warn" id="expCancelBtn" disabled onclick="cancelJob('exp')">Cancel</button><button onclick="hide('mExport')">Close</button></div>
  <div id="expProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="expBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
@@ -551,21 +554,17 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div id="expLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
 
-<div class="modal floating" id="mImport"><div class="box" style="width:900px;max-width:95vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mImport')" title="Drag to move"><h3 style="margin:0 0 10px">Data Import</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mImport')" title="Maximize" id="maxBtn_mImport" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mImport')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div><div class="row" style="flex:none">SQL file paths (one per line):</div>
- <!-- flex:1 (shared with impLog below, same as Row comparison's two grids) instead of a fixed
-      90px - the file list can get long, and a fixed-height box left most of a taller/maximized
-      window empty rather than actually showing more of it. -->
- <textarea id="impFiles" style="width:100%;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;white-space:pre;overflow:auto;flex:1;min-height:60px"></textarea>
- <div class="row" style="flex:none"><button onclick="impAddFiles()">Add files...</button><button onclick="impAddFolder()">Add folder (all .sql)...</button><button class="sm" onclick="$('impFiles').value=''">Clear</button></div>
- <div class="row" style="flex:none">Target DB <input id="impDb" placeholder="(blank if dump has CREATE DATABASE)" style="width:320px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="openImpDbPicker()" oninput="renderImpDbPicker()"></div>
- <div class="row" style="flex:none"><label title="Create the target database first if it doesn't exist"><input type="checkbox" id="impCreate"> create DB</label><label title="Disable foreign-key and unique checks during import (for out-of-order or circular tables)"><input type="checkbox" id="impFk" checked> disable FK checks</label><label title="Keep going when a file or statement fails instead of stopping (mysql --force)"><input type="checkbox" id="impForce"> continue on errors</label><label title="Required if the dump contains raw NUL bytes in binary/text columns (fixes: ASCII '\0' appeared in the statement). Safe to leave on for any dump that might contain binary data."><input type="checkbox" id="impBinary"> binary-mode</label><span class="optsep"></span><label title="mysql --max-allowed-packet. Raise this to match (or exceed) whatever the dump was exported with - a file created with a bumped packet size (needed for extended-insert with large rows/BLOBs) can otherwise fail to re-import with &quot;MySQL server has gone away&quot; against this client's smaller default (16M).">max packet <input id="impMaxPacket" value="1G" style="width:56px"></label></div>
+<div class="modal floating" id="mImport"><div class="box" style="width:900px;max-width:95vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mImport')" title="Drag to move"><h3 style="margin:0 0 10px">Data Import</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mImport')" title="Maximize" id="maxBtn_mImport" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mImport')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="row" style="flex:none"><b>Files</b><span id="impCount" class="muted"></span><span style="flex:1"></span><button onclick="impAddFiles()">Add files...</button><button onclick="impAddFolder()" title="Every .sql file in a folder">Add folder...</button><button onclick="impClear()">Clear</button></div>
+ <!-- flex:1, shared with impLog below, so a long list uses a taller or maximized window. -->
+ <div id="impList" class="implist"></div>
+ <div class="xrow"><span class="xlbl">Into database</span><input id="impDb" placeholder="the one each file names" style="width:300px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="openImpDbPicker()" oninput="renderImpDbPicker()" onblur="setTimeout(()=>{const p=$('impDbPicker');if(p)p.style.display='none';},150)"><label class="ck" title="Create the database first when it does not exist."><input type="checkbox" id="impCreate"> Create it if missing</label></div>
+ <div class="xrow"><span class="xlbl">While loading</span><label class="ck" title="Turn foreign key and unique checks off during the import, for tables that come in out of order or refer to each other."><input type="checkbox" id="impFk" checked> Foreign key checks off</label><label class="ck" title="Keep going when a file or statement fails, rather than stopping (mysql --force)."><input type="checkbox" id="impForce"> Carry on after an error</label><label class="ck" title="Needed when the dump holds raw NUL bytes in binary or text columns (the error: ASCII '\0' appeared in the statement). Safe to leave on for any dump that might hold binary data (mysql --binary-mode)."><input type="checkbox" id="impBinary"> Binary mode</label><span class="optsep"></span><label title="mysql --max-allowed-packet. Match or exceed what the dump was exported with - a file made with a larger packet (large rows or BLOBs in extended INSERTs) can otherwise fail with &quot;MySQL server has gone away&quot; against the client's smaller default (16M).">Max packet <input id="impMaxPacket" value="1G" style="width:56px"></label></div>
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="impGoBtn" onclick="runImport()">Run Import</button><button class="warn" id="impCancelBtn" disabled onclick="cancelJob('imp')">Cancel</button><button onclick="hide('mImport')">Close</button></div>
  <div id="impProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="impBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
    <div id="impProgLabel" class="muted" style="font-size:11px;margin-top:4px"></div>
  </div>
- <!-- flex:1 so the accumulating import log (potentially many files/statements) actually uses the
-      window's extra room, instead of capping out with empty space below it. -->
  <div id="impLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 
 <div class="modal floating" id="mCompare"><div class="box" style="width:820px;max-width:94vw;height:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0">Compare Databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -6085,25 +6084,27 @@ function dGen(force){if(dEdited&&!force)return;const db=$('dSchema').value.trim(
 async function dApply(){if(roBlock())return;const sql=$('dSql').value;$('dLog').textContent='Applying...';const r=await api('/api/script',{sql,db:curSchema});if(r.ok){$('dLog').textContent='Applied OK.';log('DESIGN OK');if(curSchema)loadObjects(curSchema);}else{const _n=ddlFailureNote(r.error,sql);$('dLog').textContent=_n;log('DESIGN error: '+_n);}}
 
 // ---- export/import ----
+// [key, label, default, what it does, group, the mysqldump option]. Include is always on show; the
+// other groups sit under Advanced options, where their defaults rarely need changing.
 const EXPOPTS=[
- ['hexblob','hex-blob',1,'Dump binary/BLOB columns as hexadecimal (e.g. abc becomes 0x616263).','Content'],
- ['tzutc','tz-utc (UTC times)',1,'Add SET TIME_ZONE=UTC so TIMESTAMP values restore the same in any timezone.','Content'],
- ['routines','routines (procs & funcs)',1,'Include stored procedures and functions in the dump.','Content'],
- ['triggers','triggers',1,'Include table triggers in the dump.','Content'],
- ['events','events (scheduler)',1,'Include scheduled events in the dump.','Content'],
- ['singletx','single-transaction',1,'Take a consistent snapshot without locking tables (recommended for InnoDB).','Performance'],
- ['adddropdb','add-drop-database',1,'Write DROP DATABASE before CREATE so a re-import replaces it cleanly.','Content'],
- ['adddroptb','add-drop-table',1,'Write DROP TABLE before each CREATE so a re-import replaces it cleanly.','Content'],
- ['createdb','include CREATE DATABASE',1,'Include CREATE DATABASE and USE so the dump can rebuild the schema anywhere.','Content'],
- ['extinsert','extended-insert (compact)',1,'Pack many rows into each INSERT: smaller files, much faster import.','Performance'],
- ['complete','complete-insert',0,'Write column names in every INSERT: safer if column order differs, but larger files.','Compatibility'],
- ['diskeys','disable-keys',1,'Disable indexes during load and rebuild them after: faster import.','Performance'],
- ['notablespaces','no-tablespaces',1,'Skip TABLESPACE clauses: avoids errors when the target server lacks them.','Compatibility'],
- ['quick','quick',1,'Stream rows instead of buffering the whole table: needed for very large tables.','Performance'],
- ['compress','compress',0,'Compress the client/server connection during the dump (more CPU, less network).','Performance'],
- ['gtid','set-gtid-purged=OFF',0,'Do not write GTID replication info: avoids import errors on non-GTID servers.','Compatibility'],
- ['colstats','column-statistics=0',0,'Disable column statistics: fixes an error when a MySQL 8 client dumps MariaDB.','Compatibility'],
- ['nodefiner','remove DEFINER clauses',1,'Strip DEFINER=`user`@`host` from views/triggers/procedures/events: without this, restoring on a server where that exact account does not exist fails or warns on every one of them.','Compatibility']
+ ['routines','Procedures and functions',1,'Include stored procedures and functions in the dump.','Include','--routines'],
+ ['triggers','Triggers',1,'Include table triggers in the dump.','Include','--triggers'],
+ ['events','Events',1,'Include scheduled events in the dump.','Include','--events'],
+ ['createdb','CREATE DATABASE',1,'Include CREATE DATABASE and USE so the dump can rebuild the schema anywhere.','Include','--no-create-db when off'],
+ ['adddropdb','DROP DATABASE first',1,'Write DROP DATABASE before CREATE so a re-import replaces it cleanly.','Include','--add-drop-database'],
+ ['adddroptb','DROP TABLE first',1,'Write DROP TABLE before each CREATE so a re-import replaces it cleanly.','Include','--add-drop-table'],
+ ['nodefiner','Leave out DEFINER',1,'Strip DEFINER=user@host from views, triggers, procedures and events: without this, restoring on a server where that exact account does not exist fails or warns on every one of them.','Include',''],
+ ['hexblob','Binary columns as hex',1,'Dump binary/BLOB columns as hexadecimal (e.g. abc becomes 0x616263).','Data','--hex-blob'],
+ ['tzutc','Times in UTC',1,'Add SET TIME_ZONE=UTC so TIMESTAMP values restore the same in any timezone.','Data','--tz-utc'],
+ ['extinsert','Many rows per INSERT',1,'Pack many rows into each INSERT: smaller files, much faster import.','Data','--extended-insert'],
+ ['complete','Column names in each INSERT',0,'Write column names in every INSERT: safer if column order differs, but larger files.','Data','--complete-insert'],
+ ['singletx','One consistent snapshot',1,'Take a consistent snapshot without locking tables (recommended for InnoDB).','Performance','--single-transaction'],
+ ['quick','Stream rows',1,'Stream rows instead of buffering the whole table: needed for very large tables.','Performance','--quick'],
+ ['diskeys','Keys off while loading',1,'Disable indexes during load and rebuild them after: faster import.','Performance','--disable-keys'],
+ ['compress','Compress the connection',0,'Compress the client/server connection during the dump (more CPU, less network).','Performance','--compress'],
+ ['notablespaces','Leave out TABLESPACE',1,'Skip TABLESPACE clauses: avoids errors when the target server lacks them.','Compatibility','--no-tablespaces'],
+ ['gtid','Leave out GTID info',0,'Do not write GTID replication info: avoids import errors on non-GTID servers.','Compatibility','--set-gtid-purged=OFF'],
+ ['colstats','No column statistics',0,'Disable column statistics: fixes an error when a MySQL 8 client dumps MariaDB.','Compatibility','--column-statistics=0']
 ];
 // openExport() rebuilds the option checkboxes every time it runs, so each one came back at
 // its EXPOPTS default and any choice the user had made was silently discarded the next time
@@ -6120,14 +6121,13 @@ function expOptsRestore(){
   el.addEventListener('change',expOptsSave);
  });
 }
-async function openExport(preselect){const r=await api('/api/schemas');const box=$('expDbs');box.innerHTML='';if(r.ok)r.schemas.forEach(s=>{const safe=s.name.replace(/[^A-Za-z0-9]/g,'_');const dbAttr=esc(s.name).replace(/\x27/g,'\\x27');box.innerHTML+='<div class="expdbrow"><span class="exptoggle" id="expx_'+safe+'" onclick="expTables(\''+dbAttr+'\',\''+safe+'\')" title="Show tables to exclude">\u25B8</span><label class="ck" style="display:inline-flex"><input type="checkbox" class="expdb" value="'+esc(s.name)+'" onchange="expDbToggle(\''+safe+'\',this.checked)"> '+esc(s.name)+'</label><div class="exptbls" id="expt_'+safe+'" style="display:none"></div></div>';});const ob=$('expOpts');ob.innerHTML='';
-const grouped={};EXPOPTS.forEach(o=>{const g=o[4]||'Other';(grouped[g]=grouped[g]||[]).push(o);});
-['Content','Performance','Compatibility'].forEach(g=>{
-  if(!grouped[g])return;
-  ob.innerHTML+='<div style="grid-column:1/-1;font-weight:600;font-size:11px;color:var(--muted);margin-top:6px">'+g+'</div>';
-  grouped[g].forEach(([k,l,d,t])=>{ob.innerHTML+='<label class="ck" title="'+esc(t||'')+'"><input type="checkbox" id="eo_'+k+'" '+(d?'checked':'')+'> '+l+'</label>';});
-});
+async function openExport(preselect){const r=await api('/api/schemas');const box=$('expDbs');box.innerHTML='';if(r.ok)r.schemas.forEach(s=>{const safe=s.name.replace(/[^A-Za-z0-9]/g,'_');const dbAttr=esc(s.name).replace(/\x27/g,'\\x27');box.innerHTML+='<div class="expdbrow"><span class="exptoggle" id="expx_'+safe+'" onclick="expTables(\''+dbAttr+'\',\''+safe+'\')" title="Show tables to exclude">\u25B8</span><label class="ck" style="display:inline-flex"><input type="checkbox" class="expdb" value="'+esc(s.name)+'" onchange="expDbToggle(\''+safe+'\',this.checked)"> '+esc(s.name)+'</label><div class="exptbls" id="expt_'+safe+'" style="display:none"></div></div>';});const ob=$('expOpts'),adv=$('expOptsAdv');
+const ck=([k,l,d,t,g,f])=>'<label class="ck" title="'+esc(t+(f?'\n(mysqldump '+f+')':''))+'"><input type="checkbox" id="eo_'+k+'" '+(d?'checked':'')+'> '+esc(l)+'</label>';
+ob.innerHTML=EXPOPTS.filter(o=>o[4]==='Include').map(ck).join('');
+adv.innerHTML=['Data','Performance','Compatibility'].map(g=>'<div class="xgrp">'+g+'</div>'+EXPOPTS.filter(o=>o[4]===g).map(ck).join('')).join('');
 expOptsRestore();
+$('expWhatAll').checked=true;expWhatChanged();
+try{$('expAdv').open=localStorage.getItem('nobsExpAdv')==='1';}catch(e){}
 expSyncFilenameField();
 expApplyDumpFlavor();
 if(preselect&&preselect.db){
@@ -6141,6 +6141,13 @@ if(preselect&&preselect.db){
   }
 }
 show('mExport');}
+// What goes in the dump. Data only leaves out all that creates or drops, so those choices are
+// greyed and not sent; structure only greys what shapes the rows. Each opening starts at structure
+// and data, so a backup never goes out without its rows because of an earlier export's choice.
+const EXP_NOT_FOR={data:['routines','triggers','events','createdb','adddropdb','adddroptb'],structure:['hexblob','extinsert','complete','diskeys','quick']};
+function expWhat(){return $('expWhatStructure').checked?'structure':$('expWhatData').checked?'data':'all';}
+function expWhatChanged(){const off=EXP_NOT_FOR[expWhat()]||[];EXPOPTS.forEach(([k])=>{if(k in MYSQL_ONLY_EXPOPTS)return;const el=$('eo_'+k);if(!el)return;const no=off.includes(k);el.disabled=no;const l=el.closest('label');if(l)l.classList.toggle('xoff',no);});}
+function expAdvToggled(){try{localStorage.setItem('nobsExpAdv',$('expAdv').open?'1':'0');}catch(e){}}
 // Setting a db checkbox's .checked here doesn't fire its onchange (that's a real user click's job),
 // so any table list already expanded before "All"/"None" is clicked was left stuck at its old
 // checked state - cascading into .exptbl directly here (same as expDbToggle does per-db) fixes that.
@@ -6180,7 +6187,7 @@ async function expApplyDumpFlavor(){
   if(isMariaDb){
    el.disabled=true; el.checked=false;
    if(lbl){ lbl.title='Not supported: '+MYSQL_ONLY_EXPOPTS[k]; lbl.style.opacity='.55';
-    if(!note){ note=document.createElement('span'); note.className='expoptsdis'; note.style.cssText='font-size:10px;color:var(--del);margin-left:4px'; note.textContent='(unsupported by this mysqldump)'; lbl.appendChild(note); } }
+    if(!note){ note=document.createElement('span'); note.className='expoptsdis'; note.style.cssText='font-size:10px;color:var(--del);margin-left:4px'; note.textContent='(MySQL only)'; lbl.appendChild(note); } }
   } else {
    el.disabled=false;
    if(lbl)lbl.style.opacity='';
@@ -6204,7 +6211,7 @@ if(!dbs.length && tables.length){
     // Extract unique database names from the selected tables
     const tableDbs = [...new Set(tables.map(t => t.split('.')[0]))];
     dbs.push(...tableDbs);
-}const o={charset:$('expCharset').value};EXPOPTS.forEach(([k])=>o[k]=$('eo_'+k).checked);o.maxpacket=$('expMaxPacket').value.trim();let mode='table';if($('expPer').checked)mode='db';else if($('expSingle').checked)mode='single';const excludes=[...document.querySelectorAll('.exptbl:not(:checked)')].filter(c=>dbs.includes(c.dataset.db)).map(c=>c.dataset.db+'.'+c.value);
+}const o={charset:$('expCharset').value};EXPOPTS.forEach(([k])=>o[k]=$('eo_'+k).checked);o.what=expWhat();if(o.what==='data')EXP_NOT_FOR.data.forEach(k=>o[k]=false);o.maxpacket=$('expMaxPacket').value.trim();let mode='table';if($('expPer').checked)mode='db';else if($('expSingle').checked)mode='single';const excludes=[...document.querySelectorAll('.exptbl:not(:checked)')].filter(c=>dbs.includes(c.dataset.db)).map(c=>c.dataset.db+'.'+c.value);
  if(!$('expStamp').checked){
    const chk=await api('/api/browse',{path:$('expFolder').value,filter:'*.sql',dirsOnly:false});
    if(chk.ok && chk.files && chk.files.length>0){
@@ -6728,8 +6735,18 @@ function showImpDbList(matches){const p=$('impDbPicker');const inp=$('impDb');if
  const r=inp.getBoundingClientRect();
  p.style.left=r.left+'px';p.style.top=r.bottom+2+'px';p.style.minWidth=r.width+'px';p.style.display='block';}
 function impDbPick(name){$('impDb').value=name;$('impDbPicker').style.display='none';}
-async function openImport(){$('impFiles').value='';$('impLog').textContent='';$('impCreate').checked=false;$('impFk').checked=true;$('impForce').checked=false;$('impBinary').checked=false;$('impMaxPacket').value='1G';const inp=$('impDb');inp.value=(typeof curSchema!=='undefined'&&curSchema)?curSchema:'';window._impDbSchemas=[];try{const r=await api('/api/schemas');if(r.ok)window._impDbSchemas=r.schemas.map(s=>s.name);}catch(e){}show('mImport');}
-async function runImport(){const files=$('impFiles').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);if(!files.length){toast('Add at least one file path.',true);return;}
+// The files to import, in order, with what each weighs - a list rather than a box of typed paths,
+// so one file can be taken out and a folder's worth reads at a glance.
+let _impFiles=[];
+function impRender(){const box=$('impList');if(!box)return;const n=_impFiles.length;
+ if(!n){box.innerHTML='<div class="impempty">No files yet - Add files... or Add folder...</div>';$('impCount').textContent='';return;}
+ box.innerHTML=_impFiles.map((f,i)=>{const cut=Math.max(f.path.lastIndexOf('\\'),f.path.lastIndexOf('/'))+1;
+  return '<div class="improw" title="'+esc(f.path)+'"><span class="impn">'+(i+1)+'</span><span class="impname">'+esc(f.path.slice(cut))+'</span><span class="impdir">'+esc(f.path.slice(0,cut))+'</span><span class="impsz">'+(f.size==null?'':fmtBytes(f.size))+'</span><button class="sm" title="Take this file out" onclick="impRemove('+i+')">&#x2715;</button></div>';}).join('');
+ const total=_impFiles.reduce((s,f)=>s+(f.size||0),0);$('impCount').textContent=n+' file'+(n===1?'':'s')+(total?', '+fmtBytes(total):'');}
+function impRemove(i){_impFiles.splice(i,1);impRender();}
+function impClear(){_impFiles=[];impRender();}
+async function openImport(){_impFiles=[];impRender();$('impLog').textContent='';$('impCreate').checked=false;$('impFk').checked=true;$('impForce').checked=false;$('impBinary').checked=false;$('impMaxPacket').value='1G';const inp=$('impDb');inp.value=(typeof curSchema!=='undefined'&&curSchema)?curSchema:'';window._impDbSchemas=[];try{const r=await api('/api/schemas');if(r.ok)window._impDbSchemas=r.schemas.map(s=>s.name);}catch(e){}show('mImport');}
+async function runImport(){const files=_impFiles.map(f=>f.path);if(!files.length){toast('Add at least one file.',true);return;}
  $('impLog').textContent='';
  const jobId=(crypto.randomUUID?crypto.randomUUID():('j'+Date.now()+Math.random()));
  progStart('imp','Importing '+files.length+' file'+(files.length===1?'':'s'),jobId);
@@ -6777,9 +6794,16 @@ function brUp(){brNav(brState.parent||'ROOT');}
 function brClose(){hide('mBrowse');(brState.hidden||[]).forEach(id=>show(id));}
 function brPickFolder(){const c=brState.cb,v=brState.cur;brClose();c(v);}
 function brPickFiles(){const sel=[...document.querySelectorAll('.brf:checked')].map(c=>c.value);const c=brState.cb;brClose();c(sel);}
-function impAppend(paths){const cur=$('impFiles').value.trim();const add=paths.filter(Boolean).join('\n');$('impFiles').value=(cur?cur+'\n':'')+add;}
-function impAddFiles(){browse({title:'Select SQL files',filter:'*.sql',mode:'files',onPick:ps=>{impAppend(ps);log('Added '+ps.length+' file(s).');}});}
-function impAddFolder(){browse({title:'Select a folder (imports all .sql inside)',mode:'folder',onPick:async folder=>{const r=await api('/api/browse',{path:folder,filter:'*.sql',dirsOnly:false});if(r.ok){const ps=r.files.map(f=>f.path);impAppend(ps);log('Added '+ps.length+' .sql file(s) from '+folder);}else toast(r.error,true);}});}
+// Adds the files not listed yet. Sizes come from each file's folder when the caller did not have
+// them; one the folder does not show keeps a blank size, and the import says what is wrong with it.
+async function impAppend(paths,sizes){const have=new Set(_impFiles.map(f=>f.path.toLowerCase()));
+ const add=[...new Set(paths.filter(Boolean))].filter(p=>!have.has(p.toLowerCase())).map(p=>({path:p,size:sizes&&sizes[p]!=null?sizes[p]:null}));
+ _impFiles.push(...add);impRender();
+ const dirs=[...new Set(add.filter(f=>f.size==null).map(f=>f.path.slice(0,Math.max(f.path.lastIndexOf('\\'),f.path.lastIndexOf('/'))+1)).filter(Boolean))];
+ for(const d of dirs){try{const r=await api('/api/browse',{path:d,filter:'*.sql',dirsOnly:false});if(r.ok)(r.files||[]).forEach(x=>{const f=_impFiles.find(f=>f.path.toLowerCase()===String(x.path).toLowerCase());if(f&&x.size!=null)f.size=x.size;});}catch(e){}}
+ if(dirs.length)impRender();return add.length;}
+function impAddFiles(){browse({title:'Select SQL files',filter:'*.sql',mode:'files',onPick:async ps=>{const n=await impAppend(ps);log('Added '+n+' file(s).');}});}
+function impAddFolder(){browse({title:'Select a folder (imports all .sql inside)',mode:'folder',onPick:async folder=>{const r=await api('/api/browse',{path:folder,filter:'*.sql',dirsOnly:false});if(r.ok){const ps=r.files.map(f=>f.path),sizes={};r.files.forEach(f=>{sizes[f.path]=f.size;});const n=await impAppend(ps,sizes);log('Added '+n+' .sql file(s) from '+folder);}else toast(r.error,true);}});}
 // ---- close tabs ----
 async function closeAll(){const dirty=tabs.filter(t=>pendingCount(t)>0||t.txDirty);if(dirty.length){if(!(await ask(dirty.length+' tab(s) have unsaved changes. Close all and discard them?')))return;}
  // Same reasoning as closeTab(): a tab being removed while its query is still in flight must go

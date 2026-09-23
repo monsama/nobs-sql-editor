@@ -2454,12 +2454,14 @@ fn table_filter_args(d: &str, excl: &std::collections::HashSet<String>, conn_req
     }
 }
 
-// The name in a mysqldump section heading - "-- Table structure for table `t`" and the view
-// headings of both dump tools - or None for any other line. Data never looks like this: every
+// The name in a mysqldump section heading - "-- Table structure for table `t`", "-- Dumping data
+// for table `t`" (the only heading a data-only dump has; in a full dump it follows its table's
+// structure, and goes to the same file) and the view headings of both dump tools - or None for
+// any other line. Data never looks like this: every
 // data line is a statement, and a line break inside a value is written as \n.
 fn dump_section_name(line: &[u8]) -> Option<String> {
     let s = std::str::from_utf8(trim_eol(line)).ok()?;
-    let rest = ["-- Table structure for table ", "-- Temporary view structure for view ",
+    let rest = ["-- Table structure for table ", "-- Dumping data for table ", "-- Temporary view structure for view ",
                 "-- Temporary table structure for view ", "-- Final view structure for view "]
         .iter().find_map(|p| s.strip_prefix(p))?;
     Some(rest.strip_prefix('`')?.strip_suffix('`')?.replace("``", "`"))
@@ -2595,7 +2597,8 @@ async fn export_run(req: Value, dbin: String) -> R {
         // leaves those columns out. Measured on MySQL 8.0.46: the export reported OK and the file
         // could not be restored. A backup that looks fine and is not is worse than no backup, so
         // refuse up front and say what to change.
-        if client_is_mariadb(&dbin) {
+        // Structure only writes no INSERTs, so it has nothing to get wrong there.
+        if client_is_mariadb(&dbin) && req["options"]["what"].as_str() != Some("structure") {
             if let Some(tables) = mysql_generated_tables(&req["conn"], &dbs, &excl) {
                 if !tables.is_empty() {
                     return Ok(json!({"ok":false,"error":format!(
@@ -2624,6 +2627,13 @@ async fn export_run(req: Value, dbin: String) -> R {
         if flag("complete") { common.push("--complete-insert".into()); }
         if flag("extinsert") { common.push("--extended-insert".into()); } else { common.push("--skip-extended-insert".into()); }
         if flag("tzutc") { common.push("--tz-utc".into()); } else { common.push("--skip-tz-utc".into()); }
+        // What goes in: both (the default), the CREATE statements alone, or the rows alone. For data
+        // only the page also turns off routines, events, triggers and the DROP and CREATE lines.
+        match o["what"].as_str() {
+            Some("structure") => common.push("--no-data".into()),
+            Some("data") => common.push("--no-create-info".into()),
+            _ => {}
+        }
         if let Some(mp) = o["maxpacket"].as_str() { if !mp.is_empty() { common.push(format!("--max-allowed-packet={}", mp)); } }
 
         // mysqldump has no flag for this (unlike HeidiSQL's exporter) - DEFINER=`user`@`host`
@@ -2747,7 +2757,9 @@ async fn export_run(req: Value, dbin: String) -> R {
             'dbloop: for d in &dbs {
                 if EXPORT_CANCEL.load(Ordering::SeqCst) || job_is_cancelled(&job) { log.push("CANCELLED (remaining databases skipped)".into()); cancelled = true; break; }
                 let mut conn = match build_conn(&req["conn"]) { Ok(c) => c, Err(e) => { log.push(format!("FAILED (connect) {} : {}", d, e)); continue; } };
-                let sql = format!("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={} ORDER BY TABLE_NAME", sql_lit(d));
+                // A view has no rows, so data only has nothing of it to split out; its tables only.
+                let only_tables = if o["what"].as_str() == Some("data") { " AND TABLE_TYPE='BASE TABLE'" } else { "" };
+                let sql = format!("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={}{} ORDER BY TABLE_NAME", sql_lit(d), only_tables);
                 let tabs: Vec<String> = match run_select(&mut conn, &sql) {
                     Ok((_cols, rows)) => rows.iter().filter_map(|r| r.first().cloned().flatten()).collect(),
                     Err(e) => { log.push(format!("FAILED (list tables) {} : {}", d, e)); continue; }
@@ -4176,7 +4188,7 @@ async fn browse(req: Value) -> R {
                 if p.is_dir() {
                     dirs.push(json!({"name": name, "path": p.to_string_lossy()}));
                 } else if !dirs_only && (filter == "*" || filter.is_empty() || name.to_lowercase().ends_with(&format!(".{}", ext))) {
-                    files.push(json!({"path": p.to_string_lossy(), "name": name, "dir": false}));
+                    files.push(json!({"path": p.to_string_lossy(), "name": name, "dir": false, "size": e.metadata().map(|m| m.len()).ok()}));
                 }
             }
             dirs.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
@@ -6821,6 +6833,44 @@ mod dump_split_tests {
             let split_lines: usize = (0..3).map(|i| { let b = body(i); b[head_end..b.len() - (text.len() - foot_start)].lines().filter(|l| !l.is_empty()).count() }).sum();
             assert_eq!(split_lines, body_lines, "{fixture}");
         }
+    }
+
+    // A data-only dump (--no-create-info) has no structure headings, only "Dumping data for
+    // table" ones - each table's rows still go to that table's file.
+    #[test]
+    fn a_data_only_dump_splits_by_its_data_headings() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("data.sql");
+        let open = "-- MySQL dump
+/*!40101 SET NAMES utf8mb4 */;
+
+";
+        let close = "/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+-- Dump completed
+";
+        std::fs::write(&src, format!("{open}--
+-- Dumping data for table `a`
+--
+
+LOCK TABLES `a` WRITE;
+INSERT INTO `a` VALUES (1);
+UNLOCK TABLES;
+
+--
+-- Dumping data for table `b`
+--
+
+INSERT INTO `b` VALUES (2);
+
+{close}")).unwrap();
+        let files = split_dump_by_table(&src, &mut |n: &str| dir.path().join(format!("{n}.sql")).to_string_lossy().into_owned()).unwrap();
+        let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["a", "b"]);
+        let a = std::fs::read_to_string(&files[0].1).unwrap();
+        let b = std::fs::read_to_string(&files[1].1).unwrap();
+        assert!(a.starts_with(open) && a.ends_with(close) && a.contains("INSERT INTO `a` VALUES (1)") && !a.contains("`b`"), "{a}");
+        assert!(b.starts_with(open) && b.ends_with(close) && b.contains("INSERT INTO `b` VALUES (2)") && !b.contains("`a`"), "{b}");
     }
 
     #[test]

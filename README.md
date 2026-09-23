@@ -88,7 +88,8 @@ Export files are kept wherever you saved them.
 - Table designer, DDL view/edit, users & privileges, table maintenance,
   CSV import, and a reusable query library (with export/import;
   a query can be saved to it straight from the history).
-- Data export / import via the MySQL/MariaDB command-line tools.
+- Data export / import via the MySQL/MariaDB command-line tools: structure and data,
+  structure only or data only, as a file per table, per database or one file.
 
 ## Keeping data exact
 
