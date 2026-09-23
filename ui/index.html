@@ -1765,11 +1765,22 @@ function fitBarCore(row,loosen){const was=row.className;if(loosen){row.classList
 // off again, and _fitting stops the observer answering the icons this puts in.
 const _barRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(es=>es.forEach(e=>refit(e.target,true))):null;
 const _barMO=typeof MutationObserver!=='undefined'?new MutationObserver(ms=>ms.forEach(m=>{const n=m.target.nodeType===1?m.target:m.target.parentElement;const row=n&&n.closest('.fitbar');if(row)refit(row);})):null;
-// Every fit starts again from the labels. A bar used to only tighten while its content changed and
-// loosen a second later, so a count or a label growing by a character shrank the buttons and then
-// put them back. The bar is now fitted to the fullest it can be (fitBar), which does not change as
-// you work, so starting from the labels gives the same answer until the width itself changes.
-function refit(row){if(!row||row._fitting)return;const loosen=true;row._fitting=true;try{decorateIcons(row);const p=row.querySelector('[id^="pager_"]');if(p&&p.title!==p.textContent)p.title=p.textContent;fitBar(row,loosen);}finally{row._fitting=false;}}
+// A query bar is fitted to the fullest it can be (fitBar), which does not change as you work, so
+// every fit of it starts again from the labels and gives the same answer until the width changes -
+// a count or a label growing by a character no longer shrinks the buttons and puts them back.
+// The top bar is not fitted that way: what fits changes the width of the connection box in it, so a
+// change to its contents only tightens it, and it tries the labels again once it has been quiet for
+// a second. Starting it from the labels on every change went round in a circle - labels back, the
+// connection box resized, that change starting it again - and at some window widths it never let
+// the page do anything else. However a bar is fitted, it is never fitted more than a few dozen
+// times before the page has drawn, so a circle like that can only cost a frame.
+function refitSoon(row){clearTimeout(row._settle);row._settle=setTimeout(()=>{row._settle=0;refit(row,true);},1000);}
+function refit(row,loosen){if(!row||row._fitting)return;
+ const frame=refit._frame||(refit._frame=requestAnimationFrame(()=>{refit._frame=0;refit._count=new Map();}));
+ const n=((refit._count||(refit._count=new Map())).get(row)||0)+1;refit._count.set(row,n);if(n>40)return;
+ const steady=!!row.querySelector('[data-reserve]');
+ if(!loosen&&!steady)refitSoon(row);
+ loosen=!!loosen||steady;row._fitting=true;try{decorateIcons(row);const p=row.querySelector('[id^="pager_"]');if(p&&p.title!==p.textContent)p.title=p.textContent;fitBar(row,loosen);}finally{row._fitting=false;}}
 function watchBar(row){if(!row||row.classList.contains('fitbar'))return;row.classList.add('fitbar');decorateIcons(row);
  if(_barRO)_barRO.observe(row);if(_barMO)_barMO.observe(row,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']});refit(row,true);}
 // Connecting and disconnecting show and hide the top bar's action buttons through the body's class.
