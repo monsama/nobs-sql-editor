@@ -1424,7 +1424,12 @@ function inputBox(opts){return new Promise(res=>{_inpResolve=res;$('inpTitle').t
 function inpOk(){const out={};$('inpFields').querySelectorAll('input,textarea,select').forEach(i=>{out[i.id.slice(4)]=(i.type==='checkbox')?i.checked:i.value;});hide('mInput');const r=_inpResolve;_inpResolve=null;if(r)r(out);}
 function inpCancel(){hide('mInput');const r=_inpResolve;_inpResolve=null;if(r)r(null);}
 async function ask(msg){const d=(window.__TAURI__&&window.__TAURI__.dialog);if(d&&d.confirm){try{return await d.confirm(msg,{title:'Confirm',kind:'warning'});}catch(e){}}return window.confirm(msg);}
-function menu(x,y,items){const m=$('ctx');m.innerHTML='';buildMenuItems(m,items);m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';const w=m.offsetWidth||190,h=m.offsetHeight||0;let nx=Math.min(x,innerWidth-w-6);if(nx<6)nx=6;let ny=y;if(y+h>innerHeight-6)ny=Math.max(6,innerHeight-h-6);m.style.left=nx+'px';m.style.top=ny+'px';m.style.visibility='visible';}
+// An item that is false is one that does not apply right now - it is dropped, and so are the
+// separators that would be left doubled up or dangling at either end.
+function tidyMenu(items){const out=[];(items||[]).forEach(it=>{if(!it)return;
+ if(it==='-'){if(out.length&&out[out.length-1]!=='-')out.push('-');return;}out.push(it);});
+ while(out.length&&out[out.length-1]==='-')out.pop();return out;}
+function menu(x,y,items){const m=$('ctx');m.innerHTML='';buildMenuItems(m,tidyMenu(items));m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';const w=m.offsetWidth||190,h=m.offsetHeight||0;let nx=Math.min(x,innerWidth-w-6);if(nx<6)nx=6;let ny=y;if(y+h>innerHeight-6)ny=Math.max(6,innerHeight-h-6);m.style.left=nx+'px';m.style.top=ny+'px';m.style.visibility='visible';}
 function buildMenuItems(container,items){items.forEach(it=>{if(it==='-'){const s=document.createElement('div');s.className='sep';container.appendChild(s);return;}const d=document.createElement('div');d.className='item';const isSub=Array.isArray(it[1]);d.textContent=it[0]+(isSub?'  \u25B8':'');const _destr=/^(drop|truncate|delete|rename|create|alter|import|design)/i.test(it[0]||'');if(window.readOnly&&_destr){d.className='item rodis';d.title='Disabled in read-only mode';container.appendChild(d);return;}
  if(isSub){d.style.position='relative';const fly=document.createElement('div');fly.className='ctxsub';buildMenuItems(fly,it[1]);d.appendChild(fly);let ht=null;const showFly=()=>{if(ht){clearTimeout(ht);ht=null;}fly.style.display='block';fly.style.left='';fly.style.right='';fly.style.top='0';const r=fly.getBoundingClientRect(),dr=d.getBoundingClientRect();if(dr.right+r.width>innerWidth-4){fly.style.right='100%';}else{fly.style.left='100%';}if(dr.top+r.height>innerHeight-4){fly.style.top=(innerHeight-4-(dr.top+r.height))+'px';}};const hideFly=()=>{ht=setTimeout(()=>{fly.style.display='none';},200);};d.onmouseenter=showFly;d.onmouseleave=hideFly;fly.onmouseenter=()=>{if(ht){clearTimeout(ht);ht=null;}};fly.onmouseleave=hideFly;
  }else{d.onclick=()=>{$('ctx').style.display='none';it[1]();};}
@@ -1759,7 +1764,7 @@ async function cloneConn(){const n0=$('connlist').value;
 async function delConn(){const n=$('connlist').value;if(!n)return;await api('/api/conn-delete',{name:n});accSet(n,'');window.curAccent='';applyAccent('');refreshConns();}
 
 // connect(): open the connection, then load the schema sidebar.
-async function connect() {
+async function connect() {window._connFormTouched=true;
   if (anyPending()) {
     if (!(await ask('You have unsaved grid edits open. Connecting will leave them orphaned. Continue?'))) return;
   }
@@ -4122,10 +4127,16 @@ function inlineEditIns(td,id,ii,col){const t=T(id);const cur=t.pending.ins[ii][c
  nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&(!isMulti||e.ctrlKey||e.metaKey)){e.preventDefault();if(dirty)set(inp.value);else{done=true;insCellRevert(td,id,ii,col);}}else if(e.key==='Escape'){done=true;insCellRevert(td,id,ii,col);}});
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else insCellRevert(td,id,ii,col);}},120));}
-function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],['Copy rows (selected)',()=>copySelRows(id)],['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],['Paste rows as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;
+ // What this result allows, and what is ticked: the menu is built from these rather than
+ // offering everything and explaining afterwards which of it was not possible.
+ const editable=!!(t.pk&&t.pending),sel=!!(t.selected&&t.selected.size);
+ // A copied row belongs to the table it came from: one with a different number of columns cannot
+ // be pasted here, so it is not offered here.
+ const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy rows (selected)',()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&clipN.every(fits)&&['Paste rows as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   if(fkd&&cur!=null){items.push(['Go to referenced row ('+fkd[1]+'.'+fkd[2]+')',()=>goToFkRow(t.db,fkd[1],fkd[2],cur)]);}
-  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],['Export to CSV (selected rows)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],['Export to INSERTs (selected rows)...',()=>insSel(id)],'-',['Set NULL',()=>setUpd(id,ri,ci,null)],['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV (selected rows)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs (selected rows)...',()=>insSel(id)],'-',editable&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
@@ -4262,8 +4273,9 @@ async function editIns(td,id,ii,col){clearTimeout(clickTimer);const t=T(id);cons
  const ew=await editWidgetFor(id,col,cur);
  viewText('New row - '+col,(cur==null?'':cur),{onSave:v=>{t.pending.ins[ii][col]=v;renderGrid(id);},onNull:()=>{t.pending.ins[ii][col]=null;renderGrid(id);},...ew});}
 function insCellMenu(e,id,ii,col){e.preventDefault();const t=T(id);const cur=t.pending.ins[ii][col];
+ const clip1=singleRowClipboard(),fitsHere=!!(clip1&&clip1.length===t.cols.length);
  const items=[['Copy value',()=>{clipWrite(cellCopyValue(cur));log('Copied value.');}],
-  ['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],
+  fitsHere&&['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],
   ['Edit value...',()=>editIns(null,id,ii,col)],'-',
   ['Set NULL',()=>{t.pending.ins[ii][col]=null;renderGrid(id);}],
   ['Set empty',()=>{t.pending.ins[ii][col]='';renderGrid(id);}],'-',
@@ -6090,11 +6102,15 @@ refreshConns().then(async () => {
       if (sel.options[i].value === window._primaryConn) { sel.selectedIndex = i; break; }
     }
   }
-  if (sel && sel.value) {
+  // ... but not over what is already there. This lands a moment after the page does, and by
+  // then the form may hold something typed, or a connection may already be on its way.
+  if (sel && sel.value && !window._connFormTouched && document.body.classList.contains('disconnected')) {
     await pickConn(); // loads host, port, user, password, ssl into the form
     connTitle();
   }
 });
+// Anything entered by hand, and any attempt to connect, counts as touched.
+['host','port','user','pass','ssl','sslca'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',()=>{window._connFormTouched=true;});});
 
 toggleOverview();
 libLoad();
