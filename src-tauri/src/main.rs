@@ -3450,6 +3450,22 @@ fn mysql_version_has_hex_identified(v: &str) -> bool {
     n.len() >= 3 && (n[0], n[1], n[2]) >= (8, 0, 17)
 }
 
+// SHOW CREATE USER's statement, made to leave an account that is already there alone.
+fn create_if_not_exists(stmt: &str) -> String {
+    let t = stmt.trim_start();
+    if t.len() >= 12 && t[..12].eq_ignore_ascii_case("CREATE USER ") && !t[12..].trim_start().to_ascii_uppercase().starts_with("IF NOT EXISTS") {
+        format!("CREATE USER IF NOT EXISTS {}", &t[12..])
+    } else { t.to_string() }
+}
+// The first statement of a transfer script: it stops the script on the other kind of server, before
+// anything is changed. Password hashes and role statements are written differently on MySQL and
+// MariaDB, and every statement failed there; a scalar subquery of two rows is an error on both, and
+// this line - which says why - is what a client shows with it.
+fn transfer_guard(maria: bool) -> String {
+    let (want, made) = if maria { ("LIKE", "MariaDB") } else { ("NOT LIKE", "MySQL") };
+    format!("-- This script only runs on {made}: the next line stops it anywhere else.\nSELECT IF(VERSION() {want} '%MariaDB%', 'ok', (SELECT 'This script was made on {made} and cannot run on this server' UNION SELECT 'stopped')) AS target_check;\n")
+}
+
 // Accounts MySQL and MariaDB create for their own use. Listed by name rather than matched as
 // "mysql.%": a user is free to create an account called mysql.backup, and that one is theirs.
 const SYSTEM_ACCOUNTS: [&str; 4] = ["mysql.sys", "mysql.session", "mysql.infoschema", "mariadb.sys"];
@@ -3473,6 +3489,8 @@ async fn gen_user_transfer(req: Value) -> R {
         }
         let in_list = excl.iter().map(|s| sql_str_lit(s)).collect::<Vec<_>>().join(",");
         let mut conn = build_conn(&conn_json)?;
+        let version: String = conn.query_first("SELECT VERSION()").ok().flatten().unwrap_or_default();
+        let maria = version.to_lowercase().contains("mariadb");
         // A MySQL 8 caching_sha2_password hash carries a salt of arbitrary 7-bit bytes, control
         // characters included, and SHOW CREATE USER prints it raw inside the quoted literal. That
         // is valid SQL, but not text: pasted, saved or shown in a text box, a control character can
@@ -3481,13 +3499,41 @@ async fn gen_user_transfer(req: Value) -> R {
         if mysql_supports_hex_identified(&mut conn) {
             let _ = conn.query_drop("SET SESSION print_identified_with_as_hex = ON");
         }
-        let (_cols, user_rows) = run_select(&mut conn, &format!("SELECT user, host FROM mysql.user WHERE user NOT IN ({}) AND user <> ''", in_list))?;
-        if user_rows.is_empty() {
+        // MariaDB keeps its roles in mysql.user as rows with no host and is_role='Y'. They are not
+        // accounts: SHOW CREATE USER cannot read them, so they went to the "could not be read" list,
+        // and every GRANT of a role and SET DEFAULT ROLE after them failed on the target. They are
+        // made with CREATE ROLE here instead, ahead of everything that names them.
+        let has_is_role = maria && run_select(&mut conn, "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user' AND COLUMN_NAME='is_role'")
+            .map(|(_, r)| !r.is_empty()).unwrap_or(false);
+        let not_role = if has_is_role { " AND is_role <> 'Y'" } else { "" };
+        let (_cols, mut user_rows) = run_select(&mut conn, &format!("SELECT user, host FROM mysql.user WHERE user NOT IN ({}) AND user <> ''{}", in_list, not_role))?;
+        let maria_roles: Vec<String> = if has_is_role {
+            run_select(&mut conn, &format!("SELECT user FROM mysql.user WHERE is_role = 'Y' AND user NOT IN ({})", in_list))
+                .map(|(_, r)| r.into_iter().filter_map(|x| x.into_iter().next().flatten()).collect()).unwrap_or_default()
+        } else { Vec::new() };
+        // MySQL 8's roles are accounts, but one can only be granted, or named as a default role,
+        // once it exists: a user whose CREATE USER carried DEFAULT ROLE came before its role, failed,
+        // and took every grant of that user down with it. Roles are made first.
+        if !maria {
+            let roles: std::collections::HashSet<(String, String)> = run_select(&mut conn,
+                "SELECT FROM_USER, FROM_HOST FROM mysql.role_edges UNION SELECT DEFAULT_ROLE_USER, DEFAULT_ROLE_HOST FROM mysql.default_roles")
+                .map(|(_, r)| r.into_iter().map(|x| (x.first().cloned().flatten().unwrap_or_default(), x.get(1).cloned().flatten().unwrap_or_default())).collect())
+                .unwrap_or_default();
+            user_rows.sort_by_key(|r| !roles.contains(&(r.first().cloned().flatten().unwrap_or_default(), r.get(1).cloned().flatten().unwrap_or_default())));
+        }
+        if user_rows.is_empty() && maria_roles.is_empty() {
             return Ok(json!({"ok":true,"sql":"-- No accounts matched (everything was excluded, or mysql.user is empty).","userCount":0,"errorCount":0}));
         }
         let mut create_lines: Vec<String> = Vec::new();
         let mut grant_lines: Vec<String> = Vec::new();
         let mut errors: Vec<String> = Vec::new();
+        for role in &maria_roles {
+            create_lines.push(format!("CREATE ROLE IF NOT EXISTS {};", sql_id(role)));
+            match run_select(&mut conn, &format!("SHOW GRANTS FOR {}", sql_id(role))) {
+                Ok((_c, rows)) => for r in rows { if let Some(v) = r.first().cloned().flatten() { grant_lines.push(format!("{};", v)); } },
+                Err(e) => errors.push(format!("SHOW GRANTS for role '{}': {}", role, e)),
+            }
+        }
         for row in &user_rows {
             let u = row.first().cloned().flatten().unwrap_or_default();
             let h = row.get(1).cloned().flatten().unwrap_or_default();
@@ -3496,7 +3542,8 @@ async fn gen_user_transfer(req: Value) -> R {
             match run_select(&mut conn, &format!("SHOW CREATE USER {}@{}", uq, hq)) {
                 Ok((_c, rows)) => {
                     if let Some(first) = rows.first().and_then(|r| r.first()).cloned().flatten() {
-                        create_lines.push(format!("{};", first));
+                        // IF NOT EXISTS, so the script can run again on a server that has some of them.
+                        create_lines.push(format!("{};", create_if_not_exists(&first)));
                     } else {
                         errors.push(format!("SHOW CREATE USER for '{}'@'{}': no result returned", u, h));
                     }
@@ -3513,10 +3560,14 @@ async fn gen_user_transfer(req: Value) -> R {
             }
         }
         let mut out = String::new();
-        out.push_str(&format!("-- Generated user transfer script - {} account(s) matched (after exclusions)\n", user_rows.len()));
-        out.push_str("-- Run this on the TARGET server. CREATE USER statements are listed first so the GRANT\n");
-        out.push_str("-- statements below can reference them.\n\n");
-        out.push_str("-- ===== CREATE USER =====\n");
+        out.push_str(&format!("-- Generated user transfer script - {} account(s){} matched (after exclusions)\n", user_rows.len(),
+            if maria_roles.is_empty() { String::new() } else { format!(" and {} role(s)", maria_roles.len()) }));
+        out.push_str(&format!("-- Made on {}.\n", version));
+        out.push_str("-- Run this on the TARGET server, after its databases are in place: a grant on a table or a\n");
+        out.push_str("-- routine needs that table or routine to exist. Roles and accounts come first, so the grants\n");
+        out.push_str("-- can name them; each is made only if it is not there yet, so the script can run again.\n\n");
+        out.push_str(&transfer_guard(maria));
+        out.push_str("\n-- ===== CREATE ROLE / CREATE USER =====\n");
         for l in &create_lines { out.push_str(l); out.push('\n'); }
         out.push_str("\n-- ===== GRANTS =====\n");
         for l in &grant_lines { out.push_str(l); out.push('\n'); }
@@ -4871,6 +4922,64 @@ mod tests {
     fn verify_through_a_tunnel_is_refused_naming_verify_ca() {
         let e = endpoint(&json!({"host":"db","port":"3306","ssl":"verify","sshHost":"bastion.invalid"})).unwrap_err();
         assert!(e.contains("verify-ca"), "{e}");
+    }
+    // A transfer script makes an account only when it is not there, and stops on the other kind of server.
+    #[test]
+    fn transfer_script_creates_only_what_is_missing() {
+        assert_eq!(create_if_not_exists("CREATE USER `a`@`%` IDENTIFIED BY PASSWORD '*AB'"), "CREATE USER IF NOT EXISTS `a`@`%` IDENTIFIED BY PASSWORD '*AB'");
+        assert_eq!(create_if_not_exists("CREATE USER IF NOT EXISTS `a`@`%`"), "CREATE USER IF NOT EXISTS `a`@`%`");
+        assert!(transfer_guard(true).contains("VERSION() LIKE '%MariaDB%'"));
+        assert!(transfer_guard(false).contains("VERSION() NOT LIKE '%MariaDB%'"));
+    }
+    // A transfer script, replayed on the server it was made on after its accounts were dropped, gives
+    // back the same accounts, grants and roles - on MariaDB and on MySQL. NOBS_TEST_DSN names the
+    // server (the fixture's nobs_test database must exist); run with --ignored.
+    #[tokio::test]
+    #[ignore]
+    async fn a_transfer_script_gives_back_what_it_was_made_from() {
+        let Ok(dsn) = std::env::var("NOBS_TEST_DSN") else { return };
+        let d: Vec<&str> = dsn.splitn(4, ':').collect();
+        let conn = json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default"});
+        let mut c = build_conn(&conn).unwrap();
+        let v: String = c.query_first("SELECT VERSION()").unwrap().unwrap();
+        let maria = v.to_lowercase().contains("mariadb");
+        let role = if maria { "nobs_xfer_role".to_string() } else { "'nobs_xfer_role'@'%'".to_string() };
+        let accounts = ["'nobs_xfer_plain'@'%'", "'nobs_xfer_cols'@'localhost'"];
+        let clean = |c: &mut Conn| {
+            for a in accounts { let _ = c.query_drop(format!("DROP USER IF EXISTS {}", a)); }
+            let _ = c.query_drop(format!("DROP ROLE IF EXISTS {}", role));
+        };
+        let snap = |c: &mut Conn| -> Vec<String> {
+            let mut out = Vec::new();
+            for a in accounts {
+                out.push(c.query_first::<String, _>(format!("SHOW CREATE USER {}", a)).ok().flatten().unwrap_or_else(|| "(missing)".into()));
+                let mut g: Vec<String> = c.query(format!("SHOW GRANTS FOR {}", a)).unwrap_or_default(); g.sort(); out.extend(g);
+            }
+            let mut g: Vec<String> = c.query(format!("SHOW GRANTS FOR {}", role)).unwrap_or_default(); g.sort(); out.extend(g);
+            out
+        };
+        clean(&mut c);
+        for s in [format!("CREATE ROLE {}", role), format!("GRANT SELECT ON nobs_test.* TO {}", role),
+                  "CREATE USER 'nobs_xfer_plain'@'%' IDENTIFIED BY 'Plain-pw-1'".into(), "GRANT INSERT ON nobs_test.* TO 'nobs_xfer_plain'@'%'".into(),
+                  format!("GRANT {} TO 'nobs_xfer_plain'@'%'", role),
+                  if maria { format!("SET DEFAULT ROLE {} FOR 'nobs_xfer_plain'@'%'", role) } else { format!("SET DEFAULT ROLE {} TO 'nobs_xfer_plain'@'%'", role) },
+                  "CREATE USER 'nobs_xfer_cols'@'localhost' IDENTIFIED BY 'Cols-pw-2' WITH MAX_QUERIES_PER_HOUR 100 ACCOUNT LOCK".into(),
+                  "GRANT SELECT (id) ON nobs_test.ro_canary TO 'nobs_xfer_cols'@'localhost' WITH GRANT OPTION".into()] {
+            c.query_drop(&s).unwrap_or_else(|e| panic!("setup {}: {}", s, e));
+        }
+        let before = snap(&mut c);
+        let others: Vec<String> = c.query("SELECT DISTINCT user FROM mysql.user WHERE user NOT LIKE 'nobs\\_xfer\\_%'").unwrap();
+        let r = gen_user_transfer(json!({"conn":conn,"exclude":others.join(",")})).await.unwrap();
+        let sql = r["sql"].as_str().unwrap().to_string();
+        assert_eq!(r["errorCount"], json!(0), "{}", sql);
+        clean(&mut c);
+        for stmt in split_sql_statements(&sql) {
+            c.query_drop(&stmt).unwrap_or_else(|e| panic!("replaying {}: {}\n\n{}", stmt, e, sql));
+        }
+        for stmt in split_sql_statements(&sql) { c.query_drop(&stmt).unwrap_or_else(|e| panic!("running it again, {}: {}", stmt, e)); }
+        let after = snap(&mut c);
+        clean(&mut c);
+        assert_eq!(before, after);
     }
     // A real tunnel: NOBS_TEST_SSH = host|port|user|key file, and NOBS_TEST_DSN the database the SSH
     // server reaches. Run with --ignored; there is no SSH server in CI.
