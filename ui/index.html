@@ -88,7 +88,7 @@
  #connListPop .chip{display:inline-block;height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
  /* The separator before Settings parts it from the buttons left of it; disconnected, there are none. */
  body.disconnected #topActions+.tbchunk>.tbsep:first-child{display:none}
- #bar #connTags .chip{height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:110px} #barTop.fit2 #connTags .chip{max-width:92px}
+ #bar #connTags .chip{height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:110px} #barTop.fit3 #connTags .chip{max-width:92px}
  #bar .chip{height:28px;box-sizing:border-box;padding:0 9px;font-size:12px;letter-spacing:.2px} #bar #connStatus{line-height:26px}
  #connStatus.ok{background:var(--panel2);color:var(--fg);border-color:var(--bd);box-shadow:none;min-width:0}
  #connStatus.ok::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;margin-right:6px;vertical-align:1px}
@@ -105,10 +105,20 @@
  /* Folded, the sidebar gives its width to the grid and leaves the divider behind as the way back -
     the same bargain the Action Output panel's header makes. */
  body.side-folded #side{display:none}
- body.side-folded #sideResize{flex-basis:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
- body.side-folded #sideResize::after{content:"\00BB";color:var(--fg);opacity:.8;font-size:11px;font-weight:700} #sideResize{flex:0 0 7px;cursor:col-resize;background:var(--bd);position:relative;touch-action:none;z-index:5} #sideResize:hover,#sideResize.drag{background:var(--accent)} body.disconnected #sideResize{pointer-events:auto !important;opacity:1 !important}
+ body.side-folded #sideResize{flex-basis:17px;cursor:pointer}
+ /* The sidebar's own divider carries the same fold: « puts the sidebar away, » brings it back.
+    Wider than a drag handle needs to be, because it is a button as well as one. */
+ #sideResize{display:flex;align-items:center;justify-content:center}
+ #sideFold{writing-mode:horizontal-tb} #sideResize{flex:0 0 13px;cursor:col-resize;background:var(--panel2);border-left:1px solid var(--bd);border-right:1px solid var(--bd);box-sizing:border-box;position:relative;touch-action:none;z-index:5} #sideResize:hover,#sideResize.drag{background:var(--bd2)} body.disconnected #sideResize{pointer-events:auto !important;opacity:1 !important}
  .hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;gap:8px;height:52px;box-sizing:border-box}
- #schemas{flex:0 0 40%;overflow:auto;border-bottom:1px solid var(--bd)} #objects{flex:1;overflow:auto}
+ #schemas{flex:0 0 40%;overflow:auto;border-bottom:1px solid var(--bd)}
+/* Between the two lists, as between the editor and its results: drag to share the height out,
+   carets to give it all to one, double-click to put it back. */
+#sideSplit{height:13px;cursor:row-resize;background:var(--panel2);border-bottom:1px solid var(--bd);flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:0}
+#sideSplit:hover{background:var(--bd2)}
+body.objs-folded #objects,body.objs-folded #objFilterRow{display:none !important}
+body.objs-folded #schemas{flex:1 1 auto}
+body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .item{padding:3px 10px 3px 16px;cursor:pointer;white-space:nowrap} #schemas .item{overflow:hidden;text-overflow:ellipsis} .uitem{padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .uitem:hover{background:var(--hover)} .uitem.sel{background:var(--accent);color:#fff} .item:hover{background:var(--hover)} .item.sel{background:var(--accent);color:#fff}
  .ohdr{padding:3px 8px;font-weight:600;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--bd2);position:sticky;top:0;cursor:pointer;user-select:none} .ohdr:hover{color:var(--fg)} .ohdr .caret{display:inline-block;width:12px}
  #content{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -126,7 +136,26 @@
  .tabpane{flex:1;display:none;flex-direction:column;min-height:0} .tabpane.active{display:flex}
  .edwrap{position:relative;height:calc(50% - 34px);min-height:44px;border-bottom:1px solid var(--bd);overflow:hidden}
  .edwrap.big{height:280px}
- .edsplit{height:7px;cursor:row-resize;background:var(--panel2);border-bottom:1px solid var(--bd);flex:0 0 auto} .edsplit:hover{background:var(--accent)}
+/* The bar between the editor and its results: drag it, or use the two carets on it to give the
+   whole pane to one or the other. Double-click puts the split back. */
+.edsplit{height:13px;cursor:row-resize;background:var(--panel2);border-bottom:1px solid var(--bd);flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:0}
+.edsplit:hover{background:var(--bd2)}
+/* The two carets read as one control: a small segmented pill centred on the bar, quiet until it
+   is wanted. Wide enough to hit without aiming, which a glyph drawn on a 13px bar was not. */
+/* One control, whichever divider it sits on: no frame of its own, so a thin line of a divider
+   does not turn into a row of buttons; it takes a shape only under the pointer. The line beside
+   the caret is the edge the click sends things to - a caret on its own comes back to the middle. */
+.edfold{width:28px;height:11px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:var(--fg);opacity:.68;background:transparent;border:none;border-radius:4px;font-size:9px;line-height:1;user-select:none}
+.edfold.vert{flex-direction:row;width:11px;height:26px}
+.edfold.toedge.up::before,.edfold.toedge.down::after{content:"";display:block;width:11px;height:1px;background:currentColor}
+.edfold.toedge.left::before,.edfold.toedge.right::after{content:"";display:block;width:1px;height:11px;background:currentColor}
+.edsplit:hover .edfold,#sideSplit:hover .edfold,#sideResize:hover .edfold{opacity:.85}
+.edfold:hover{background:var(--accent);color:#fff;opacity:1}
+/* Folded: the one that is left takes the room, and the bar stays as the way back. */
+.tabpane.edfolded-results .result,.tabpane.edfolded-results .status,.tabpane.edfolded-results [id^="rsets_"]{display:none !important}
+.tabpane.edfolded-editor [id^="ew_"]{display:none !important}
+/* With the results folded away the editor takes the pane, whatever height a drag last gave it. */
+.tabpane.edfolded-results [id^="ew_"]{flex:1 1 auto !important;height:auto !important}
  .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:13px;line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
@@ -269,20 +298,23 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  /* A bar that would wrap turns buttons into icons first - see fitBar(). An icon replaces the
     label, it is not added to it, so a bar with room looks as it always has. fit2 goes further
     than fit1: the buttons marked data-fit="2" too, and a few narrower widths. */
- [data-ic] .ic{display:none;align-items:center}
- /* data-icalways: the icon is there whatever the bar's width - for a button whose label used to
-    start with an arrow of its own, the icon says the same and says it the same way everywhere. */
- [data-ic][data-icalways] .ic{display:inline-flex} [data-icalways]{gap:5px}
- .fit1 [data-ic]:not([data-fit="2"]) .lbl,.fit2 [data-ic] .lbl{display:none}
- .fit1 [data-ic]:not([data-fit="2"]) .ic,.fit2 [data-ic] .ic{display:inline-flex}
- .fit1 [data-ic]:not([data-fit="2"]),.fit2 [data-ic]{padding-left:6px;padding-right:6px}
+ /* The icon is beside the label at every width, and on its own once the label goes: a button
+    that shrinks to a picture is only friendly if that picture has been sitting next to its name
+    all along. It costs about 19px per button, so a bar tightens a little sooner - see fitBar. */
+ [data-ic]{gap:5px} [data-ic] .ic{display:inline-flex;align-items:center}
+ /* Step by step: the buttons nobody needs by name give theirs up first (no data-fit), then the
+    everyday ones (data-fit="2"), and only in the tightest window the rest (data-fit="3"). */
+ .fit1 [data-ic]:not([data-fit]) .lbl,
+ .fit2 [data-ic]:not([data-fit="3"]) .lbl,
+ .fit3 [data-ic] .lbl{display:none}
+ .fit1 [data-ic]:not([data-fit]),.fit2 [data-ic]:not([data-fit="3"]),.fit3 [data-ic]{padding-left:6px;padding-right:6px}
  .ison .ic{color:var(--accent)}
- .fit1 input.gsearch{width:120px !important} .fit2 input.gsearch{width:90px !important} .fit2 .coetxt{display:none}
- .fit2 #connStatus{max-width:120px} .fit2 #envChip{max-width:90px}
- .fit2 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fit2 .brand{display:none} .fit2 .tbsep{margin:2px 3px !important} .fit2 .tbchunk{gap:4px} .fit2#barTop,.fit2 #barRight{column-gap:4px} .fit2 #barRight button.warn{margin-left:4px !important}
+ .fit1 input.gsearch{width:120px !important} .fit3 input.gsearch{width:90px !important} .fit3 .coetxt{display:none}
+ .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
+ .fit3 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fitb .brand{display:none} .fit3 .tbsep{margin:2px 3px !important} .fit3 .tbchunk{gap:4px} .fit3#barTop,.fit3 #barRight{column-gap:4px} .fit3 #barRight button.warn{margin-left:4px !important}
  .toolbar.fitbar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden} .toolbar.fitbar>*{flex-shrink:0}
- .toolbar.fit2{gap:4px} .toolbar.fit2 .tbsep{margin:2px !important} .toolbar.fit2 [id^="resultActions_"],.toolbar.fit2 [id^="edit_"]{gap:4px !important} .toolbar.fit2>label{margin-left:0 !important}
- .fit2 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit2 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
+ .toolbar.fit3{gap:4px} .toolbar.fit3 .tbsep{margin:2px !important} .toolbar.fit3 [id^="resultActions_"],.toolbar.fit3 [id^="edit_"]{gap:4px !important} .toolbar.fit3>label{margin-left:0 !important}
+ .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
  body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
@@ -330,9 +362,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <b class="brand">NOBS SQL Editor</b>
   <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span>
-  <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="2">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="2">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="2">Manage &#9662;</button>
+  <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px;padding:0 4px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select><span id="connStatus" class="chip bad">Not connected</span><button id="connX" title="Disconnect" aria-label="Disconnect" onclick="disconnectAsk()">&times;</button></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="2">+ New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img id="coffeeImg" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="3">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep" style="margin:2px 10px"></span><img id="coffeeImg" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:10px">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -344,23 +376,27 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 </div>
 <div id="main" class="needsconn">
  <div id="side">
-  <div class="hdr"><span>SCHEMAS</span><span style="white-space:nowrap"><button class="sm" id="sideFoldBtn" title="Hide the sidebar" onclick="toggleSide()">&#171;</button> <button class="sm" title="Create a new schema" onclick="newSchema()">+ Schema</button> <button class="sm" title="Open the table designer" onclick="designTable(null)">+ Table</button> <button class="sm" title="ER Diagram for the selected schema" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the schema list and tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
+  <div class="hdr"><span>SCHEMAS</span><span style="white-space:nowrap"><button class="sm" title="Create a new schema" onclick="newSchema()">+ Schema</button> <button class="sm" title="Open the table designer" onclick="designTable(null)">+ Table</button> <button class="sm" title="ER Diagram for the selected schema" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the schema list and tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
   <input id="schemaFilter" placeholder="filter schemas..." oninput="loadSchemasFilter()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('schemas'));}" style="margin:4px 6px;font-size:12px;width:calc(100% - 12px)">
   <div id="schemas" tabindex="0"></div>
+  <div id="sideSplit" title="Drag to share the height between the lists - double-click to reset" ondblclick="sideSplitReset()">
+   <span class="edfold toedge up" title="Give the sidebar to the objects" onmousedown="event.stopPropagation()" onclick="sideFold('schemas')">&#9652;</span>
+   <span class="edfold toedge down" title="Give the sidebar to the schemas" onmousedown="event.stopPropagation()" onclick="sideFold('objects')">&#9662;</span>
+  </div>
   <!-- The schema name gets its own row under the "OBJECTS" label rather than squeezed onto the
        same line - a flat width cap, and later flex:1 sharing the line with the label, both still
        truncated a real schema name ("moving_appcustomer_900000", 213px of text) that only just
        didn't fit alongside "OBJECTS" (~200px available) but comfortably fits on a full-width
        line of its own (sidebar width minus padding, ~264px at the 280px default). -->
   <div class="hdr" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:2px"><span>OBJECTS</span><span id="objdb" class="muted" style="width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
-<div style="display:flex;gap:4px;margin:4px 6px;align-items:center">
+<div id="objFilterRow" style="display:flex;gap:4px;margin:4px 6px;align-items:center">
 <input id="objFilter" placeholder="filter objects..." oninput="objFilterInput()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('objects'));}" style="flex:1;min-width:0;font-size:12px">
 <button class="sm" id="objTypeBtn" title="Show or hide object types (tables, views, procedures...)" onclick="event.stopPropagation();toggleObjTypePicker(this)" style="padding:2px 6px;font-size:11px">Types &#9662;</button>
 <button class="sm" id="allSchemasBtn" title="Search this name across all schemas" onclick="toggleAllDbs()" style="padding:2px 6px;font-size:11px">All DBs</button>
 </div>
   <div id="objects" tabindex="0"></div>
  </div>
- <div id="sideResize" title="Drag to resize the sidebar (double-click to reset)"></div>
+ <div id="sideResize" title="Drag to resize the sidebar (double-click to reset)"><span id="sideFold" class="edfold vert toedge left" title="Hide the sidebar" onmousedown="event.stopPropagation()" onclick="toggleSide()">&#9666;</span></div>
  <div id="content"><div id="tabsbar"></div><div id="panes" style="flex:1;display:flex;flex-direction:column;min-height:0"><div id="overview" style="display:none;flex:1;overflow:auto;padding:14px"></div></div></div>
 </div>
 <div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
@@ -581,7 +617,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <select id="cfgToastMs" onchange="setToastMs(this.value)" style="margin-left:6px"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></span></div>
  <div class="muted" style="font-size:11px;line-height:1.4;margin:2px 0 0">The messages in the bottom right corner. An error stays twice as long as the rest. Hovering one holds it, and a click dismisses it.</div>
  <div style="margin:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">LOCAL DATA</div>
- <div class="row"><button class="warn" onclick="clearAllData()">Clear all app data</button></div>
+ <div class="row"><button onclick="resetLayout()">Reset the layout</button><button class="warn" onclick="clearAllData()">Clear all app data</button></div>
+ <div class="muted" style="font-size:11px;line-height:1.4;margin:2px 0 0">Reset the layout puts the sidebar, the panels, the folded groups, the theme and the message timing back to how the app starts. Saved connections, the query library, history and pinned tables are left alone.</div>
  <hr style="border:none;border-top:1px solid var(--bd2);margin:10px 0">
  <div class="row" style="gap:8px"><button class="sm needsconn" title="Clear the database overview cache and reload" onclick="clearOverviewCache()">Refresh Cache</button><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch Theme</button><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Shortcut Info</button><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div>
  <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="go" onclick="saveSettings()">Save</button><button onclick="hide('mSettings')">Close</button></div></div></div>
@@ -1179,6 +1216,24 @@ if(localStorage.getItem('theme')!=='light')document.body.classList.add('dark');
 
 // context menu
 function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k)continue;if(k.indexOf('overviewCache')===0||k.indexOf('tableSizes')===0){keys.push(k);}else if(includeAll&&['session','history','connmeta','accents','theme'].indexOf(k)>=0){keys.push(k);}}keys.forEach(k=>localStorage.removeItem(k));return keys.length;}
+// What the app remembers about how it is arranged, as opposed to what the user has saved in it.
+// A window someone has folded, dragged and hidden their way into can be hard to talk back out of,
+// and "Clear all app data" is far too big a hammer: it takes the connections with it.
+const LAYOUT_KEYS=['sideW','sideFolded','logFolded','objCollapsed','theme','toastMs'];
+async function resetLayout(){
+ if(!(await ask('Put the layout back to how the app starts?\n\nThe sidebar, the panels, the folded groups, the theme and how long messages stay are reset. Connections, the library, history and pinned tables are not touched.')))return;
+ LAYOUT_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+ // What is on screen now, without waiting for a restart.
+ try{setSideFolded(false);}catch(e){}
+ try{setLogFolded(false);}catch(e){}
+ const sd=$('side');if(sd)sd.style.width='280px';
+ document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('edfolded-editor','edfolded-results'));
+ document.querySelectorAll('[id^="ew_"]').forEach(ew=>{ew.style.height='';});
+ if(document.body.classList.contains('dark')!==true){try{toggleTheme();}catch(e){}}
+ if($('cfgToastMs'))$('cfgToastMs').value='6000';
+ renderObjects();
+ toast('The layout is back to how the app starts.','ok');
+}
 async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis permanently deletes:\n\u2022 saved connections (host / user / password)\n\u2022 the query library\n\u2022 caches, accent colors, environment labels, history and session tabs.\n\nThis cannot be undone.')))return;const n=_clearKeys(true);try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}log('Cleared '+n+' local entr'+(n===1?'y':'ies')+' + saved connections + library. Reloading...');setTimeout(()=>location.reload(),500);}
 async function openSettings(){$('cfgLog').textContent='';try{const r=await api('/api/get-config');const c=(r&&r.config)||{};$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
@@ -1405,7 +1460,7 @@ function wireConnList(){const s=$('connlist');if(!s)return;
 function syncConnTags(){const tags=$('connTags'),s=$('connlist');if(!tags||!s)return;const w=tags.offsetWidth;s.style.paddingRight=w?(w+26)+'px':'';
  // The tags widen the box by what they take, rather than taking it from the name. In the tightest
  // step the box has a fixed width (see .fit2 #connlist), and the tag is cut shorter there instead.
- const narrow=$('barTop')&&$('barTop').classList.contains('fit2');
+ const narrow=$('barTop')&&$('barTop').classList.contains('fit3');
  s.style.width=s.style.maxWidth=((narrow?150:210)+(w?w+6:0))+'px';connTitle();}
 // --- Connections: dropdown, New/Save/pick, and the 'primary' (auto-open) flag.
 function updatePrimeBtn(){const b=$('primeBtn');if(!b)return;const n=$('connlist').value;const isP=(n&&n===window._primaryConn);b.textContent=(isP?'\u2605':'\u2606')+' Primary';b.style.color=isP?'#f5c518':'';b.title=isP?'This is the primary connection (opens on startup). Click to unset.':'Set as primary connection (opens automatically on startup)';}
@@ -1458,8 +1513,10 @@ function barWraps(row){let lo=Infinity,hi=-Infinity;
 // what is in it only ever tightens. Running a query hides the result and edit buttons until the
 // answer comes, and a bar that loosened on that showed its labels for the length of the run, then
 // went back to icons - the labels flashed on every click.
-function fitBar(row,loosen){if(!row||!row.offsetParent)return;const was=row.className;if(loosen)row.classList.remove('fit1','fit2');
- if(barWraps(row)){row.classList.add('fit1');if(barWraps(row))row.classList.add('fit2');}
+function fitBar(row,loosen){if(!row||!row.offsetParent)return;const was=row.className;if(loosen)row.classList.remove('fitb','fit1','fit2','fit3');
+ // The rungs, in the order a bar gives things up: the brand, then the labels of the buttons that
+ // need them least, then the everyday ones, then the rest along with tighter spacing.
+ if(barWraps(row)){row.classList.add('fitb');if(barWraps(row)){row.classList.add('fit1');if(barWraps(row)){row.classList.add('fit2');if(barWraps(row))row.classList.add('fit3');}}}
  // The connections box is narrower in the tightest step, so its own width follows the step.
  if(row.id==='barTop'&&row.className!==was&&typeof syncConnTags==='function')syncConnTags();}
 // Refitted when a bar's width changes (a window resize, a hidden tab shown) and when what is in it
@@ -2374,10 +2431,13 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  tb.addEventListener('drop',e=>{e.preventDefault();tb.classList.remove('dragover');const srcId=e.dataTransfer.getData('text/plain');if(!srcId||srcId===id)return;reorderTab(srcId,id);});
  $('tabsbar').appendChild(tb);saveSession();
  const pane=document.createElement('div');pane.className='tabpane';pane.id='pane_'+id;
- const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')" data-ic="lastq" data-icalways>Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
+ const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')" data-ic="lastq" data-fit="2">Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
  const pager='<span id="pager_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>';
  pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
-  '<div class="edsplit" id="es_'+id+'" title="Drag to resize the editor"></div>'+
+  '<div class="edsplit" id="es_'+id+'" title="Drag to resize the editor - double-click to reset" ondblclick="edSplitReset(\''+id+'\')">'+
+  '<span class="edfold toedge up" title="Give the whole pane to the results" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'editor\')">&#9652;</span>'+
+  '<span class="edfold toedge down" title="Give the whole pane to the editor" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'results\')">&#9662;</span>'+
+  '</div>'+
   // Run Query and Cancel are mutually-exclusive states of the same "primary action" slot, not
   // two independent buttons - stacked in one shared grid cell (both always in layout, only one
   // ever visible) so swapping between them on every run/cancel never shifts Run Query Selection/
@@ -2388,14 +2448,14 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<label title="If a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT." style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="coe_'+id+'"><span class="coetxt"> Continue on error</span></label>'+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'" style="display:none;gap:9px;align-items:center" class="tbgroup">'+
-  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf">Clear filters</button>'+
+  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy" data-fit="2">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap" data-fit="2">Wrap: Off</button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns" data-fit="2">Columns</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="setGridSearch(\''+id+'\',this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf" data-fit="2">Clear filters</button>'+
   '</span>'+
   '<span style="flex:1 1 auto"></span>'+
   '<span id="edit_'+id+'" style="display:inline-flex;align-items:center;gap:6px"></span>'+pager+'</div>'+
   '<div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="status" id="st_'+id+'">Ready.</div>';
- $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));const ta=$('ed_'+id);ta.value=sql||'';
+ $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';
- (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{e.preventDefault();const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
+ (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
   const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(44,Math.min(h,Math.max(80,maxH)));ew.style.height=h+'px';syncHl(id);};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
@@ -2954,7 +3014,7 @@ function updatePager(id){const t=T(id);const p=$('pager_'+id);if(!p)return;const
  p.innerHTML='<span class="muted">'+fmtCount(total)+(t.hasMore?'+':'')+' row(s) loaded</span>';}
 function toggleLast(id){const t=T(id);const ta=$('ed_'+id);if(t.prevRun==null){log('No previous query to toggle to yet.');return;}ta.value=t.prevRun;if(typeof syncHl==='function')syncHl(id);runSql(id,t.prevRun);}
 function toggleAll(id){const t=T(id);if(!t.table)return;const ta=$('ed_'+id);const base='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+';';const cur=(ta.value||'').trim();if(cur!==base.trim()){t.beforeAll=ta.value;ta.value=base;}else if(t.beforeAll!=null){ta.value=t.beforeAll;}else{ta.value=base;}if(typeof syncHl==='function')syncHl(id);runSql(id,ta.value);}
-function selBtnHtml(id,table){return table?'<button title="Toggle between your query and SELECT * (the whole table)" onclick="toggleAll(\''+id+'\')" data-ic="wholetable" data-icalways>Base query</button>':'';}
+function selBtnHtml(id,table){return table?'<button title="Toggle between your query and SELECT * (the whole table)" onclick="toggleAll(\''+id+'\')" data-ic="wholetable" data-fit="2">Base query</button>':'';}
 // t.table (and thus row-edit capability, export-as-table, quick filter, ...) used to be fixed
 // at whatever the tab was opened with and never revisited - so a tab opened as a non-editable
 // "SELECT COUNT(*)" stayed permanently non-editable even after retyping it into a plain
@@ -3242,6 +3302,30 @@ function maybePrefetchNextBatch(id,wrap){
  const t=T(id);if(!t||!t.hasMore||t.fetchingMore||!wrap)return;
  if((wrap.scrollTop+wrap.clientHeight)>=(wrap.scrollHeight-200))fetchNextBatch(id);
 }
+// Folding one half away is a per-tab choice, like the height of the editor itself: a tab left
+// showing only its results stays that way until it is told otherwise. Clicking the caret that is
+// already in force unfolds, so the same pair of carets is both the way out and the way back.
+function edFold(id,which){const p=$('pane_'+id);if(!p)return;
+ const cls='edfolded-'+which,on=p.classList.contains(cls);
+ p.classList.remove('edfolded-editor','edfolded-results');
+ if(!on)p.classList.add(cls);
+ const ew=$('ew_'+id);if(ew&&which==='editor'&&!on)ew.style.height='';
+ edFoldSync(id);syncHl(id);}
+function edSplitReset(id){const p=$('pane_'+id);if(p)p.classList.remove('edfolded-editor','edfolded-results');
+ const ew=$('ew_'+id);if(ew)ew.style.height='';edFoldSync(id);syncHl(id);}
+// Each caret points where its click will send things: up while it can still fold upwards, down
+// once what it folded is the thing it would bring back.
+function edFoldSync(id){const p=$('pane_'+id),es=$('es_'+id);if(!p||!es)return;
+ const [a,b]=es.querySelectorAll('.edfold');if(!a||!b)return;
+ const edGone=p.classList.contains('edfolded-editor'),resGone=p.classList.contains('edfolded-results');
+ setFoldCaret(a,edGone?'down':'up',!edGone,edGone?'Show the editor again':'Give the whole pane to the results');
+ setFoldCaret(b,resGone?'up':'down',!resGone,resGone?'Show the results again':'Give the whole pane to the editor');}
+// dir: where the click sends the bar. toEdge: all the way there, rather than back to the middle.
+function setFoldCaret(el,dir,toEdge,title){
+ const vert=dir==='left'||dir==='right';
+ el.className='edfold'+(vert?' vert':'')+(toEdge?' toedge '+dir:'');
+ el.innerHTML={up:'&#9652;',down:'&#9662;',left:'&#9666;',right:'&#9656;'}[dir];
+ el.title=title;}
 function toggleWrap(id){const t=T(id);t.wrap=!t.wrap;const wrap=$('res_'+id);if(wrap)wrap.classList.toggle('wraptext',t.wrap);const btn=$('wrapbtn_'+id);if(btn){(btn.querySelector('.lbl')||btn).textContent='Wrap: '+(t.wrap?'On':'Off');btn.classList.toggle('ison',!!t.wrap);}}
 // The filter row's sticky "top" offset needs to sit at exactly the main header row's actual
 // height, or a gap opens up between them that the first scrolled-past data row peeks through -
@@ -3369,7 +3453,7 @@ function updateEditBar(id){const t=T(id);const el=$('edit_'+id);if(!el)return;if
  const sig=n+':'+hasSel;
  if(el.dataset.sig===sig)return;
  el.dataset.sig=sig;
- el.innerHTML='<button class="write" onclick="addRow(\''+id+'\')" data-ic="plus">+ Row</button><button class="warn write" '+(hasSel?'':'disabled')+' title="Mark all checked rows for deletion (applied on Apply)" onclick="deleteSel(\''+id+'\')" data-ic="trash">Delete selected</button><span class="tbsep"></span><button class="go write" '+(n?'':'disabled')+' onclick="applyChanges(\''+id+'\')">Apply</button><button '+(n?'':'disabled')+' onclick="revertChanges(\''+id+'\')" data-ic="undo" data-fit="2">Revert</button><span class="pill'+(n?'':' quiet')+'">'+n+' pending</span>';}
+ el.innerHTML='<button class="write" onclick="addRow(\''+id+'\')" data-ic="plus">Add row</button><button class="warn write" '+(hasSel?'':'disabled')+' title="Mark all checked rows for deletion (applied on Apply)" onclick="deleteSel(\''+id+'\')" data-ic="trash">Delete selected</button><span class="tbsep"></span><button class="go write" '+(n?'':'disabled')+' onclick="applyChanges(\''+id+'\')">Apply</button><button '+(n?'':'disabled')+' onclick="revertChanges(\''+id+'\')" data-ic="undo" data-fit="3">Revert</button><span class="pill'+(n?'':' quiet')+'">'+n+' pending</span>';}
 // MySQL's own DATE/DATETIME/TIME text format <-> what a native <input type="date"/"datetime-
 // local"/"time"> needs. Deliberately conservative: anything the native widget can't faithfully
 // round-trip - a zero-date ('0000-00-00'), a zero month/day, a TIME past the widget's 00:00:00-
@@ -5713,8 +5797,30 @@ async function closeOthers(id){const dirty=tabs.filter(t=>t.id!==id&&pendingCoun
 // ---- keyboard navigation for side lists ----
 // The sidebar folds like the Action Output panel: a click on the header's button, and the divider
 // it leaves behind is what opens it again. Kept per browser, as its width is.
+// Folding one of the sidebar's two lists away, and the drag that shares the height between them.
+// Kept for the session only: which list matters changes with what is being done, unlike the
+// sidebar's own width.
+function sideFold(which){const b=document.body,cls=which==='schemas'?'schemas-folded':'objs-folded',on=b.classList.contains(cls);
+ b.classList.remove('schemas-folded','objs-folded');
+ if(!on)b.classList.add(cls);
+ const sc=$('schemas');if(sc&&!on&&which==='objects')sc.style.flex='';
+ sideFoldSync();}
+function sideSplitReset(){document.body.classList.remove('schemas-folded','objs-folded');const sc=$('schemas');if(sc)sc.style.flex='0 0 40%';sideFoldSync();}
+// The same, between the sidebar's two lists.
+function sideFoldSync(){const sp=$('sideSplit');if(!sp)return;
+ const [a,b]=sp.querySelectorAll('.edfold');if(!a||!b)return;
+ const scGone=document.body.classList.contains('schemas-folded'),obGone=document.body.classList.contains('objs-folded');
+ setFoldCaret(a,scGone?'down':'up',!scGone,scGone?'Show the schemas again':'Give the sidebar to the objects');
+ setFoldCaret(b,obGone?'up':'down',!obGone,obGone?'Show the objects again':'Give the sidebar to the schemas');}
+(function(){function init(){const sp=$('sideSplit'),sc=$('schemas');if(!sp||!sc){setTimeout(init,300);return;}
+ sp.addEventListener('mousedown',e=>{if(e.target!==sp)return;e.preventDefault();
+  const sy=e.clientY,sh=sc.offsetHeight,maxH=sc.parentElement.clientHeight-140;
+  const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(60,Math.min(h,Math.max(80,maxH)));sc.style.flex='0 0 '+h+'px';};
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
+  document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});}
+ init();})();
 function setSideFolded(on){document.body.classList.toggle('side-folded',!!on);
- const b=$('sideFoldBtn');if(b){b.textContent=on?'\u00BB':'\u00AB';b.title=on?'Show the sidebar':'Hide the sidebar';}
+ const d=$('sideFold');if(d){setFoldCaret(d,on?'right':'left',!on,on?'Show the sidebar again':'Hide the sidebar');}
  const rz=$('sideResize');if(rz)rz.title=on?'Click to show the sidebar':'Drag to resize the sidebar (double-click to reset)';
  try{localStorage.setItem('sideFolded',on?'1':'');}catch(e){}}
 function toggleSide(){setSideFolded(!document.body.classList.contains('side-folded'));}
@@ -5894,7 +6000,7 @@ async function openUpdatePage(){
 function dismissUpdate(){if(!_update)return;try{localStorage.setItem('updateDismissed',_update.latest);}catch(e){}const el=$('updNote');if(el)el.style.display='none';}
 setTimeout(()=>{checkForUpdate(false);},3000);
 window.addEventListener('beforeunload',e=>{saveSession();if(anyPending()){e.preventDefault();e.returnValue='';return '';}});
-(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{if(document.body.classList.contains('side-folded')){toggleSide();return;}drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{if(document.body.classList.contains('side-folded'))return;sd.style.width='280px';localStorage.setItem('sideW','280');});}initSideResize();})();
+(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{if(e.target!==rz)return;if(document.body.classList.contains('side-folded')){toggleSide();return;}drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{if(document.body.classList.contains('side-folded'))return;sd.style.width='280px';localStorage.setItem('sideW','280');});}initSideResize();})();
 if(window.__TAURI__&&window.__TAURI__.window&&window.__TAURI__.window.getCurrentWindow){try{const _w=window.__TAURI__.window.getCurrentWindow();_w.onCloseRequested(async(ev)=>{
  // Quitting with a query still running must cancel it the same way closing its tab would -
  // otherwise it keeps executing against the DB after the window (and the user's ability to
