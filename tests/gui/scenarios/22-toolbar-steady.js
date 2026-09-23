@@ -33,12 +33,15 @@
     toggleWrap(i);
     t._total = 1234567; t.hasMore = true; updatePager(i); await G.wait(50);
     G.eq('a long row total moves nothing', shape(), before);
-    // Turning auto-commit off is a choice that adds two buttons; after that, whether there is
-    // something to commit changes only how Commit looks.
+    // Commit and Rollback are always there, so turning auto-commit off moves nothing either, and
+    // whether there is something to commit changes only how Commit looks.
+    const edge = el => bar.getBoundingClientRect().right - el.getBoundingClientRect().right;
+    const at = edge($('txac_' + i));
     txToggle(i, true); await G.wait(50);
-    const manual = shape();
+    G.eq('turning auto-commit off moves nothing', shape(), before);
+    G.eq('and Auto-commit stays where it was', edge($('txac_' + i)), at);
     t.txDirty = true; txPaint(i); await G.wait(50);
-    G.eq('something to commit moves nothing', shape(), manual);
+    G.eq('something to commit moves nothing', shape(), before);
     G.check('and Commit shows it', $('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
     t.txDirty = false; txToggle(i, false);
   } finally {

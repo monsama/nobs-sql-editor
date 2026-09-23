@@ -67,10 +67,12 @@ Export files are kept wherever you saved them.
   of its own.
 - Inline and full-row editing with a staged pending-changes model applied inside
   a transaction; add / delete rows. Typing with several cells picked writes the
-  value into all of them.
+  value into all of them. Right-click Apply (or Ctrl+Shift+S) to see the SQL
+  it would run first.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open
   across its runs until Commit or Rollback. Commit also saves grid edits
-  not applied yet; Rollback discards them.
+  not applied yet; Rollback discards them. The count beside Commit opens
+  the transaction's log: what it has run so far, and how each run went.
 - Column resize and show/hide; row-detail form view for wide tables.
 - Export whole tables or query results to CSV or INSERT statements (streamed,
   handles large tables), or to Excel, JSON or Markdown; copy CSV/TSV/JSON to

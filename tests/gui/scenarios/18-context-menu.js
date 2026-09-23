@@ -41,7 +41,7 @@
 
   T(i).selected = new Set([0, 1]);
   m = open(i, 0, 0);
-  G.eq('ticked rows bring back all three selection commands', m.filter(x => /selected/.test(x)).length, 3);
+  G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, 5);
   G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export to CSV (2 selected)...'), m);
   // the single overwrite takes one row and one only; several copied rows can go over the same
   // number of ticked ones instead

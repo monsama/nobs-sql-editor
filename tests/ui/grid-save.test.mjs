@@ -38,8 +38,8 @@ const NAMES = ['applyChanges', 'keyWhere', 'oneRowGuard', 'litAs', 'lit', 'strLi
   'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput'];
 const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n');
 
-async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session }) {
-  const sent = [], toasts = [], sessions = [];
+async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview }) {
+  const sent = [], toasts = [], sessions = [], shown = [];
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
@@ -49,10 +49,11 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
     api: async (p, d) => { sent.push(d.sql); sessions.push(d.session); return typeof reply === 'function' ? reply(d.sql) : reply; },
+    viewText: (title, text) => shown.push({ title, text }),
   };
   const keys = Object.keys(env);
-  await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x');
-  return { sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions };
+  const result = await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x', preview);
+  return { sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending };
 }
 const guardOf = where => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM `d`.`t` WHERE ' + where + ') <> 1 INTO @nobs_one_row;';
 
@@ -99,4 +100,17 @@ test('a save in a tab with auto-commit off goes into its transaction', async () 
   const one = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'b' } };
   assert.deepEqual((await apply({ ...one, session: 'tx_1' })).sessions, ['tx_1']);
   assert.deepEqual((await apply(one)).sessions, [undefined]);
+});
+
+test('Show SQL shows exactly what Apply would run, and runs nothing', async () => {
+  const one = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'b' }, types: { id: 'int', v: 'varchar' } };
+  const saved = await apply(one);
+  const r = await apply({ ...one, upd: { '0:1': 'b' }, preview: true });
+  assert.equal(r.sql, '', 'nothing was sent');
+  assert.equal(r.result, false);
+  assert.equal(r.shown.length, 1);
+  assert.equal(r.shown[0].text, saved.sql, 'the preview is the SQL Apply sends');
+  assert.match(r.shown[0].title, /1 change$/);
+  assert.deepEqual(Object.keys(r.pending.upd), ['0:1'], 'the edit is still pending');
+  assert.equal(saved.result, true, 'and Apply itself says it saved');
 });

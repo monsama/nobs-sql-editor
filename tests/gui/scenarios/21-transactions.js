@@ -41,17 +41,24 @@ INSERT INTO ${DB}.t VALUES (1,'a');`);
     await G.wait(300);
     G.eq('closing the tab rolls back what it had not committed', await outside(`SELECT v FROM ${DB}.t WHERE id=1`), 'z');
 
-    // the toolbar: off shows Commit and Rollback, and what is not committed is marked
+    // the toolbar: Commit and Rollback are always there, and usable with auto-commit off
     const i = openTab('tx', "UPDATE t SET v='q' WHERE id=1;", DB, false, null);
     const box = $('txac_' + i);
-    G.check('a tab starts with auto-commit on', box && box.checked, box && box.checked);
-    box.checked = false; box.dispatchEvent(new Event('change'));
-    G.check('turning it off shows Commit and Rollback', $('txbar_' + i).style.display !== 'none', $('txbar_' + i).style.display);
+    G.check('a tab starts with auto-commit on', box && box.classList.contains('ison'), box && box.className);
+    G.check('with Commit and Rollback in place but unavailable', $('txcommit_' + i).disabled && $('txrollback_' + i).disabled, 'enabled');
+    box.click();
+    G.check('pressing it turns it off', !box.classList.contains('ison') && box.getAttribute('aria-pressed') === 'false', box.className);
+    G.check('turning it off makes Commit and Rollback available', !$('txcommit_' + i).disabled && !$('txrollback_' + i).disabled, 'still disabled');
     await runSql(i, $('ed_' + i).value);
     await G.until(() => T(i).txDirty, 5000);
     G.check('Commit shows there is something to commit', $('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
+    G.eq('the count beside Commit says what is waiting', $('txlog_' + i).textContent, '1');
+    txShowLog(i);
+    G.check('and opens it, statement and all', /UPDATE t SET v='q' WHERE id=1/.test($('vText').value), $('vText').value.slice(0, 200));
+    hide('mView');
     await txEnd(i, 'rollback');
     G.check('Rollback clears it', !$('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
+    G.eq('and empties the log', [$('txlog_' + i).textContent, $('txlog_' + i).disabled], ['0', true]);
     G.eq('and the change is gone', await outside(`SELECT v FROM ${DB}.t WHERE id=1`), 'z');
     closeTab(i);
 
@@ -63,6 +70,7 @@ INSERT INTO ${DB}.t VALUES (1,'a');`);
     tt.pending.upd[tt.rows.findIndex(r => r[0] === '1') + ':1'] = 'viaCommit';
     updateEditBar(tt.id);
     G.check('grid edits waiting light Commit up', $('txcommit_' + tt.id).classList.contains('go'), $('txcommit_' + tt.id).className);
+    G.eq('and Apply carries their count', $('edit_' + tt.id).querySelector('.applyn').textContent.trim(), 'Apply (1)');
     await txEnd(tt.id, 'commit');
     G.eq('Commit saves pending grid edits and commits them', await outside(`SELECT v FROM ${DB}.t WHERE id=1`), 'viaCommit');
     tt.pending.upd[tt.rows.findIndex(r => r[0] === '1') + ':1'] = 'dropped';
