@@ -291,6 +291,12 @@ fn tunnels() -> &'static Mutex<std::collections::HashMap<String, Tunnel>> {
     static MAP: OnceLock<Mutex<std::collections::HashMap<String, Tunnel>>> = OnceLock::new();
     MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
+// A saved connection's SSH password, kept in the OS keychain beside its database password.
+const SSH_KEYRING: &str = "NOBSSQL-Desktop-SSH";
+fn ssh_pw_get(name: &str) -> String { keyring::Entry::new(SSH_KEYRING, name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
+fn ssh_pw_set(name: &str, pw: &str) {
+    if let Ok(e) = keyring::Entry::new(SSH_KEYRING, name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
+}
 fn close_tunnels() {
     if let Ok(mut m) = tunnels().lock() { for (_, mut t) in m.drain() { let _ = t.child.kill(); let _ = t.child.wait(); } }
 }
@@ -320,6 +326,7 @@ fn endpoint(connj: &Value) -> Result<(String, u16), String> {
     let ssh_port = port_of(&connj["sshPort"], 22);
     let ssh_user = connj["sshUser"].as_str().unwrap_or("").trim().to_string();
     let key = connj["sshKey"].as_str().unwrap_or("").trim().to_string();
+    let password = connj["sshPassword"].as_str().unwrap_or("").to_string();
     let id = format!("{}@{}:{}|{}|{}:{}", ssh_user, ssh_host, ssh_port, key, host, port);
     // Held while a tunnel opens, so two connections at once do not open two.
     let mut m = tunnels().lock().unwrap();
@@ -327,19 +334,31 @@ fn endpoint(connj: &Value) -> Result<(String, u16), String> {
         if matches!(t.child.try_wait(), Ok(None)) { return Ok(("127.0.0.1".into(), t.port)); }
         m.remove(&id);
     }
-    let t = open_tunnel(&ssh_host, ssh_port, &ssh_user, &key, &host, port)?;
+    let t = open_tunnel(&ssh_host, ssh_port, &ssh_user, &key, &password, &host, port)?;
     let local = t.port;
     m.insert(id, t);
     Ok(("127.0.0.1".into(), local))
 }
-fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, host: &str, port: u16) -> Result<Tunnel, String> {
+fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, password: &str, host: &str, port: u16) -> Result<Tunnel, String> {
     let local = std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).map(|a| a.port()).map_err(|e| e.to_string())?;
     let target = if host.contains(':') { format!("[{}]", host) } else { host.to_string() };
     let mut cmd = Command::new(ssh_exe());
-    cmd.args(["-N", "-T", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=accept-new",
+    cmd.args(["-N", "-T", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=accept-new",
               "-o", "ServerAliveInterval=30", "-o", "ConnectTimeout=15"]);
     cmd.arg("-L").arg(format!("127.0.0.1:{}:{}:{}", local, target, port)).arg("-p").arg(ssh_port.to_string());
     if !key.is_empty() { cmd.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes"]); }
+    if password.is_empty() {
+        // Nobody can answer a prompt, so there is none: a login that would need one fails.
+        cmd.args(["-o", "BatchMode=yes"]);
+    } else {
+        // The password goes to ssh the one way it takes one without a terminal: a program it runs
+        // and reads it from - this app again (see main), with the password in that run's environment.
+        // One try, so a wrong one fails at once instead of being offered again.
+        cmd.args(["-o", "NumberOfPasswordPrompts=1"]);
+        if let Ok(me) = std::env::current_exe() {
+            cmd.env("SSH_ASKPASS", me).env("SSH_ASKPASS_REQUIRE", "force").env("NOBS_SSH_ASKPASS", "1").env("NOBS_SSH_PW", password);
+        }
+    }
     // After "--" the destination cannot be read as an option, whatever it starts with.
     cmd.arg("--").arg(if ssh_user.is_empty() { ssh_host.to_string() } else { format!("{}@{}", ssh_user, ssh_host) });
     cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
@@ -2037,14 +2056,18 @@ async fn script(req: Value) -> R {
             // commit everything the tab had not, and a ROLLBACK would throw it away.
             let in_session = c.in_session();
             if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
+            // Rows the statements changed, for a transaction's log to say what each run did.
+            let mut affected: u64 = 0;
             for (idx, stmt) in statements.iter().enumerate() {
-                if let Err(e) = c.query_drop(stmt) {
+                let ran = c.query_drop(stmt);
+                if ran.is_ok() { affected += c.affected_rows(); }
+                if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
                     if transactional { let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" }); }
                     let e = db_err(e);
                     let note = if !transactional { "" } else if in_session { "\n\nNone of these changes were applied. The tab's transaction is still open." } else { "\n\nNo changes were applied - the batch was rolled back." };
-                    return Ok(json!({"ok":false,"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
+                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
                 }
             }
             if transactional && in_session {
@@ -2055,7 +2078,7 @@ async fn script(req: Value) -> R {
                     return Ok(json!({"ok":false,"error":commit_failure_message(&db_err(e))}));
                 }
             }
-            return Ok(json!({"ok":true}));
+            return Ok(json!({"ok":true,"affected":affected}));
         }
 
         // Continue-on-error mode: run every statement regardless of earlier failures, and
@@ -2993,7 +3016,7 @@ async fn conn_get(req: Value) -> R {
         Some(c) => {
             let pass = keyring::Entry::new("NOBSSQL-Desktop", &name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
             Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,
-                "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"]},
+                "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"sshPassword":ssh_pw_get(&name)},
                 "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false)}))
         }
         None => Ok(json!({"ok":false})),
@@ -3015,6 +3038,8 @@ async fn conn_save(req: Value) -> R {
         }
         // empty password on a quick-save with savepw:true -> leave any existing keychain entry untouched
     }
+    // Saved with the database password, and only when that is: "type it each time" covers both.
+    if conn.get("sshPassword").is_some() { ssh_pw_set(&name, if save_pw { conn["sshPassword"].as_str().unwrap_or("") } else { "" }); }
     let before = load_profiles();
     let was_primary = before.iter().find(|c| c["name"].as_str() == Some(name.as_str()))
         .map(|c| c["primary"].as_bool().unwrap_or(false)).unwrap_or(false);
@@ -3035,6 +3060,7 @@ async fn conn_save(req: Value) -> R {
 async fn conn_delete(req: Value) -> R {
     let name = req["name"].as_str().unwrap_or("").to_string();
     if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", &name) { let _ = e.delete_credential(); }
+    ssh_pw_set(&name, "");
     let list: Vec<Value> = load_profiles().into_iter().filter(|c| c["name"].as_str() != Some(&name)).collect();
     save_profiles(&list);
     Ok(json!({"ok":true}))
@@ -3061,6 +3087,7 @@ async fn conn_clear(_req: Value) -> R {
     for c in load_profiles() {
         if let Some(name) = c["name"].as_str() {
             if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", name) { let _ = e.delete_credential(); }
+            ssh_pw_set(name, "");
         }
     }
     save_profiles(&Vec::new());
@@ -3086,7 +3113,7 @@ fn resolve_saved_conn(name: &str) -> Result<(Value, bool), String> {
     // to UTC: 12:00 UTC arrived as 14:00 UTC), and equal values showed as different. UTC on both
     // sides makes the text mean the same instant everywhere.
     let connj = json!({"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,"utc":true,
-        "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"]});
+        "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"sshPassword":ssh_pw_get(name)});
     Ok((connj, c["readonly"].as_bool().unwrap_or(false)))
 }
 
@@ -4759,6 +4786,14 @@ fn save_text(req: Value) -> R {
 }
 
 fn main() {
+    // ssh asks for an SSH password through the program named in SSH_ASKPASS, and that program is
+    // this one: started again by ssh with the password in its environment (see open_tunnel), it
+    // answers and is gone before any window would open.
+    if std::env::var_os("NOBS_SSH_ASKPASS").is_some() {
+        use std::io::Write;
+        let _ = std::io::stdout().write_all(std::env::var("NOBS_SSH_PW").unwrap_or_default().as_bytes());
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {

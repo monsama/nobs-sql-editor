@@ -11,7 +11,8 @@
     await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB};
 CREATE TABLE ${DB}.t (id INT PRIMARY KEY, v VARCHAR(10));
 INSERT INTO ${DB}.t VALUES (1,'a');`);
-    G.eq('a script runs in the tab\'s transaction', (await on("UPDATE t SET v='b' WHERE id=1; INSERT INTO t VALUES (2,'c')")).ok, true);
+    const first = await on("UPDATE t SET v='b' WHERE id=1; INSERT INTO t VALUES (2,'c')");
+    G.eq('a script runs in the tab\'s transaction, saying how many rows it changed', [first.ok, first.affected], [true, 2]);
     G.eq('the next run sees what the tab has not committed', await inTab('SELECT id, v FROM t ORDER BY id'), [['1', 'b'], ['2', 'c']]);
     G.eq('another connection does not see it', await outside(`SELECT GROUP_CONCAT(v ORDER BY id) FROM ${DB}.t`), 'a');
 

@@ -56,7 +56,7 @@ Export files are kept wherever you saved them.
 - Connect to MySQL / MariaDB with saved connection profiles (passwords stored in
   the OS keychain), per-connection accent color, environment label, and a
   **read-only / safe mode** to protect production servers.
-- SSH tunnels through the system's OpenSSH client (key or agent authentication;
+- SSH tunnels through the system's OpenSSH client (key, agent or password;
   host aliases and ProxyJump from ~/.ssh/config work too).
 - Browse schemas and objects (tables, views, procedures, functions, triggers,
   events) with quick filtering.
@@ -72,8 +72,12 @@ Export files are kept wherever you saved them.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open
   across its runs until Commit or Rollback. Commit also saves grid edits
   not applied yet; Rollback discards them. The count beside Commit opens
-  the transaction's log: what it has run so far, and how each run went.
+  the transaction's log: what it has run so far, how many rows each run changed,
+  and how it went.
 - Column resize and show/hide; row-detail form view for wide tables.
+- Explain draws the plan: every table read as a card, a full scan in red and an
+  index lookup in green, with the joins, sorts and subqueries around them.
+- A result charts as bars or a line, from the rows the grid shows.
 - Export whole tables or query results to CSV or INSERT statements (streamed,
   handles large tables), or to Excel, JSON or Markdown; copy CSV/TSV/JSON to
   the clipboard.
