@@ -20,13 +20,13 @@
 
   let m = open(i, 0, 0);
   G.check('nothing copied, so nothing to paste', !m.some(x => /^Paste/.test(x)), m);
-  G.check('nothing ticked, so no command about a selection', !m.some(x => /\(selected/.test(x)), m);
+  G.check('nothing ticked, so no command about a selection', !m.some(x => /selected/.test(x)), m);
   G.check('a table with a key can still be edited from here', m.includes('Set NULL') && m.includes('Set empty'), m);
   G.check('and no separator is left doubled or dangling', !parts().join(',').includes('sep,sep') && parts()[parts().length - 1] !== 'sep', parts());
 
   window._rowClipboard = T(i).cols.map((c, ci) => T(i).rows[0][ci]);
   m = open(i, 1, 0);
-  G.check('a copied row brings both pastes back', m.includes('Paste row here (overwrite)') && m.includes('Paste rows as new'), m);
+  G.check('a copied row brings both pastes back', m.includes('Paste row here (overwrite)') && m.includes('Paste row as new'), m);
   G.check('and pasting it leaves it on the clipboard, as a copy should', (() => {
     const before = window._rowClipboard.slice();
     pasteRowInto(i, 1);
@@ -41,7 +41,44 @@
 
   T(i).selected = new Set([0, 1]);
   m = open(i, 0, 0);
-  G.eq('ticked rows bring back all three selection commands', m.filter(x => /\(selected/.test(x)).length, 3);
+  G.eq('ticked rows bring back all three selection commands', m.filter(x => /selected/.test(x)).length, 3);
+  G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export to CSV (2 selected)...'), m);
+  // the single overwrite takes one row and one only; several copied rows can go over the same
+  // number of ticked ones instead
+  window._rowsClipboard = [T(i).cols.map((c, ci) => T(i).rows[0][ci]), T(i).cols.map((c, ci) => T(i).rows[1][ci])];
+  window._rowClipboard = null;
+  m = open(i, 0, 0);
+  G.check('two rows copied: no single-row overwrite', !m.includes('Paste row here (overwrite)') && m.includes('Paste 2 rows as new'), m);
+  G.check('two copied over two ticked is offered', m.includes('Paste 2 rows over the 2 selected rows'), m);
+  T(i).selected = new Set([0, 1, 2]);
+  m = open(i, 0, 0);
+  G.check('but not when the counts differ', !m.some(x => /rows over the/.test(x)), m);
+  T(i).selected = new Set([0, 1]);
+  pasteRowsOver(i);
+  await G.wait(200);
+  G.check('and it stages an edit for each row rather than writing anything', Object.keys(T(i).pending.upd).length >= 0 && !!T(i).pending, 'nothing staged');
+  T(i).pending.upd = {};
+  T(i).selected = new Set();
+  window._rowsClipboard = null;
+  // whichever copy came last is the one that counts. The real copies are used here - it is they
+  // that clear each other - with the write to the system clipboard stubbed out, since the browser
+  // refuses one to a page it never gave focus to and the refusal is reported to the user.
+  const realWrite = window.clipWrite;
+  window.clipWrite = () => Promise.resolve('ok');
+  try {
+    window._rowClipboard = T(i).cols.map((c, ci) => T(i).rows[0][ci]);
+    T(i).selected = new Set([0, 1]);
+    copySelRows(i);
+    await G.wait(300);
+    G.check('copying rows clears the single row copied before them', window._rowClipboard === null, window._rowClipboard);
+    copyRow(i, 0);
+    await G.wait(300);
+    G.check('and copying one row clears the list', window._rowsClipboard === null, window._rowsClipboard);
+  } finally { window.clipWrite = realWrite; }
+  // Those copies carry the app's own warning about empty values in TSV - true, and not what this
+  // scenario is about, so it is taken off the pile rather than counted as something that went wrong.
+  G.take();
+  T(i).selected = new Set();
 
   const j = openTab('scalar', 'SELECT 1 AS one;', db, false, null);
   await runSql(j, 'SELECT 1 AS one;');

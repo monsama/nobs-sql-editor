@@ -3347,11 +3347,12 @@ function openColPicker(id,btn){const t=T(id);if(!t||!t.cols)return;if(!t.hiddenC
 function toggleCopyMenu(id,btn){const p=$('copyMenu');if(p&&p.style.display==='block'&&p.dataset.forId===id){p.style.display='none';return;}openCopyMenu(id,btn);}
 function openCopyMenu(id,btn){
  const p=$('copyMenu');p.dataset.forId=id;
+ const _t=T(id),_n=(_t&&_t.selected&&_t.selected.size)||0,_sel=_n===1?'1 selected':_n+' selected';
  let h='<div class="cphdr"><span>Copy grid as...</span></div>';
  h+='<div class="cpitem" onclick="copyCsv(\''+id+'\');closeCopyMenu();">CSV (all rows)</div>';
- h+='<div class="cpitem" onclick="copySelCsv(\''+id+'\');closeCopyMenu();">CSV (selected rows)</div>';
+ if(_n)h+='<div class="cpitem" onclick="copySelCsv(\''+id+'\');closeCopyMenu();">CSV ('+_sel+')</div>';
  h+='<div class="cpitem" onclick="copyMd(\''+id+'\');closeCopyMenu();">Markdown (all rows)</div>';
- h+='<div class="cpitem" onclick="copyMdSel(\''+id+'\');closeCopyMenu();">Markdown (selected rows)</div>';
+ if(_n)h+='<div class="cpitem" onclick="copyMdSel(\''+id+'\');closeCopyMenu();">Markdown ('+_sel+')</div>';
  p.innerHTML=h;
  p.style.display='block';p.style.visibility='hidden';p.style.left='0';p.style.top='0';
  const r=btn.getBoundingClientRect();const w=p.offsetWidth||200,hgt=p.offsetHeight||0;
@@ -4130,13 +4131,15 @@ function inlineEditIns(td,id,ii,col){const t=T(id);const cur=t.pending.ins[ii][c
 function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;
  // What this result allows, and what is ticked: the menu is built from these rather than
  // offering everything and explaining afterwards which of it was not possible.
- const editable=!!(t.pk&&t.pending),sel=!!(t.selected&&t.selected.size);
+ const editable=!!(t.pk&&t.pending),nsel=(t.selected&&t.selected.size)||0,sel=nsel>0;
+ // How many, in words the menu can say: "row" for one of them, "3 rows" for more.
+ const rows=n=>n===1?'row':n+' rows';
  // A copied row belongs to the table it came from: one with a different number of columns cannot
  // be pasted here, so it is not offered here.
- const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy rows (selected)',()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&clipN.every(fits)&&['Paste rows as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+ const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.','Use "Copy value as hex" to keep the whole value.');}],['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   if(fkd&&cur!=null){items.push(['Go to referenced row ('+fkd[1]+'.'+fkd[2]+')',()=>goToFkRow(t.db,fkd[1],fkd[2],cur)]);}
-  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV (selected rows)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs (selected rows)...',()=>insSel(id)],'-',editable&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],'-',editable&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
@@ -4214,11 +4217,13 @@ function clipWrite(text,alsoTry){
 function copyText(text,okMsg,alsoTry){
  return clipWrite(text,alsoTry).then(st=>{ if(st==='ok')log(okMsg); return st; });
 }
-function copyRow(id,ri){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;copyText(vals.map(v=>v===null?'':v).join('\t'),'Copied 1 row (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
-function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
-// "Copy row" and "Copy rows (selected)" write to two separate clipboards (single row vs a
-// list), since pasting several rows only makes sense as new rows, never as an overwrite of one
-// target row - but a single-row paste shouldn't care which command put that one row there.
+function copyRow(id,ri){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(vals.map(v=>v===null?'':v).join('\t'),'Copied 1 row (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
+function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+// "Copy row" and the selection copy keep a single row and a list apart, since pasting several
+// rows only makes sense as new rows, never as an overwrite of one target row - but a single-row
+// paste shouldn't care which command put that one row there, and whichever copy came last is the
+// one that counts: each clears what the other left, so the app never pastes an older copy than
+// the one the system clipboard holds.
 // Falls back to _rowsClipboard when it holds exactly one row and _rowClipboard is empty/stale.
 function singleRowClipboard(){if(window._rowClipboard&&window._rowClipboard.length)return window._rowClipboard;if(window._rowsClipboard&&window._rowsClipboard.length===1)return window._rowsClipboard[0];return null;}
 // Distinguishes "nothing copied" from "multiple rows copied" for the two single-row-target paste
@@ -4232,7 +4237,22 @@ function pasteRowInto(id,ri){const t=T(id);if(!t.pk){toast('This result is not e
 // _rowClipboard, so pasting-as-new after copying exactly one row that way needs the same
 // fallback the single-row overwrite paste already got, or it wrongly says nothing was copied.
 function rowsClipboard(){if(window._rowsClipboard&&window._rowsClipboard.length)return window._rowsClipboard;if(window._rowClipboard&&window._rowClipboard.length)return [window._rowClipboard];return null;}
-function pasteRowsAsNew(id){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}const rowsData=rowsClipboard();if(!rowsData||!rowsData.length){toast('Copy some rows first (Copy rows (selected)), then paste them as new rows.',true);return;}const bad=rowsData.find(vals=>vals.length!==t.cols.length);if(bad){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}rowsData.forEach(vals=>{const obj={};t.cols.forEach((c,ci)=>{obj[c]=vals[ci];});t.pending.ins.push(obj);});renderGrid(id);log('Pasted '+rowsData.length+' row(s) as new rows. Review and click Apply to commit.');}
+// The copied rows land on the ticked ones in the order both are on screen: the first copied row
+// over the first ticked row, and so on. The menu only offers this when the counts match, so the
+// checks here are for the ways a result can refuse it rather than for a mismatch someone chose.
+function pasteRowsOver(id){const t=T(id);
+ if(!t.pk||!t.pending){toast('This result is not editable (no primary key).',true);return;}
+ const src=rowsClipboard();const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));
+ if(!src||!src.length){toast('Copy some rows first, then tick the same number of rows to overwrite.',true);return;}
+ if(!idxs.length){toast('No rows selected. Tick the rows you want to overwrite.',true);return;}
+ if(src.length!==idxs.length){toast('You copied '+src.length+' row(s) but ticked '+idxs.length+' - overwrite needs the same number of each.',true);return;}
+ if(src.some(v=>v.length!==t.cols.length)){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}
+ idxs.forEach((ri,k)=>{const vals=src[k];t.cols.forEach((c,ci)=>{if(t.pk.indexOf(c)>=0)return;
+  const v=vals[ci],key=ri+':'+ci;
+  if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;});});
+ renderGrid(id);
+ log('Pasted '+src.length+' copied row(s) over the '+idxs.length+' selected row(s) (primary key column(s) left unchanged). Review and click Apply to commit.');}
+function pasteRowsAsNew(id){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}const rowsData=rowsClipboard();if(!rowsData||!rowsData.length){toast('Copy some rows first (tick them, then "Copy 2 selected rows"), then paste them as new rows.',true);return;}const bad=rowsData.find(vals=>vals.length!==t.cols.length);if(bad){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}rowsData.forEach(vals=>{const obj={};t.cols.forEach((c,ci)=>{obj[c]=vals[ci];});t.pending.ins.push(obj);});renderGrid(id);log('Pasted '+rowsData.length+' row(s) as new rows. Review and click Apply to commit.');}
 function copyColumn(id,ci){const t=T(id);const vals=t.rows.map((row,ri)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:row[ci];});copyText(vals.map(v=>v===null?'':v).join('\n'),'Copied '+vals.length+' value(s) from column "'+t.cols[ci]+'".').then(st=>{if(st!=='failed')tsvShapeHint(vals.map(v=>[v]),'an empty line');});}
 // The comparisons are built when picked, with the value written for the column's type (see litAs):
 // lit() alone turned an empty binary value into the text '0x' and a text value like 0x41 into a
