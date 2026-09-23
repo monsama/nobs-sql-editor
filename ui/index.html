@@ -264,7 +264,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .box>.wctl{position:absolute;top:8px;right:10px;background:var(--bg);padding-left:6px;z-index:3}
 .wctl>span{cursor:pointer;width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;color:var(--muted);font-size:14px;line-height:1;user-select:none}
 .wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:#c0504d;color:#fff}
-.modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
+.modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px}
+ /* Their own style attributes say overflow:hidden, so that the panel inside them scrolls rather
+    than the whole dialog. That has to give way when the dialog cannot hold its content at all -
+    a hidden overflow there means the buttons at the bottom cannot be reached. */
+ .modal.floating .box{overflow:auto !important} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
  #mInput{z-index:9600} #mRowForm{z-index:9500}
  /* Every floating dialog's header is spaced the same way: the title with no margin of its own,
     one gap under the row, and the paragraph beneath it given the leading to be read. */

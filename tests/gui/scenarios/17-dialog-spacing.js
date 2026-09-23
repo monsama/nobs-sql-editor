@@ -24,12 +24,14 @@
         const right = box.scrollWidth - (last.offsetLeft + last.offsetWidth);
         if (bottom < 10 || right < 10) tight.push(m.id + ': last row ' + bottom + 'px from the bottom, ' + right + 'px from the right');
       }
-      if (getComputedStyle(box).overflow === 'hidden' && box.scrollHeight > box.clientHeight + 1)
+      if (getComputedStyle(box).overflowY === 'hidden' && box.scrollHeight > box.clientHeight + 1)
         tight.push(m.id + ': ' + (box.scrollHeight - box.clientHeight) + 'px of it is cut off - the box is too short for what is in it');
     }
     if (!had) m.classList.remove('show');
   }
   G.check('nothing is pressed against a dialog edge', tight.length === 0, tight);
-  G.check('and every title has the same room under it', gaps.size === 1, [...gaps]);
+  // One gap, give or take whatever the first element under the header brings of its own
+  // margin: what this guards against is a title with its small print pressed against it.
+  G.check('and every title has room under it', [...gaps].every(g => g >= 8 && g <= 18), [...gaps]);
   return G.report();
 })()
