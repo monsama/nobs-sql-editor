@@ -38,21 +38,21 @@ const NAMES = ['applyChanges', 'keyWhere', 'oneRowGuard', 'litAs', 'lit', 'strLi
   'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput'];
 const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n');
 
-async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true } }) {
-  const sent = [], toasts = [];
+async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session }) {
+  const sent = [], toasts = [], sessions = [];
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
-              pending: { upd, del: new Set(del), ins: [] } };
+              pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
     roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, invalidateTableCache: () => {},
-    openRun: async () => {}, refreshTabDirty: () => {},
+    openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession,
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
-    api: async (p, d) => { sent.push(d.sql); return typeof reply === 'function' ? reply(d.sql) : reply; },
+    api: async (p, d) => { sent.push(d.sql); sessions.push(d.session); return typeof reply === 'function' ? reply(d.sql) : reply; },
   };
   const keys = Object.keys(env);
   await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x');
-  return { sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts };
+  return { sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions };
 }
 const guardOf = where => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM `d`.`t` WHERE ' + where + ') <> 1 INTO @nobs_one_row;';
 
@@ -93,4 +93,10 @@ test('a refused guard is explained', async () => {
   const r = await apply({ cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'x' }, types: {},
                           reply: { ok: false, error: 'ERROR 1172 (42000) at line 3: Result consisted of more than one row' } });
   assert.ok(r.toasts.some(m => m.startsWith('ERR Nothing was saved. A row you changed or deleted no longer matches exactly one row')), r.toasts.join());
+});
+
+test('a save in a tab with auto-commit off goes into its transaction', async () => {
+  const one = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'b' } };
+  assert.deepEqual((await apply({ ...one, session: 'tx_1' })).sessions, ['tx_1']);
+  assert.deepEqual((await apply(one)).sessions, [undefined]);
 });

@@ -278,10 +278,107 @@ fn ro_mode(req: &Value) -> bool {
     req["ro"].as_bool().unwrap_or(false) || browse_charset(&req["conn"]).is_some()
 }
 
+// ---------- SSH tunnels ----------
+// A connection with an SSH host reaches its database through `ssh -L` - the system's OpenSSH
+// client - listening on a free local port, and every connection to it (build_conn, and the option
+// files of the command-line tools) goes to that port instead. One tunnel per SSH login and database
+// address, kept for whatever connects to it next, until the app exits. Signing in is the client's
+// own business: an agent, a key file, or ~/.ssh/config, which brings host aliases and ProxyJump
+// with it. BatchMode means it never waits on a password prompt nobody can see; a login that would
+// need one fails, with ssh's own reason.
+struct Tunnel { child: std::process::Child, port: u16 }
+fn tunnels() -> &'static Mutex<std::collections::HashMap<String, Tunnel>> {
+    static MAP: OnceLock<Mutex<std::collections::HashMap<String, Tunnel>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+fn close_tunnels() {
+    if let Ok(mut m) = tunnels().lock() { for (_, mut t) in m.drain() { let _ = t.child.kill(); let _ = t.child.wait(); } }
+}
+fn port_of(v: &Value, default: u16) -> u16 {
+    v.as_str().and_then(|s| s.trim().parse().ok()).or_else(|| v.as_u64().map(|p| p as u16)).unwrap_or(default)
+}
+fn ssh_exe() -> std::path::PathBuf {
+    // The OpenSSH client Windows ships, when it is installed; otherwise whatever ssh is on the PATH.
+    #[cfg(windows)]
+    {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+        let p = std::path::Path::new(&root).join("System32").join("OpenSSH").join("ssh.exe");
+        if p.exists() { return p; }
+    }
+    std::path::PathBuf::from("ssh")
+}
+// Where to connect for this database: the tunnel's local end if the connection has an SSH host,
+// otherwise its own host and port.
+fn endpoint(connj: &Value) -> Result<(String, u16), String> {
+    let host = connj["host"].as_str().unwrap_or("127.0.0.1").trim().to_string();
+    let port = port_of(&connj["port"], 3306);
+    let ssh_host = connj["sshHost"].as_str().unwrap_or("").trim().to_string();
+    if ssh_host.is_empty() { return Ok((host, port)); }
+    if connj["ssl"].as_str() == Some("verify") {
+        return Err("SSL mode \"verify\" cannot check the server's host name through an SSH tunnel, because the connection is made to 127.0.0.1. Use \"verify-ca\" instead: the certificate chain is still validated.".into());
+    }
+    let ssh_port = port_of(&connj["sshPort"], 22);
+    let ssh_user = connj["sshUser"].as_str().unwrap_or("").trim().to_string();
+    let key = connj["sshKey"].as_str().unwrap_or("").trim().to_string();
+    let id = format!("{}@{}:{}|{}|{}:{}", ssh_user, ssh_host, ssh_port, key, host, port);
+    // Held while a tunnel opens, so two connections at once do not open two.
+    let mut m = tunnels().lock().unwrap();
+    if let Some(t) = m.get_mut(&id) {
+        if matches!(t.child.try_wait(), Ok(None)) { return Ok(("127.0.0.1".into(), t.port)); }
+        m.remove(&id);
+    }
+    let t = open_tunnel(&ssh_host, ssh_port, &ssh_user, &key, &host, port)?;
+    let local = t.port;
+    m.insert(id, t);
+    Ok(("127.0.0.1".into(), local))
+}
+fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, host: &str, port: u16) -> Result<Tunnel, String> {
+    let local = std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).map(|a| a.port()).map_err(|e| e.to_string())?;
+    let target = if host.contains(':') { format!("[{}]", host) } else { host.to_string() };
+    let mut cmd = Command::new(ssh_exe());
+    cmd.args(["-N", "-T", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=accept-new",
+              "-o", "ServerAliveInterval=30", "-o", "ConnectTimeout=15"]);
+    cmd.arg("-L").arg(format!("127.0.0.1:{}:{}:{}", local, target, port)).arg("-p").arg(ssh_port.to_string());
+    if !key.is_empty() { cmd.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes"]); }
+    // After "--" the destination cannot be read as an option, whatever it starts with.
+    cmd.arg("--").arg(if ssh_user.is_empty() { ssh_host.to_string() } else { format!("{}@{}", ssh_user, ssh_host) });
+    cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    { use std::os::windows::process::CommandExt; cmd.creation_flags(0x0800_0000); }
+    let mut child = cmd.spawn().map_err(|e| format!("Could not start ssh ({}). SSH tunnels use the OpenSSH client; on Windows it is the optional feature \"OpenSSH Client\".", e))?;
+    // What ssh says, read as it comes so a chatty tunnel never fills the pipe and stalls; the last
+    // line is the reason when it gives up.
+    let said = std::sync::Arc::new(Mutex::new(String::new()));
+    if let Some(err) = child.stderr.take() {
+        let said = said.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
+                let l = line.trim();
+                if !l.is_empty() && !l.starts_with("Warning: Permanently added") { *said.lock().unwrap() = l.to_string(); }
+            }
+        });
+    }
+    // ssh listens on the local port once it has signed in, so a connection there means the tunnel is up.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(25);
+    loop {
+        if let Ok(Some(_)) = child.try_wait() {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let why = said.lock().unwrap().clone();
+            return Err(format!("Could not establish SSH tunnel to {}: {}", ssh_host, if why.is_empty() { "ssh exited.".to_string() } else { why }));
+        }
+        if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], local)), std::time::Duration::from_millis(200)).is_ok() { break; }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill(); let _ = child.wait();
+            return Err(format!("SSH tunnel to {} timed out after 25 seconds.", ssh_host));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Ok(Tunnel { child, port: local })
+}
+
 fn build_conn(connj: &Value) -> Result<Conn, String> {
-    let host = connj["host"].as_str().unwrap_or("127.0.0.1").to_string();
-    let port: u16 = connj["port"].as_str().and_then(|s| s.parse().ok())
-        .or_else(|| connj["port"].as_u64().map(|v| v as u16)).unwrap_or(3306);
+    let (host, port) = endpoint(connj)?;
     let user = connj["user"].as_str().unwrap_or("root").to_string();
     let pass = connj["password"].as_str().unwrap_or("").to_string();
     let ssl = connj["ssl"].as_str().unwrap_or("default");
@@ -559,11 +656,113 @@ fn next_cursor_id() -> String {
     format!("cur{}_{}", now, n)
 }
 
+// ---------- Transactions a tab keeps open ----------
+// With auto-commit off, a tab's statements all run on one connection of its own, kept here under
+// the id the tab made up for it, with autocommit=0, until Commit or Rollback. Every other command
+// still opens a connection of its own. The connection is taken out while a statement runs (or a
+// cursor reads from it) and put back after, so two runs from one tab never share it at once.
+enum SessSlot { Idle(Conn), Busy }
+struct Session { slot: SessSlot }
+fn sessions() -> &'static Mutex<std::collections::HashMap<String, Session>> {
+    static MAP: OnceLock<Mutex<std::collections::HashMap<String, Session>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+// A connection borrowed from a session; dropping it puts it back. If the session was closed in the
+// meantime there is nowhere to put it, and dropping it lets the server roll back what it held.
+struct SessConn { id: String, c: Option<Conn> }
+impl std::ops::Deref for SessConn { type Target = Conn; fn deref(&self) -> &Conn { self.c.as_ref().unwrap() } }
+impl std::ops::DerefMut for SessConn { fn deref_mut(&mut self) -> &mut Conn { self.c.as_mut().unwrap() } }
+impl Drop for SessConn { fn drop(&mut self) { if let Some(c) = self.c.take() { sess_return(&self.id, c); } } }
+fn sess_return(id: &str, c: Conn) {
+    if let Some(s) = sessions().lock().unwrap().get_mut(id) { s.slot = SessSlot::Idle(c); }
+}
+const SESS_LOST: &str = "The connection holding this tab's transaction was lost, so the server rolled back everything it had not committed. The next run starts a new transaction.";
+// The tab's connection: opened with autocommit=0 the first time, and after that the same one - once
+// the statement or cursor still using it hands it back.
+fn sess_checkout(id: &str, connj: &Value) -> Result<SessConn, String> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        {
+            let mut m = sessions().lock().unwrap();
+            match m.get_mut(id) {
+                None => {
+                    m.insert(id.to_string(), Session { slot: SessSlot::Busy });
+                    drop(m);
+                    let opened = build_conn(connj).and_then(|mut c| c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err));
+                    return match opened {
+                        Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c) }),
+                        Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
+                    };
+                }
+                Some(s) => {
+                    if let SessSlot::Idle(_) = s.slot {
+                        let SessSlot::Idle(mut c) = std::mem::replace(&mut s.slot, SessSlot::Busy) else { unreachable!() };
+                        drop(m);
+                        if c.ping().is_err() {
+                            sessions().lock().unwrap().remove(id);
+                            return Err(SESS_LOST.to_string());
+                        }
+                        return Ok(SessConn { id: id.to_string(), c: Some(c) });
+                    }
+                }
+            }
+        }
+        if std::time::Instant::now() > deadline {
+            return Err("This tab's transaction is still busy with the statement before. Wait for it, or cancel it, and run again.".to_string());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+// Where a command's connection comes from: the tab's session when it names one, else a new one.
+enum Db { Own(Conn), Sess(SessConn) }
+impl std::ops::Deref for Db { type Target = Conn; fn deref(&self) -> &Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
+impl std::ops::DerefMut for Db { fn deref_mut(&mut self) -> &mut Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
+impl Db {
+    fn in_session(&self) -> bool { matches!(self, Db::Sess(_)) }
+    // The connection itself, for a cursor thread to own, and the session to hand it back to.
+    fn into_parts(self) -> (Conn, Option<String>) {
+        match self { Db::Own(c) => (c, None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
+    }
+}
+fn db_for(req: &Value) -> Result<Db, String> {
+    match req["session"].as_str().filter(|s| !s.is_empty()) {
+        Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"])?)),
+        None => Ok(Db::Own(build_conn(&req["conn"])?)),
+    }
+}
+// Commit, Rollback, or Close (roll back and let the connection go) for a tab's session. A session
+// that was never opened has nothing to commit or roll back, which is not an error.
+#[tauri::command]
+async fn session_end(req: Value) -> R {
+    tokio::task::spawn_blocking(move || {
+        let id = req["session"].as_str().unwrap_or("").to_string();
+        let action = req["action"].as_str().unwrap_or("rollback").to_string();
+        let exists = sessions().lock().unwrap().contains_key(&id);
+        if id.is_empty() || !exists { return Ok(json!({"ok":true,"open":false})); }
+        if action == "close" {
+            let slot = sessions().lock().unwrap().remove(&id);
+            // A busy connection comes back to no session and is dropped there; an idle one is
+            // rolled back here rather than left to the server to notice.
+            if let Some(Session { slot: SessSlot::Idle(mut c) }) = slot { let _ = c.query_drop("ROLLBACK"); }
+            return Ok(json!({"ok":true,"open":false}));
+        }
+        let mut c = match sess_checkout(&id, &req["conn"]) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":e,"lost":e == SESS_LOST})) };
+        let stmt = if action == "commit" { "COMMIT" } else { "ROLLBACK" };
+        match c.query_drop(stmt) {
+            Ok(_) => Ok(json!({"ok":true,"open":true})),
+            Err(e) => {
+                let e = db_err(e);
+                Ok(json!({"ok":false,"error": if action == "commit" { commit_failure_message(&e) } else { e }}))
+            }
+        }
+    }).await.map_err(|e| e.to_string())?
+}
+
 // Spawns the cursor's dedicated thread. `conn` is moved in and never touched again outside it.
 // Returns a receiver that fires exactly once with the result of OPENING the query (columns +
 // which are binary, or the error `conn.query_iter` failed with), and the sender used for every
 // Fetch/Close for the lifetime of the cursor.
-fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>) -> (
+fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>) -> (
     std::sync::mpsc::Receiver<CursorOpen>,
     std::sync::mpsc::Sender<CursorCmd>,
 ) {
@@ -586,14 +785,17 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // Conn and its still-open QueryResult live together in this one stack frame for the
         // entire life of the cursor - the only way to avoid QueryResult's self-referential
         // borrow of Conn across separate command invocations.
+        // A cursor on a tab's transaction gives the connection back to it at the end, whichever
+        // way this block is left.
+        'body: {
         let mut result = match conn.query_iter(&sql) {
             Ok(r) => r,
-            Err(e) => { let _ = open_tx.send(Err(db_err(e))); cleanup(&request_id); return; }
+            Err(e) => { let _ = open_tx.send(Err(db_err(e))); cleanup(&request_id); break 'body; }
         };
         let cols: Vec<String> = result.columns().as_ref().iter().map(|c| c.name_str().to_string()).collect();
         let bin: Vec<bool> = result.columns().as_ref().iter().map(is_binaryish).collect();
         let bit: Vec<bool> = result.columns().as_ref().iter().map(is_bit_col).collect();
-        if open_tx.send(Ok((cols.clone(), bin.clone(), bit.clone()))).is_err() { cleanup(&request_id); return; } // caller went away
+        if open_tx.send(Ok((cols.clone(), bin.clone(), bit.clone()))).is_err() { cleanup(&request_id); break 'body; } // caller went away
 
         // The look-ahead row from the previous Fetch. `result` is a forward-only iterator, so a
         // row read to answer "is there more?" cannot be un-read - it has to be held here and
@@ -642,6 +844,8 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // make a later fetch/close look like it's still talking to a live cursor), then let
         // `result` and `conn` drop, closing the connection.
         cleanup(&request_id);
+        }
+        if let Some(id) = home { sess_return(&id, conn); }
     });
     (open_rx, cmd_tx)
 }
@@ -653,9 +857,9 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
 // page of rows, and has_more. `request_id`, if supplied, is the same id query() registered in
 // running_queries() before calling this - handed to the cursor thread so it (not this function's
 // caller) can eventually clear that registration once the cursor genuinely closes.
-fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>) -> Result<CursorFirstPage, String> {
+fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>, home: Option<String>) -> Result<CursorFirstPage, String> {
     let cursor_id = next_cursor_id();
-    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id);
+    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id, home);
     let (cols, bin, bit) = match open_rx.recv() {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => return Err(e),
@@ -1294,7 +1498,7 @@ async fn query(req: Value) -> R {
         if ro_mode(&req) && !sql_is_readonly(&sql) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
-        let mut c = build_conn(&req["conn"])?;
+        let mut c = db_for(&req)?;
         // A failed USE is the answer, not something to step over. Dropping the schema the app is
         // pointed at made every query after it run with no database at all, so the server replied
         // "No database selected" - a puzzle about the statement instead of the plain truth, which
@@ -1343,7 +1547,8 @@ async fn query(req: Value) -> R {
         // the cursor thread (if one ever ran) has already deregistered itself by the time this
         // returns, and the removal below is what clears it otherwise.
         let mut cursor_persists = false;
-        let result = match open_cursor(c, sql, page_size, request_id.clone()) {
+        let (conn, home) = c.into_parts();
+        let result = match open_cursor(conn, sql, page_size, request_id.clone(), home) {
             Ok((cursor_id, cols, bin, bit, rows, has_more)) => {
                 cursor_persists = has_more;
                 if cols.is_empty() {
@@ -1594,8 +1799,9 @@ fn tools_plugin_dir(tool: &str) -> Option<std::path::PathBuf> {
 fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, String), String> {
     let mut f = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
     let mut s = String::from("[client]\n");
-    s += &format!("host={}\nport={}\nuser={}\n", cnf_safe(connj["host"].as_str().unwrap_or("127.0.0.1")),
-        cnf_safe(connj["port"].as_str().unwrap_or("3306")), cnf_safe(connj["user"].as_str().unwrap_or("root")));
+    // Through the SSH tunnel when the connection has one, as build_conn does.
+    let (host, port) = endpoint(connj)?;
+    s += &format!("host={}\nport={}\nuser={}\n", cnf_safe(&host), port, cnf_safe(connj["user"].as_str().unwrap_or("root")));
     // MySQL option files treat backslash as an escape character in values (\t, \n, \\, ...), so a
     // password containing a literal backslash has to be doubled here or the .cnf parser would
     // silently consume it as (the start of) an escape sequence instead of a literal character -
@@ -1809,7 +2015,7 @@ async fn script(req: Value) -> R {
         if ro_mode(&req) && !sql_is_readonly(&raw) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
-        let mut c = build_conn(&req["conn"])?;
+        let mut c = db_for(&req)?;
         let db = req["db"].as_str().unwrap_or("");
         if !db.is_empty() {
             c.query_drop(format!("USE {}", sql_id(db))).map_err(db_err)?;
@@ -1827,18 +2033,23 @@ async fn script(req: Value) -> R {
         if !continue_on_error {
             // Default: stop at the first failure. Callers that pass transaction:true also get
             // everything rolled back; the others keep the original autocommit behaviour.
-            if transactional { c.query_drop("START TRANSACTION").map_err(db_err)?; }
+            // In a tab's own transaction the batch is a savepoint in it instead: a COMMIT here would
+            // commit everything the tab had not, and a ROLLBACK would throw it away.
+            let in_session = c.in_session();
+            if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
             for (idx, stmt) in statements.iter().enumerate() {
                 if let Err(e) = c.query_drop(stmt) {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
-                    if transactional { let _ = c.query_drop("ROLLBACK"); }
+                    if transactional { let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" }); }
                     let e = db_err(e);
-                    let note = if transactional { "\n\nNo changes were applied - the batch was rolled back." } else { "" };
+                    let note = if !transactional { "" } else if in_session { "\n\nNone of these changes were applied. The tab's transaction is still open." } else { "\n\nNo changes were applied - the batch was rolled back." };
                     return Ok(json!({"ok":false,"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
                 }
             }
-            if transactional {
+            if transactional && in_session {
+                let _ = c.query_drop("RELEASE SAVEPOINT nobs_batch");
+            } else if transactional {
                 if let Err(e) = c.query_drop("COMMIT") {
                     let _ = c.query_drop("ROLLBACK");
                     return Ok(json!({"ok":false,"error":commit_failure_message(&db_err(e))}));
@@ -1878,7 +2089,7 @@ async fn script_results(req: Value) -> R {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let max_rows = req["maxRows"].as_u64().unwrap_or(1000).max(1) as usize;
-        let mut c = build_conn(&req["conn"])?;
+        let mut c = db_for(&req)?;
         if let Some(db) = req["db"].as_str().filter(|d| !d.is_empty()) {
             c.query_drop(format!("USE {}", sql_id(db))).map_err(db_err)?;
         }
@@ -2767,7 +2978,7 @@ async fn conn_list(_req: Value) -> R {
         let has_password = keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).is_some();
         json!({
             "name": c["name"], "host": c["host"], "port": c["port"], "user": c["user"], "ssl": c["ssl"],
-            "sslCa": c["sslCa"],
+            "sslCa": c["sslCa"], "sshHost": c["sshHost"], "sshPort": c["sshPort"], "sshUser": c["sshUser"], "sshKey": c["sshKey"],
             "accent": c["accent"], "env": c["env"], "readonly": c["readonly"].as_bool().unwrap_or(false),
             "primary": c["primary"].as_bool().unwrap_or(false), "hasPassword": has_password
         })
@@ -2781,7 +2992,8 @@ async fn conn_get(req: Value) -> R {
     match c {
         Some(c) => {
             let pass = keyring::Entry::new("NOBSSQL-Desktop", &name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
-            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass},
+            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,
+                "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"]},
                 "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false)}))
         }
         None => Ok(json!({"ok":false})),
@@ -2810,6 +3022,7 @@ async fn conn_save(req: Value) -> R {
     list.push(json!({
         "name": name, "host": conn["host"], "port": conn["port"], "user": conn["user"], "ssl": conn["ssl"],
         "sslCa": conn["sslCa"],
+        "sshHost": conn["sshHost"], "sshPort": conn["sshPort"], "sshUser": conn["sshUser"], "sshKey": conn["sshKey"],
         "accent": req.get("accent").cloned().unwrap_or(Value::Null),
         "env": req.get("env").cloned().unwrap_or(Value::Null),
         "readonly": req.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -2872,7 +3085,8 @@ fn resolve_saved_conn(name: &str) -> Result<(Value, bool), String> {
     // so between servers in different zones every copied TIMESTAMP moved by the difference (Zurich
     // to UTC: 12:00 UTC arrived as 14:00 UTC), and equal values showed as different. UTC on both
     // sides makes the text mean the same instant everywhere.
-    let connj = json!({"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,"utc":true});
+    let connj = json!({"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,"utc":true,
+        "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"]});
     Ok((connj, c["readonly"].as_bool().unwrap_or(false)))
 }
 
@@ -4590,11 +4804,14 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
             import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        // ssh.exe is a process of its own and outlives the app unless it is ended here.
+        .run(|_app, ev| { if let tauri::RunEvent::Exit = ev { close_tunnels(); } });
 }
 
 // ---------------------------------------------------------------------------
@@ -4607,6 +4824,24 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Without an SSH host a connection goes where it says; with one, "verify" is refused with the
+    // way out, and a tunnel that cannot open gives ssh's reason (or says ssh is missing).
+    #[test]
+    fn endpoint_without_ssh_is_the_connection_itself() {
+        assert_eq!(endpoint(&json!({"host":"db.example","port":"3307"})).unwrap(), ("db.example".to_string(), 3307));
+        assert_eq!(endpoint(&json!({"host":"db.example","port":3306,"sshHost":"  "})).unwrap(), ("db.example".to_string(), 3306));
+    }
+    #[test]
+    fn verify_through_a_tunnel_is_refused_naming_verify_ca() {
+        let e = endpoint(&json!({"host":"db","port":"3306","ssl":"verify","sshHost":"bastion.invalid"})).unwrap_err();
+        assert!(e.contains("verify-ca"), "{e}");
+    }
+    #[test]
+    fn a_tunnel_that_cannot_open_says_why() {
+        let e = endpoint(&json!({"host":"db","port":"3306","sshHost":"127.0.0.1","sshPort":"1","sshUser":"nobody"})).unwrap_err();
+        assert!(e.contains("Could not establish SSH tunnel to 127.0.0.1") || e.contains("Could not start ssh"), "{e}");
+    }
 
     #[test]
     fn sql_id_wraps_and_escapes_backticks() {

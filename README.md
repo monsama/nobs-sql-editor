@@ -56,19 +56,28 @@ Export files are kept wherever you saved them.
 - Connect to MySQL / MariaDB with saved connection profiles (passwords stored in
   the OS keychain), per-connection accent color, environment label, and a
   **read-only / safe mode** to protect production servers.
+- SSH tunnels through the system's OpenSSH client (key or agent authentication;
+  host aliases and ProxyJump from ~/.ssh/config work too).
 - Browse schemas and objects (tables, views, procedures, functions, triggers,
   events) with quick filtering.
-- Tabbed SQL editor with syntax highlighting, lightweight autocomplete, run whole
+- Tabbed SQL editor with syntax highlighting, autocomplete that knows the tables
+  and aliases of the statement, find and replace (Ctrl+F / Ctrl+H), run whole
   script or selection, and result grids with per-column filtering and sorting.
   A procedure call, or a script with several SELECTs, shows each result in a tab
   of its own.
 - Inline and full-row editing with a staged pending-changes model applied inside
-  a transaction; add / delete rows.
+  a transaction; add / delete rows. Typing with several cells picked writes the
+  value into all of them.
+- Manual transactions: with Auto-commit off a tab keeps one transaction open
+  across its runs until Commit or Rollback. Commit also saves grid edits
+  not applied yet; Rollback discards them.
 - Column resize and show/hide; row-detail form view for wide tables.
 - Export whole tables or query results to CSV or INSERT statements (streamed,
-  handles large tables); copy CSV/TSV to clipboard.
+  handles large tables), or to Excel, JSON or Markdown; copy CSV/TSV/JSON to
+  the clipboard.
 - Table designer, DDL view/edit, users & privileges, table maintenance,
-  CSV import, and a reusable query library (with export/import).
+  CSV import, and a reusable query library (with export/import;
+  a query can be saved to it straight from the history).
 - Data export / import via the MySQL/MariaDB command-line tools.
 
 ## Keeping data exact
