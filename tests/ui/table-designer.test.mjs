@@ -34,8 +34,8 @@ function extract(src, name) {
 const consts = html.split(/\r?\n/).filter(l => /^const D_(TEXTY|NUMERIC|TEMPORAL)=/.test(l)).join('\n');
 const D = new Function(
   'const RESERVED=new Set(["key","order","select"]);\n' + consts + '\n' +
-  ['qid', 'strLit', 'lit', 'dColFromInfo', 'colDef', 'dAlterSql'].map(n => extract(html, n)).join('\n') +
-  '\nreturn {dColFromInfo,colDef,dAlterSql};')();
+  ['qid', 'strLit', 'lit', 'dColFromInfo', 'colDef', 'dAlterSql', 'sqlBlankStringsAndComments', 'dColumnLines', 'dKeepFromCreate'].map(n => extract(html, n)).join('\n') +
+  '\nreturn {dColFromInfo,colDef,dAlterSql,dColumnLines,dKeepFromCreate};')();
 
 const FIXTURES = [
   {version:"8.0.46", mariadb:false, tableColl:"utf8mb4_0900_ai_ci", rows:[
@@ -184,6 +184,40 @@ for (const f of FIXTURES) {
     assert.match(D.colDef({ ...byName(orig, 'ts'), def: '(CURDATE())' }), /DEFAULT \(CURDATE\(\)\)/);
   });
 }
+
+// information_schema does not carry a column-level CHECK (MariaDB writes json_valid for every JSON
+// column) or MySQL's SRID; a MODIFY without them dropped both. They are taken from SHOW CREATE
+// TABLE and written back while the column keeps its type.
+test('a CHECK and an SRID from the CREATE line survive a MODIFY of the column', () => {
+  const create = 'CREATE TABLE `t` (\n  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT \'see CHECK (x)\' CHECK (json_valid(`j`)),\n' +
+    '  `g` point NOT NULL /*!80003 SRID 4326 */,\n  `c` varchar(5) DEFAULT NULL COMMENT \'CHECK (1)\'\n)';
+  const lines = D.dColumnLines(create);
+  const col = (name, type) => { const c = { name, type, len: '', nn: false, ai: false, def: null, comment: 'x', keep: { origName: name, origType: type } }; D.dKeepFromCreate(c, lines[name]); return c; };
+  const j = col('j', 'LONGTEXT'), g = col('g', 'POINT'), c = col('c', 'VARCHAR');
+  assert.match(D.colDef(j), /COMMENT 'x' CHECK \(json_valid\(`j`\)\)$/);
+  assert.match(D.colDef(g), /\/\*!80003 SRID 4326 \*\//);
+  assert.doesNotMatch(D.colDef(c), /CHECK/, 'a comment that mentions CHECK is not a constraint');
+  assert.doesNotMatch(D.colDef({ ...j, type: 'TEXT' }), /CHECK/, 'a new type is written as asked');
+});
+
+// The key is read as the table has it, in its own order: a UNIQUE NOT NULL column that COLUMN_KEY
+// reports as PRI is not in it, and adding a column keeps the order of the ones already there.
+test('the primary key keeps its own columns and order', () => {
+  const mk = (name, pk) => ({ name, type: 'INT', len: '', nn: true, ai: false, pk, def: null, comment: '', keep: { origName: name, origType: 'INT' } });
+  const orig = [mk('a', true), mk('b', true), mk('c', false)]; orig.pkOrder = ['b', 'a'];
+  assert.match(D.dAlterSql(orig, [mk('a', true), mk('b', true), mk('c', true)], 't'), /ADD PRIMARY KEY \(b,a,c\)/);
+  assert.match(D.dAlterSql(orig, orig.map(c => ({ ...c })), 't'), /no changes/);
+  const uniq = [mk('u', false), mk('x', false)]; uniq.pkOrder = [];
+  const sql = D.dAlterSql(uniq, [mk('u', false), mk('x', true)], 't');
+  assert.doesNotMatch(sql, /DROP PRIMARY KEY/, 'there was no primary key to drop');
+  assert.match(sql, /ADD PRIMARY KEY \(x\)/);
+});
+
+test('NOT NULL is not written with DEFAULT NULL', () => {
+  const c = { name: 'v', type: 'VARCHAR', len: '5', nn: true, ai: false, def: 'NULL', comment: '', keep: { origName: 'v', origType: 'VARCHAR', defShown: 'NULL', defSql: 'NULL' } };
+  assert.doesNotMatch(D.colDef(c), /DEFAULT NULL/);
+  assert.match(D.colDef({ ...c, nn: false }), /DEFAULT NULL/);
+});
 
 test('the fixtures cover both servers', () => {
   assert.deepEqual(FIXTURES.map(f => f.mariadb).sort(), [false, true]);

@@ -24,12 +24,13 @@
 
     await privOpen(); $('privScope').value = 'db'; $('privDb').value = 'nobs_test'; await privScopeChanged();
     for (const p of ['SELECT', 'INSERT']) $('privList').querySelector('input[value="' + p + '"]').click();
-    G.check('ticked privileges show as the GRANT they become', /^GRANT SELECT, INSERT ON `?nobs_test`?\.\* TO 'nobs_ue_a'@'%';$/.test($('privSql').textContent), $('privSql').textContent);
+    // "_" in a database-level grant is a wildcard, so the database is named exactly: nobs\_test.
+    G.check('ticked privileges show as the GRANT they become', /^GRANT SELECT, INSERT ON `?nobs\\_test`?\.\* TO 'nobs_ue_a'@'%';$/.test($('privSql').textContent), $('privSql').textContent);
     await privApply();
     $('privList').querySelector('input[value="INSERT"]').click();
     await privApply();
     const g = await grants("'nobs_ue_a'@'%'");
-    G.check('and applying them grants and revokes', /GRANT SELECT ON `nobs_test`\.\*/.test(g) && !/INSERT/.test(g), g);
+    G.check('and applying them grants and revokes', /GRANT SELECT ON `nobs\\_test`\.\*/.test(g) && !/INSERT/.test(g), g);
     hide('mPriv');
 
     answers.push(() => ({ n: 'nobs_ue_role' }));
@@ -48,7 +49,7 @@
     answers.push(() => ({ user: 'nobs_ue_clone', host: '%', pw: 'Clone-pw-2' }));
     await acctClone();
     const cg = await grants("'nobs_ue_clone'@'%'");
-    G.check('Clone copies the grants and the role', /GRANT SELECT ON `nobs_test`\.\*/.test(cg) && /nobs_ue_role/.test(cg), cg);
+    G.check('Clone copies the grants and the role', /GRANT SELECT ON `nobs\\_test`\.\*/.test(cg) && /nobs_ue_role/.test(cg), cg);
     const signIn = await G.A('/api/connect', { conn: { ...getConn(), user: 'nobs_ue_clone', password: 'Clone-pw-2', ssl: 'required' } });
     G.check('and the clone signs in with its own password', signIn.ok, signIn.error);
 

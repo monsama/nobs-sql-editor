@@ -27,7 +27,7 @@ function extractFunction(src, name) {
   throw new Error(`unbalanced braces while extracting ${name}`);
 }
 
-const viewIndicesSrc = extractFunction(html, 'viewIndices');
+const viewIndicesSrc = extractFunction(html, 'viewIndices') + '\n' + extractFunction(html, 'viewIndicesFresh');
 const rowHasTextSrc = extractFunction(html, 'rowHasText');
 const stepSrc = extractFunction(html, 'gridSearchStep');
 

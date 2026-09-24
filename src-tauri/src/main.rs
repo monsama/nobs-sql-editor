@@ -59,6 +59,39 @@ fn set_aside_partial(file: &str) -> String {
     match std::fs::rename(file, &p) { Ok(_) => format!(" (the incomplete file was kept as {})", p), Err(_) => String::new() }
 }
 
+// The warnings in what mysql printed with --show-warnings, less the ones about the dump's own
+// spelling that change no data: deprecated syntax (1287), the utf8/utf8mb3 and NATIONAL aliases
+// (3719, 3720, 3778), and the integer display width (1681) - MySQL 8 raises one of those for every
+// table in a dump that says "utf8" - and a value given for a generated column (1906), which the
+// server computes again anyway; MariaDB's mysqldump writes one into every such row.
+fn import_warnings(out: &str) -> Vec<String> {
+    const HARMLESS: &[&str] = &["1287", "1681", "1906", "3719", "3720", "3778"];
+    out.lines().map(|l| l.trim())
+        .filter(|l| l.starts_with("Warning (Code "))
+        .filter(|l| { let code: String = l["Warning (Code ".len()..].chars().take_while(|c| c.is_ascii_digit()).collect(); !HARMLESS.contains(&code.as_str()) })
+        .map(String::from).collect()
+}
+
+// Whether a dump file is a view's: mysqldump heads a view's section "Temporary view structure for
+// view" (MySQL 8), "Temporary table structure for view" (MariaDB and older) or "Final view
+// structure for view", and a per-table file starts with its object's section.
+fn dump_starts_with_sandbox_line(path: &str) -> bool {
+    use std::io::Read;
+    let mut buf = [0u8; 64];
+    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut buf)).unwrap_or(0);
+    buf[..n].starts_with(b"/*M!999999\\- enable the sandbox mode */")
+}
+
+fn dump_file_is_view(path: &str) -> bool {
+    use std::io::Read;
+    let mut buf = vec![0u8; 65536];
+    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut buf)).unwrap_or(0);
+    let head = String::from_utf8_lossy(&buf[..n]);
+    let first_section = head.lines().find(|l| l.starts_with("-- Table structure for table") || l.starts_with("-- Dumping data for table")
+        || l.starts_with("-- Temporary view structure for view") || l.starts_with("-- Temporary table structure for view") || l.starts_with("-- Final view structure for view"));
+    first_section.map(|l| l.contains("for view")).unwrap_or(false)
+}
+
 // DEFINER=`user`@`host` as mysqldump writes it into views, triggers, routines and events.
 fn definer_regex() -> regex::bytes::Regex {
     regex::bytes::Regex::new(r"DEFINER=`(?:[^`]|``)*`@`(?:[^`]|``)*`\s*").unwrap()
@@ -204,6 +237,17 @@ fn run_job_child_fed(job: Option<&std::sync::Arc<Job>>, cmd: &mut Command, feed:
         if let Some(p) = pipe.as_mut() { use std::io::Read; let _ = p.read_to_end(&mut buf); }
         buf
     });
+    // A caller that pipes stdout gets the warnings mysql prints there with --show-warnings, and only
+    // those (at most a thousand): anything else a script prints could be any size.
+    let out_reader = child.stdout.take().map(|out| std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut keep = Vec::new(); let mut n = 0usize;
+        for line in std::io::BufReader::new(out).split(b'\n') {
+            let Ok(line) = line else { break };
+            if line.starts_with(b"Warning (Code ") && n < 1000 { keep.extend_from_slice(&line); keep.push(b'\n'); n += 1; }
+        }
+        keep
+    }));
     let status = match job {
         None => child.wait()?,
         Some(j) => {
@@ -230,12 +274,10 @@ fn run_job_child_fed(job: Option<&std::sync::Arc<Job>>, cmd: &mut Command, feed:
     // After a kill the child's stderr is of no interest, and anything it spawned that inherited
     // the pipe can hold it open long after the kill - joining then would block for exactly as
     // long as cancelling was meant to save. Leave that reader to finish on its own.
-    let stderr = if job.map(|j| j.cancelled.load(Ordering::SeqCst)).unwrap_or(false) {
-        Vec::new()
-    } else {
-        reader.join().unwrap_or_default()
-    };
-    Ok(std::process::Output { status, stdout: Vec::new(), stderr })
+    let cancelled = job.map(|j| j.cancelled.load(Ordering::SeqCst)).unwrap_or(false);
+    let stderr = if cancelled { Vec::new() } else { reader.join().unwrap_or_default() };
+    let stdout = match out_reader { Some(r) if !cancelled => r.join().unwrap_or_default(), _ => Vec::new() };
+    Ok(std::process::Output { status, stdout, stderr })
 }
 // Tracks in-flight SELECT queries so Cancel can stop them server-side, the same way MySQL
 // Workbench does it: keep the query's own MySQL CONNECTION_ID(), and to cancel, open a brand
@@ -500,7 +542,31 @@ fn build_conn(connj: &Value) -> Result<Conn, String> {
         init.push("SET SESSION TRANSACTION READ ONLY".into());
     }
     if !init.is_empty() { ob = ob.init(init); }
+    // "default" is what the MySQL and MariaDB clients call PREFERRED: encrypted whenever the server
+    // offers TLS, the certificate not checked. It used to mean plaintext here, always - passwords
+    // and rows went over the wire in the clear to servers that offered TLS, while Export and
+    // Import, which run the client tools, did use it. Plaintext is the fallback only when TLS
+    // itself is what failed (the server has none, or the handshake did not work); a refused
+    // login is not tried a second time, which could count twice against an account lockout.
+    if ssl == "default" {
+        let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true)));
+        match Conn::new(Opts::from(tls)) {
+            Ok(c) => return Ok(c),
+            Err(e) if tls_was_the_problem(&e) => {}
+            Err(e) => return Err(explain_conn_error(ssl, ca.is_some(), &e.to_string())),
+        }
+    }
     Conn::new(Opts::from(ob)).map_err(|e| explain_conn_error(ssl, ca.is_some(), &e.to_string()))
+}
+
+// Whether a connection failed at TLS rather than anywhere after it: the server offers none, or the
+// handshake itself did not complete.
+fn tls_was_the_problem(e: &mysql::Error) -> bool {
+    match e {
+        mysql::Error::DriverError(mysql::DriverError::TlsNotSupported) => true,
+        mysql::Error::TlsError(_) => true,
+        _ => { let m = e.to_string().to_lowercase(); m.contains("tls") || m.contains("ssl") || m.contains("handshake") }
+    }
 }
 
 // The ssl setting -> what the connection actually does. Split out from build_conn so a test can
@@ -1540,7 +1606,10 @@ async fn ddl(req: Value) -> R {
         if rows.is_empty() { return Ok(json!({"ok":false,"error":"no DDL returned"})); }
         let idx = cols.iter().position(|h| { let l = h.to_lowercase(); l.contains("create") || l.contains("statement") })
             .unwrap_or(cols.len().saturating_sub(1));
-        Ok(json!({"ok":true,"ddl":rows[0].get(idx).cloned().flatten().unwrap_or_default()}))
+        // The sql_mode a routine, trigger or event was created under, which decides how its body is
+        // read - recreating it under another one changes what it does.
+        let mode = cols.iter().position(|h| h.eq_ignore_ascii_case("sql_mode")).and_then(|i| rows[0].get(i).cloned().flatten());
+        Ok(json!({"ok":true,"ddl":rows[0].get(idx).cloned().flatten().unwrap_or_default(),"sqlMode":mode}))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -1571,7 +1640,9 @@ async fn fk(req: Value) -> R {
         // Full FK detail (which table/column each FK column actually references) - a SEPARATE
         // field from "fk" above, which stays just the local column-name list other callers
         // (PK/FK badge display) already rely on. This powers "go to referenced row" navigation.
-        let detail_sql = format!("SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA={} AND TABLE_NAME={} AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY ORDINAL_POSITION", db, table);
+        // The referenced table's database and the constraint come too: a key into another database
+        // was looked up in this one, and a key over two columns was followed on one of them.
+        let detail_sql = format!("SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, REFERENCED_TABLE_SCHEMA, CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA={} AND TABLE_NAME={} AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY ORDINAL_POSITION", db, table);
         let fk_details: Vec<Vec<Option<String>>> = run_select(&mut c, &detail_sql).map(|(_c, r)| r).unwrap_or_default();
         Ok(json!({"ok":true,"fk":list,"fkDetails":fk_details}))
     }).await.map_err(|e| e.to_string())?
@@ -1925,13 +1996,23 @@ fn client_is_mariadb(tool: &str) -> bool {
 // that - nor, importantly, does it weaken the chain check. So the nearest honest mapping is the
 // STRICTER one. A setting that asks for verification must never quietly get less of it; getting
 // more only means a connection that fails where a looser client would have succeeded.
+// MariaDB's client checks the server's certificate by default since 11.4, so "required" (encrypt,
+// check nothing) and "default" failed against a remote server with a self-signed certificate -
+// measured, 12.3 against MySQL 8 over the LAN: CERT_E_UNTRUSTEDROOT - while the app itself, which
+// does not use the client, connected. skip-ssl-verify-server-cert says what those modes mean, and
+// is the negated form of an option every MariaDB client knows.
 fn ssl_cnf_lines(mode: &str, maria: bool) -> Vec<&'static str> {
     match (mode, maria) {
         ("disabled",  true)  => vec!["skip-ssl"],
-        ("required",  true)  => vec!["ssl"],
+        ("required",  true)  => vec!["ssl", "skip-ssl-verify-server-cert"],
+        ("default",   true)  => vec!["skip-ssl-verify-server-cert"],
         ("verify",    true)  => vec!["ssl", "ssl-verify-server-cert"],
         ("verify-ca", true)  => vec!["ssl", "ssl-verify-server-cert"],
-        ("disabled",  false) => vec!["ssl-mode=DISABLED"],
+        // Without TLS, MySQL's client can only send a caching_sha2_password password encrypted with
+        // the server's RSA key, and does not ask for that key unless told to: the first login after
+        // a server restart failed with 2061 "Authentication requires secure connection". loose-,
+        // so a client too old to know the option ignores it.
+        ("disabled",  false) => vec!["ssl-mode=DISABLED", "loose-get-server-public-key"],
         ("required",  false) => vec!["ssl-mode=REQUIRED"],
         ("verify",    false) => vec!["ssl-mode=VERIFY_IDENTITY"],
         ("verify-ca", false) => vec!["ssl-mode=VERIFY_CA"],
@@ -2074,7 +2155,9 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
             while k < n && chars[k] != '\r' && chars[k] != '\n' {
                 k += 1;
             }
-            let new_delim: String = chars[j..k].iter().collect::<String>().trim().to_string();
+            // The first word of the line, as the mysql client reads it: "DELIMITER $ -- x" made "$ -- x" the
+            // delimiter here, and no statement after it ever ended.
+            let new_delim: String = chars[j..k].iter().collect::<String>().split_whitespace().next().unwrap_or("").to_string();
             if !new_delim.is_empty() {
                 delimiter = new_delim.chars().collect();
             }
@@ -2458,10 +2541,17 @@ async fn import_run(req: Value, mbin: String) -> R {
                 .arg("-e").arg(format!("CREATE DATABASE IF NOT EXISTS {}", sql_id(&target))).output();
             log.push(format!("Ensured database {}", target));
         }
+        // A per-table export folder holds each view in a file of its own, and files go in by name:
+        // "active_customers" ran before "customers" and failed with 1146, leaving the view out of the
+        // restore. Views go after everything else; the order within each is kept.
+        let mut files = files;
+        files.sort_by_key(|f| dump_file_is_view(f));
         for f in files {
             if job_is_cancelled(&job) { log.push("CANCELLED (remaining files skipped)".into()); cancelled = true; break; }
             if !std::path::Path::new(&f).exists() { log.push(format!("SKIP (missing): {}", f)); continue; }
-            let mut args = vec![format!("--defaults-extra-file={}", cnf)];
+            // Warnings are asked for: a dump sets a non-strict sql_mode, so a value too long for its
+            // column, or out of range, is cut and the import carried on - logged as a plain OK.
+            let mut args = vec![format!("--defaults-extra-file={}", cnf), "--show-warnings".into()];
             if req["force"].as_bool().unwrap_or(false) { args.push("--force".into()); }
             if req["fkOff"].as_bool().unwrap_or(false) { args.push("--init-command=SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0".into()); }
             // The "binary-mode" checkbox sends this, but nothing ever read it - checking it in
@@ -2477,9 +2567,27 @@ async fn import_run(req: Value, mbin: String) -> R {
             let short = || std::path::Path::new(&f).file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_else(|| f.clone());
             let names = match dump_db_names(&f) { Ok(n) => n, Err(e) => { log.push(format!("FAILED {} : cannot read the file: {}", short(), e)); continue; } };
             let mut cmd = Command::new(&mbin);
-            cmd.args(&args).stdout(Stdio::null());
+            cmd.args(&args).stdout(Stdio::piped());
             let out = match dump_plan(&names, &target) {
                 DumpPlan::Refuse(why) => { log.push(format!("SKIPPED {} : {}", short(), why)); continue; }
+                // MariaDB's mariadb-dump (11.x and later) opens with a line MySQL's own client does
+                // not know - "/*M!999999\- enable the sandbox mode */" - and a MariaDB dump restored
+                // into MySQL failed at line 1 with "Unknown command '\-'". MySQL's client is given
+                // the file without it; the line only asks MariaDB's client to refuse shell commands.
+                DumpPlan::AsIs if !client_is_mariadb(&mbin) && dump_starts_with_sandbox_line(&f) => {
+                    let path = f.clone();
+                    let feed: StdinFeed = Box::new(move |mut stdin| {
+                        use std::io::{BufRead, Write};
+                        let Ok(file) = std::fs::File::open(&path) else { return };
+                        let mut r = std::io::BufReader::with_capacity(1 << 20, file);
+                        let mut first = Vec::new();
+                        if r.read_until(b'\n', &mut first).is_err() { return; }
+                        let mut w = std::io::BufWriter::with_capacity(1 << 20, &mut stdin);
+                        let _ = std::io::copy(&mut r, &mut w);
+                        let _ = w.flush();
+                    });
+                    run_job_child_fed(job.as_ref(), &mut cmd, Some(feed))
+                }
                 DumpPlan::AsIs => {
                     let file = std::fs::File::open(&f).map_err(|e| e.to_string())?;
                     cmd.stdin(Stdio::from(file));
@@ -2488,6 +2596,7 @@ async fn import_run(req: Value, mbin: String) -> R {
                 DumpPlan::Rename(from) => {
                     log.push(format!("{} holds database '{}' - restoring it into '{}' instead", short(), from, target));
                     let (path, to) = (f.clone(), target.clone());
+                    let mut skip_first = !client_is_mariadb(&mbin) && dump_starts_with_sandbox_line(&f);
                     let feed: StdinFeed = Box::new(move |mut stdin| {
                         use std::io::{BufRead, Write};
                         let Ok(file) = std::fs::File::open(&path) else { return };
@@ -2497,6 +2606,7 @@ async fn import_run(req: Value, mbin: String) -> R {
                         loop {
                             line.clear();
                             match r.read_until(b'\n', &mut line) { Ok(0) | Err(_) => break, Ok(_) => {} }
+                            if skip_first { skip_first = false; continue; }
                             if w.write_all(&dump_rewrite_line(&line, &from, &to)).is_err() { return; }
                         }
                         let _ = w.flush();
@@ -2513,8 +2623,12 @@ async fn import_run(req: Value, mbin: String) -> R {
                     // it worked. Report what the tool actually said.
                     let err = String::from_utf8_lossy(&o.stderr);
                     let errs: Vec<&str> = err.lines().map(|l| l.trim()).filter(|l| l.contains("ERROR")).collect();
-                    if errs.is_empty() {
+                    let warns = import_warnings(&String::from_utf8_lossy(&o.stdout));
+                    if errs.is_empty() && warns.is_empty() {
                         log.push(format!("OK  {}", short()));
+                    } else if errs.is_empty() {
+                        log.push(format!("OK with {} warning(s)  {} : {}{}", warns.len(), short(), warns[0],
+                            if warns.len() > 1 { format!(" (+{} more)", warns.len() - 1) } else { String::new() }));
                     } else {
                         log.push(format!("OK with {} error(s) SKIPPED  {} : {}{}",
                             errs.len(), short(), errs[0],
@@ -3059,6 +3173,17 @@ async fn importcsv(req: Value) -> R {
         // it. DELETE FROM (no WHERE) does the same job here and, unlike TRUNCATE, is ordinary
         // transactional DML that a ROLLBACK genuinely undoes - the one real cost is that it
         // doesn't reset an AUTO_INCREMENT counter the way TRUNCATE does.
+        // All of that holds only for an engine that can roll back. MyISAM and Aria cannot: Replace
+        // deleted every row first, and a failure part way left the table holding only the rows
+        // written before it, while the message said nothing had been imported. Replace is refused
+        // on such a table, and a failed Append says what is already in.
+        let (_e, erows) = run_select(&mut c, &format!("SELECT t.ENGINE, e.TRANSACTIONS FROM information_schema.TABLES t LEFT JOIN information_schema.ENGINES e ON e.ENGINE=t.ENGINE WHERE t.TABLE_SCHEMA={} AND t.TABLE_NAME={}", sql_str_lit(&db), sql_str_lit(&table)))?;
+        let engine = erows.first().and_then(|r| r.first().cloned().flatten()).unwrap_or_default();
+        let transactional = erows.first().and_then(|r| r.get(1).cloned().flatten()).map(|t| t.eq_ignore_ascii_case("YES")).unwrap_or(true);
+        if !transactional && req["truncate"].as_bool().unwrap_or(false) {
+            return Ok(json!({"ok":false,"error":format!("{}.{} uses the {} engine, which cannot undo a failed import - Replace would delete its rows before knowing whether the new ones go in. Nothing was changed. Empty the table yourself and import with Append, or convert it to InnoDB first.", db, table, engine)}));
+        }
+        let mut written = 0usize;
         c.query_drop("START TRANSACTION").map_err(|e| e.to_string())?;
         let import_result: Result<usize, String> = (|| {
             if req["truncate"].as_bool().unwrap_or(false) {
@@ -3100,17 +3225,24 @@ async fn importcsv(req: Value) -> R {
                 batch.push(format!("({})", vals.join(","))); n += 1;
                 if batch.len() >= 500 {
                     c.query_drop(format!("INSERT INTO {} ({}) VALUES {}", obj, col_list, batch.join(","))).map_err(db_err)?;
+                    written += batch.len();
                     batch.clear();
                 }
             }
             if !batch.is_empty() {
                 c.query_drop(format!("INSERT INTO {} ({}) VALUES {}", obj, col_list, batch.join(","))).map_err(db_err)?;
+                written += batch.len();
             }
             Ok(n)
         })();
         let n = match import_result {
             Ok(n) => n,
-            Err(e) => { let _ = c.query_drop("ROLLBACK"); return Ok(json!({"ok":false,"error":format!("{}\n\nNo rows were imported - the batch was rolled back.", e)})); }
+            Err(e) => {
+                let _ = c.query_drop("ROLLBACK");
+                let after = if transactional || written == 0 { "No rows were imported - the batch was rolled back.".to_string() }
+                    else { format!("{} row(s) were already written and are still in the table: the {} engine cannot undo them.", written, engine) };
+                return Ok(json!({"ok":false,"error":format!("{}\n\n{}", e, after)}));
+            }
         };
         if let Err(e) = c.query_drop("COMMIT") {
             let _ = c.query_drop("ROLLBACK");
@@ -3304,6 +3436,16 @@ fn get_schema_columns(conn: &mut Conn, db: &str) -> Result<std::collections::BTr
     Ok(map)
 }
 
+// A column's EXTRA as far as it describes the column: AUTO_INCREMENT, ON UPDATE CURRENT_TIMESTAMP,
+// INVISIBLE, VIRTUAL/STORED GENERATED. It was not compared at all, so a column that had lost its
+// ON UPDATE or AUTO_INCREMENT on the target showed as the same. The two servers spell it
+// differently - MySQL adds DEFAULT_GENERATED and writes CURRENT_TIMESTAMP, MariaDB
+// current_timestamp() - and that difference alone is not one.
+fn extra_norm(extra: &str) -> String {
+    let e = extra.to_lowercase().replace("default_generated", "").replace("current_timestamp()", "current_timestamp");
+    e.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn get_create_table_sql(conn: &mut Conn, db: &str, table: &str) -> Option<String> {
     let sql = format!("SHOW CREATE TABLE {}.{}", sql_id(db), sql_id(table));
     run_select(conn, &sql).ok().and_then(|(_c, rows)| rows.into_iter().next()).and_then(|r| r.get(1).cloned().flatten())
@@ -3402,12 +3544,19 @@ fn compare_table_sets(
         let t_by_name: std::collections::HashMap<&str, &ColumnDef> = t_cols.iter().map(|c| (c.name.as_str(), c)).collect();
         let s_by_name: std::collections::HashMap<&str, &ColumnDef> = s_cols.iter().map(|c| (c.name.as_str(), c)).collect();
         let mut diffs = Vec::new();
-        for c in s_cols {
+        for (ci, c) in s_cols.iter().enumerate() {
             match t_by_name.get(c.name.as_str()) {
-                None => diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} ADD COLUMN {};", sql_id(t), def_of(c, &mut *src_conn)), checked: true, kind: "add_column" }),
+                // In the place it has in the source, after the same column: an added column used to go
+                // at the end, so the two tables' column order - and every SELECT * and INSERT without
+                // column names - differed from then on.
+                None => {
+                    let place = if ci == 0 { " FIRST".to_string() } else { format!(" AFTER {}", sql_id(&s_cols[ci - 1].name)) };
+                    diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} ADD COLUMN {}{};", sql_id(t), def_of(c, &mut *src_conn), place), checked: true, kind: "add_column" })
+                }
                 Some(tc) => {
                     if c.ctype != tc.ctype || c.nullable != tc.nullable || c.default != tc.default
-                        || c.collation != tc.collation || c.comment != tc.comment || c.generation != tc.generation {
+                        || c.collation != tc.collation || c.comment != tc.comment || c.generation != tc.generation
+                        || extra_norm(&c.extra) != extra_norm(&tc.extra) {
                         diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} MODIFY COLUMN {};", sql_id(t), def_of(c, &mut *src_conn)), checked: true, kind: "modify_column" });
                     }
                 }
@@ -4205,14 +4354,26 @@ async fn compare_apply(req: Value) -> R {
         if readonly { return Ok(json!({"ok":false,"error":"Target connection is read-only / safe mode - blocked."})); }
         let mut c = build_conn(&connj)?;
         if !tgt_db.is_empty() { let _ = c.query_drop(format!("USE {}", sql_id(&tgt_db))); }
-        let mut log = Vec::new();
-        for stmt in &statements {
-            match c.query_drop(stmt) {
-                Ok(_) => log.push(format!("OK  {}", stmt)),
-                Err(e) => log.push(format!("FAILED  {}  :  {}", stmt, e)),
+        // Missing tables are created in name order, so a child table came before its parent and
+        // failed on its foreign key. A CREATE TABLE that failed is tried again after the others, for
+        // as long as each round gets at least one more through; anything else stands as it failed.
+        let mut result: Vec<String> = vec![String::new(); statements.len()];
+        let mut pending: Vec<usize> = (0..statements.len()).collect();
+        loop {
+            let (mut again, mut progress) = (Vec::new(), false);
+            for i in pending {
+                match c.query_drop(&statements[i]) {
+                    Ok(_) => { result[i] = format!("OK  {}", statements[i]); progress = true; }
+                    Err(e) => {
+                        result[i] = format!("FAILED  {}  :  {}", statements[i], e);
+                        if statements[i].trim_start().to_uppercase().starts_with("CREATE TABLE") { again.push(i); }
+                    }
+                }
             }
+            if again.is_empty() || !progress { break; }
+            pending = again;
         }
-        Ok(json!({"ok":true,"log":log}))
+        Ok(json!({"ok":true,"log":result}))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -4385,6 +4546,12 @@ async fn export_table(app: tauri::AppHandle, req: Value) -> R {
 
 // The body, split out so a test can drive it without a tauri::AppHandle. The handle is only used
 // to emit progress events, which simply do not fire when there is nobody to receive them.
+// An INSERT export writes a backslash in a value as \\ (sql_str_lit). Loaded into a session whose
+// sql_mode has NO_BACKSLASH_ESCAPES, every one of them was stored doubled. The file says which way it
+// is written and puts the session back afterwards, as mysqldump's own header does for its settings.
+const INSERTS_HEAD: &str = "-- Values in this file escape a backslash as \\\\, so the session reads them that way.\nSET @nobs_old_sql_mode = @@SESSION.sql_mode;\nSET SESSION sql_mode = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', @@SESSION.sql_mode, ','), ',NO_BACKSLASH_ESCAPES,', ','));\n";
+const INSERTS_TAIL: &str = "SET SESSION sql_mode = @nobs_old_sql_mode;\n";
+
 async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
     tokio::task::spawn_blocking(move || -> R {
         use std::io::Write as _;
@@ -4424,6 +4591,7 @@ async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
                 if s.contains('"') || s.contains(',') || s.contains('\n') || s.contains('\r') { format!("\"{}\"", s.replace('"', "\"\"")) } else { s.clone() }
             }}
         };
+        if fmt == "inserts" { w.write_all(INSERTS_HEAD.as_bytes()).map_err(|e| e.to_string())?; }
         if fmt != "inserts" {
             let hdr = cols.iter().map(|c| if c.contains(',')||c.contains('"')||c.contains('\n')||c.contains('\r'){format!("\"{}\"",c.replace('"',"\"\""))}else{c.clone()}).collect::<Vec<_>>().join(",");
             w.write_all(hdr.as_bytes()).map_err(|e| e.to_string())?; w.write_all(b"\n").map_err(|e| e.to_string())?;
@@ -4453,6 +4621,7 @@ async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
         if fmt == "inserts" && !batch.is_empty() && !cancelled {
             w.write_all(insert_skip_existing(&tbl, &cols, &batch.join(",")).as_bytes()).map_err(|e| e.to_string())?;
         }
+        if fmt == "inserts" { w.write_all(INSERTS_TAIL.as_bytes()).map_err(|e| e.to_string())?; }
         w.flush().map_err(|e| e.to_string())?;
         drop(w);
         if cancelled {
@@ -5746,6 +5915,20 @@ mod tests {
 mod live_tests {
     use super::*;
 
+    // "default" encrypts whenever the server offers TLS. It used to mean plaintext, always, in this
+    // edition only - the client tools behind Export and Import negotiated TLS on the same setting.
+    #[test]
+    #[ignore]
+    fn default_ssl_uses_tls_when_the_server_offers_it() {
+        let Some(c) = conn_json() else { return; };
+        let mut conn = build_conn(&c).expect("connect");
+        let offered: Option<(String, String)> = conn.query_first("SHOW GLOBAL VARIABLES LIKE 'have_ssl'").unwrap();
+        let cipher: Option<(String, String)> = conn.query_first("SHOW SESSION STATUS LIKE 'Ssl_cipher'").unwrap();
+        if offered.map(|v| v.1 == "YES").unwrap_or(false) {
+            assert!(cipher.map(|v| !v.1.is_empty()).unwrap_or(false), "the server offers TLS and the session is not encrypted");
+        }
+    }
+
     fn conn_json() -> Option<Value> {
         let dsn = std::env::var("NOBS_TEST_DSN").ok()?;
         let p: Vec<&str> = dsn.split(':').collect();
@@ -5936,6 +6119,44 @@ mod export_cancel_tests {
 #[cfg(test)]
 mod import_tests {
     use super::*;
+
+    // A dump sets a non-strict sql_mode, so a value too long for its column is cut with a warning
+    // and the import carries on. That was logged as a plain OK - the data was changed and nothing
+    // said so. SELECT output in the file is not collected, only the warnings.
+    #[tokio::test]
+    #[ignore]
+    async fn import_reports_the_warnings_that_changed_data() {
+        let Some(dsn) = std::env::var("NOBS_TEST_DSN").ok() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let p: Vec<&str> = dsn.split(':').collect();
+        let conn = json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"});
+        let mbin = std::env::var("MYSQL_BIN").unwrap_or_else(|_| "mysql".into());
+        let f = std::env::temp_dir().join("nobs-import-warn.sql");
+        std::fs::write(&f, "SET SESSION sql_mode='';\nDROP TABLE IF EXISTS imp_warn;\nCREATE TABLE imp_warn (v VARCHAR(2));\nSELECT 'x';\nINSERT INTO imp_warn VALUES ('abcd');\nSET character_set_client = utf8;\nDROP TABLE imp_warn;\n").unwrap();
+        let req = json!({"files":[f.to_string_lossy()], "targetDb":"nobs_test", "conn":conn});
+        let r = import_run(req, mbin).await.unwrap();
+        let line = r["log"].as_array().unwrap().iter().filter_map(|l| l.as_str()).find(|l| l.contains("nobs-import-warn")).unwrap_or("").to_string();
+        println!("  log line: {}", line);
+        assert!(line.starts_with("OK with 1 warning(s)"), "the truncation was not reported: {line}");
+        assert!(line.contains("1265"), "{line}");
+        let _ = std::fs::remove_file(&f);
+    }
+
+    // mariadb-dump 11.x+ opens every dump with a line MySQL's client does not know. With MySQL's
+    // tools the import failed at line 1 ("Unknown command '\-'"); the line is left out for them.
+    #[tokio::test]
+    #[ignore]
+    async fn a_mariadb_dump_opens_on_either_client() {
+        let Some(dsn) = std::env::var("NOBS_TEST_DSN").ok() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let p: Vec<&str> = dsn.split(':').collect();
+        let conn = json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"});
+        let mbin = std::env::var("MYSQL_BIN").unwrap_or_else(|_| "mysql".into());
+        let f = std::env::temp_dir().join("nobs-import-sandbox.sql");
+        std::fs::write(&f, "/*M!999999\\- enable the sandbox mode */ \n-- MariaDB dump\nSELECT 1;\n").unwrap();
+        let r = import_run(json!({"files":[f.to_string_lossy()], "targetDb":"nobs_test", "conn":conn}), mbin).await.unwrap();
+        let line = r["log"].as_array().unwrap().iter().filter_map(|l| l.as_str()).find(|l| l.contains("nobs-import-sandbox")).unwrap_or("").to_string();
+        assert!(line.starts_with("OK  "), "{line}");
+        let _ = std::fs::remove_file(&f);
+    }
 
     // "Continue on error" passes --force to mysql, which then exits 0 even when every statement
     // failed. Trusting the exit code turned a wholly failed import into a list of OK lines - the
@@ -6309,6 +6530,38 @@ mod csv_null_tests {
         let p: Vec<&str> = dsn.split(':').collect();
         if p.len() != 4 { return None; }
         Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"}))
+    }
+
+    // MyISAM cannot roll back: Replace deleted the rows before a failure it could not undo, and a
+    // failed Append claimed nothing had been imported while its first batches stayed.
+    #[tokio::test]
+    #[ignore]
+    async fn csv_import_is_honest_about_an_engine_that_cannot_roll_back() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let q = |sql: &str| { let c = conn.clone(); let s = sql.to_string();
+            async move { query(json!({"sql":s,"conn":c,"db":"nobs_test"})).await.unwrap() } };
+        q("DROP TABLE IF EXISTS csv_myisam").await;
+        q("CREATE TABLE csv_myisam (id INT PRIMARY KEY, v VARCHAR(8)) ENGINE=MyISAM").await;
+        q("INSERT INTO csv_myisam VALUES (1,'keep'),(2,'keep')").await;
+        // 600 good rows (a whole batch of 500 is written) and then a duplicate key
+        let mut csv = String::from("id,v\n");
+        for i in 10..610 { csv.push_str(&format!("{},x\n", i)); }
+        csv.push_str("10,dup\n");
+        let file = std::env::temp_dir().join("csv_myisam.csv");
+        std::fs::write(&file, csv).unwrap();
+
+        let r = importcsv(json!({"conn":conn,"db":"nobs_test","table":"csv_myisam","file":file.to_string_lossy(),"hasHeader":true,"truncate":true})).await.unwrap();
+        assert_eq!(r["ok"], false, "Replace on MyISAM must be refused: {}", r);
+        assert!(r["error"].as_str().unwrap_or("").contains("cannot undo"), "{}", r);
+        let n = q("SELECT COUNT(*) FROM csv_myisam").await;
+        assert_eq!(n["rows"][0][0].as_str(), Some("2"), "the refused Replace changed the table");
+
+        let r = importcsv(json!({"conn":conn,"db":"nobs_test","table":"csv_myisam","file":file.to_string_lossy(),"hasHeader":true})).await.unwrap();
+        assert_eq!(r["ok"], false, "{}", r);
+        let e = r["error"].as_str().unwrap_or("");
+        assert!(e.contains("already written") && !e.contains("rolled back"), "the failed Append must say what stayed: {}", e);
+        q("DROP TABLE IF EXISTS csv_myisam").await;
+        let _ = std::fs::remove_file(&file);
     }
 
     // A NULL and an empty string both came out as an empty field, so a CSV could not tell them
@@ -6958,6 +7211,44 @@ mod compare_tests {
         assert!(again["tables"].as_array().unwrap().iter().all(|t| t["status"] == "same"), "nothing left to sync: {again}");
         raw("DROP DATABASE cmp_sd_src"); raw("DROP DATABASE cmp_sd_tgt");
     }
+
+    // Missing tables were created in name order: a child named before its parent failed on its
+    // foreign key. A failed CREATE TABLE is tried again once the others are in.
+    #[tokio::test]
+    #[ignore]
+    async fn schema_sync_creates_a_child_table_after_its_parent() {
+        let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        for db in ["cmp_fk_src", "cmp_fk_tgt"] { raw(&format!("DROP DATABASE IF EXISTS {db}")); raw(&format!("CREATE DATABASE {db}")); }
+        raw("CREATE TABLE cmp_fk_src.b_parent (id INT PRIMARY KEY) ENGINE=InnoDB");
+        raw("CREATE TABLE cmp_fk_src.a_child (id INT PRIMARY KEY, p INT, FOREIGN KEY (p) REFERENCES b_parent(id)) ENGINE=InnoDB");
+        let r = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_fk_src","targetConnName":P_RW,"targetDb":"cmp_fk_tgt"})).await.unwrap();
+        let stmts: Vec<Value> = r["tables"].as_array().unwrap().iter().flat_map(|t| t["sql"].as_array().cloned().unwrap_or_default())
+            .filter(|s| s["checked"] == true).map(|s| s["stmt"].clone()).collect();
+        let ap = compare_apply(json!({"targetConnName":P_RW,"targetDb":"cmp_fk_tgt","statements":stmts})).await.unwrap();
+        assert!(!ap["log"].to_string().contains("FAILED"), "{ap}");
+        assert_eq!(scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='cmp_fk_tgt'"), "2");
+        raw("DROP DATABASE cmp_fk_src"); raw("DROP DATABASE cmp_fk_tgt");
+    }
+
+    // EXTRA was not compared: a target column that had lost its ON UPDATE CURRENT_TIMESTAMP or its
+    // AUTO_INCREMENT showed as the same, and nothing offered to put it back.
+    #[tokio::test]
+    #[ignore]
+    async fn schema_sync_sees_a_lost_on_update_and_auto_increment() {
+        let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        for db in ["cmp_ex_src", "cmp_ex_tgt"] { raw(&format!("DROP DATABASE IF EXISTS {db}")); raw(&format!("CREATE DATABASE {db}")); }
+        raw("CREATE TABLE cmp_ex_src.t (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, upd TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP)");
+        raw("CREATE TABLE cmp_ex_tgt.t (id INT NOT NULL PRIMARY KEY, upd TIMESTAMP NULL DEFAULT NULL)");
+        let r = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_ex_src","targetConnName":P_RW,"targetDb":"cmp_ex_tgt"})).await.unwrap();
+        let stmts: Vec<Value> = r["tables"].as_array().unwrap().iter().flat_map(|t| t["sql"].as_array().cloned().unwrap_or_default())
+            .filter(|s| s["checked"] == true).map(|s| s["stmt"].clone()).collect();
+        assert_eq!(stmts.len(), 2, "a MODIFY for each column: {stmts:?}");
+        let ap = compare_apply(json!({"targetConnName":P_RW,"targetDb":"cmp_ex_tgt","statements":stmts})).await.unwrap();
+        assert!(!ap["log"].to_string().contains("FAILED"), "{ap}");
+        let again = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_ex_src","targetConnName":P_RW,"targetDb":"cmp_ex_tgt"})).await.unwrap();
+        assert!(again["tables"].as_array().unwrap().iter().all(|t| t["status"] == "same"), "nothing left to sync: {again}");
+        raw("DROP DATABASE cmp_ex_src"); raw("DROP DATABASE cmp_ex_tgt");
+    }
 }
 
 #[cfg(test)]
@@ -6977,6 +7268,8 @@ mod dump_split_tests {
                 dir.path().join(format!("{}.sql", name.replace('`', "_"))).to_string_lossy().into_owned()
             }).unwrap();
             let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
+            // Import runs a view's file after the others (dump_file_is_view); only the view's file is one.
+            for (n, p) in &files { assert_eq!(dump_file_is_view(p), n == "v", "{fixture}: {n}"); }
             assert_eq!(names, ["a`b", "t2", "v"], "{fixture}");
             assert_eq!(seen.len(), 3, "one file per name, the view's two sections included: {fixture}");
             let head_end = text.find("--\n-- Table structure").or_else(|| text.find("--\r\n-- Table structure")).unwrap();
@@ -7475,9 +7768,9 @@ mod cnf_tests {
     #[test]
     fn each_client_is_given_the_option_names_it_understands() {
         assert_eq!(ssl_cnf_lines("disabled", true),  vec!["skip-ssl"]);
-        assert_eq!(ssl_cnf_lines("required", true),  vec!["ssl"]);
+        assert_eq!(ssl_cnf_lines("required", true),  vec!["ssl", "skip-ssl-verify-server-cert"]);
         assert_eq!(ssl_cnf_lines("verify",   true),  vec!["ssl", "ssl-verify-server-cert"]);
-        assert_eq!(ssl_cnf_lines("disabled", false), vec!["ssl-mode=DISABLED"]);
+        assert_eq!(ssl_cnf_lines("disabled", false), vec!["ssl-mode=DISABLED", "loose-get-server-public-key"]);
         assert_eq!(ssl_cnf_lines("required", false), vec!["ssl-mode=REQUIRED"]);
         assert_eq!(ssl_cnf_lines("verify",   false), vec!["ssl-mode=VERIFY_IDENTITY"]);
         // MySQL's client has an exact equivalent of verify-ca.
@@ -7495,11 +7788,13 @@ mod cnf_tests {
         }
     }
 
-    // "default" means leave it to the client, so it must write nothing rather than guess.
+    // "default" means leave it to the client, so it must write nothing rather than guess - except
+    // that MariaDB's client (11.4+) would then check the certificate, which "default" does not ask for.
     #[test]
     fn default_and_unknown_modes_write_nothing() {
         for maria in [true, false] {
-            assert!(ssl_cnf_lines("default", maria).is_empty());
+            if maria { assert_eq!(ssl_cnf_lines("default", maria), vec!["skip-ssl-verify-server-cert"]); }
+            else { assert!(ssl_cnf_lines("default", maria).is_empty()); }
             assert!(ssl_cnf_lines("", maria).is_empty());
             assert!(ssl_cnf_lines("bogus", maria).is_empty());
         }
@@ -7517,11 +7812,13 @@ mod cnf_tests {
         assert!(body.contains("password=\"p\""), "the rest of the file is still written:\n{body}");
         assert!(body.contains("\ndefault-character-set=utf8mb4\n"), "the client character set is pinned:\n{body}");
 
-        // ...and "default" stays silent, so nothing is forced on a connection that did not ask.
+        // ...and "default" forces nothing on a connection that did not ask: no TLS switched on, no
+        // verification. (A MariaDB client is told not to verify, which 11.4+ would otherwise do.)
         let plain = json!({"host":"h","port":"3306","user":"u","ssl":"default"});
         let (_f2, p2) = cnf_file(&plain, "definitely-not-a-real-binary").unwrap();
         let b2 = std::fs::read_to_string(&p2).unwrap();
-        assert!(!b2.contains("ssl"), "ssl=default should write no ssl line at all:\n{b2}");
+        assert!(!b2.lines().any(|l| l == "ssl" || l.starts_with("ssl-mode") || l == "ssl-verify-server-cert"),
+            "ssl=default should neither require nor verify:\n{b2}");
     }
 
     // A dump should go out under the same verification as everything else. For MySQL's client this

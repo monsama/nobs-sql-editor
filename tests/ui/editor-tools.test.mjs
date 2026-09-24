@@ -36,7 +36,7 @@ function extractConst(src, name) {
 const helpers = `const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const clip=(s,n)=>String(s).slice(0,n);const fmtCount=n=>String(n);`;
 const lib = new Function(helpers + '\n' + ['PLAN_ACCESS', 'PLAN_STEP', 'PLAN_SKIP'].map(n => extractConst(html, n)).join('\n') + '\n' +
-  ['acContext', 'acQ', 'bJSON', 'xlsxCell', 'xlsxCol', 'bXLSX', 'crc32', 'zipStore', 'planNum', 'planTable', 'planItems', 'planNode', 'planHtml'].map(n => extractFunction(html, n)).join('\n') +
+  ['acContext', 'acQ', 'bJSON', 'xlsxCell', 'xlsxCol', 'bXLSX', 'crc32', 'zipStore', 'planNum', 'planAccess', 'planTable', 'planItems', 'planNode', 'planHtml'].map(n => extractFunction(html, n)).join('\n') +
   '\nreturn {acContext, acQ, bJSON, xlsxCell, xlsxCol, bXLSX, crc32, zipStore, planHtml};')();
 
 const ctx = sql => lib.acContext(sql.replace('|', ''), sql.indexOf('|'));
@@ -155,6 +155,16 @@ test('a full scan is called out, and a plan that is not JSON is shown as it came
   assert.match(h, /class="pcard bad"/);
   assert.match(h, /where a&lt;b/);
   assert.match(lib.planHtml('not json'), /did not answer with a plan/);
+});
+
+// MySQL 8.3+'s JSON format version 2 (the default on 9.x) says "table" for a full scan and "index"
+// with index_access_type for every index access.
+test('the plan reads the version 2 JSON format too', () => {
+  const scan = lib.planHtml({ query: 'x', inputs: [{ table_name: 'big', access_type: 'table', rows: 5000 }] });
+  assert.match(scan, /1 table is read in full: big/);
+  const look = lib.planHtml({ query: 'x', inputs: [{ table_name: 'small', access_type: 'index', index_access_type: 'index_lookup', key: 'PRIMARY' }] });
+  assert.match(look, /No table is read in full/);
+  assert.match(look, /class="pcard good"/);
 });
 
 // The chart: which columns are numbers, the axis steps, and what gets drawn.

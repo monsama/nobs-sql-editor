@@ -510,10 +510,10 @@ test('following a foreign key, and the quick filter, find the right rows', async
     return { f, seen };
   };
   const b = make(true);
-  await b.f.goToFkRow('d', 'p', 'id', '0x');
+  await b.f.goToFkRow('d', 'p', [['id', '0x']]);
   CHECK(b.seen.run && b.seen.run.join() === "`id`=X''", 'the referenced row is found by its filter, and an empty binary key is X\'\'', JSON.stringify(b.seen));
   const t = make(false);
-  await t.f.goToFkRow('d', 'tp', 'code', '0x41');
+  await t.f.goToFkRow('d', 'tp', [['code', '0x41']]);
   CHECK(t.seen.run && t.seen.run.join() === "`code`='0x41'", 'a text key that looks like hex stays text', JSON.stringify(t.seen));
   const q = make(true);
   const sub = q.f.qfSub('t1', 'id', '0x');

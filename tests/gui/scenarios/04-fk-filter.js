@@ -9,7 +9,7 @@ INSERT INTO ${DB}.p VALUES (X'', 'empty'), (0x41, 'A'), (0x42, 'B');
 CREATE TABLE ${DB}.tp (code VARCHAR(8) PRIMARY KEY, label VARCHAR(10));
 INSERT INTO ${DB}.tp VALUES ('0x41', 'hex text'), ('A', 'letter A');`);
     const follow = async (table, col, val) => {
-      await goToFkRow(DB, table, col, val);
+      await goToFkRow(DB, table, [[col, val]]);
       const t = tabs[tabs.length - 1];
       await G.until(() => t.rows && !t.runningReqId);
       return G.rowsOf(t);
