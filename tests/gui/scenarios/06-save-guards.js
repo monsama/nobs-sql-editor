@@ -57,7 +57,10 @@ INSERT INTO ${DB}.x (id,a,secret) VALUES (1,5,'hidden');`);
       G.check('the INSERT export of a table succeeds', r.ok, r);
     } else {
       const text = await G.captureDownload(() => exportFull(DB, 'x', 'inserts'));
-      G.eq('the INSERT export names the columns it can write', text, `INSERT INTO ${DB}.x (id,a,secret) VALUES ('1','5','hidden') ON DUPLICATE KEY UPDATE id=id;`);
+      // The statements sit between a header that says how the file's strings escape a backslash and
+      // a line that puts the session back.
+      const ins = `INSERT INTO ${DB}.x (id,a,secret) VALUES ('1','5','hidden') ON DUPLICATE KEY UPDATE id=id;`;
+      G.check('the INSERT export names the columns it can write', text.split('\n').includes(ins) && /^-- Values in this file/.test(text) && /SET SESSION sql_mode = @nobs_old_sql_mode;\n$/.test(text), text);
     }
 
     t = await G.openTable(DB, 'd');

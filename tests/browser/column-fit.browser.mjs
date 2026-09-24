@@ -56,7 +56,7 @@ assert.equal(css.length, 3, `expected the three grid rules, found ${css.length}`
 
 const code = [cons('CTRL_NAMES'), cons('CTRL_RE'), cons('FIT_SAMPLE'),
   ...['esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'cellHtml',
-    'viewIndices', 'widestCandidates', 'fitMeasure', 'autofitCol'].map(fn)].join('\n');
+    'viewIndices', 'viewIndicesFresh', 'widestCandidates', 'fitMeasure', 'autofitCol'].map(fn)].join('\n');
 
 // 900 rows, so the grid is past the point where it draws them all, with the value that decides the
 // width at row 880 - below anything drawn - and a 600 character value in another column for the cap
@@ -137,9 +137,13 @@ const proc = spawn(edge, ['--headless=new', '--remote-debugging-port=0', `--user
 // Cleanup is best-effort on purpose: the browser holds its profile open for a moment after it is
 // killed, and Windows refuses the delete while it does. A leftover directory under the system temp
 // is not worth failing a run that measured everything it set out to.
-after(() => {
+after(async () => {
   try { proc.kill(); } catch { /* already gone */ }
-  try { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the OS will */ }
+  // Edge's own helper processes hold the profile for a moment after it is killed: a second of retries
+  // was not enough, and each run left a folder of several MB behind. Wait for it to exit, then keep
+  // trying for up to ten seconds.
+  await new Promise(r => { if (proc.exitCode != null) r(); else { proc.once('exit', r); setTimeout(r, 5000); } });
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); } catch { /* the OS will */ }
 });
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
