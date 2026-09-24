@@ -164,6 +164,9 @@ mod definer_tests {
     }
 }
 
+// The most a page of rows holds, as text, before the rest is left for the next fetch.
+const PAGE_BYTES: usize = 32 * 1024 * 1024;
+
 fn jobs() -> &'static Mutex<std::collections::HashMap<String, std::sync::Arc<Job>>> {
     JOBS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
@@ -980,17 +983,25 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
                     // this same fetch with no extra round trip - but keep that row for next time.
                     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
                     let mut err: Option<String> = None;
-                    if let Some(r) = carry.take() { rows.push(r); }
-                    while rows.len() < n {
+                    // A page also ends at PAGE_BYTES, whatever n says. A table of large BLOBs sent a
+                    // thousand of them at once, hex-encoded and so twice their size: a few MB each
+                    // came to gigabytes in one answer, and the app hung or ran out of memory. The
+                    // rest arrives as the grid scrolls, as it does for any long result; a page
+                    // always holds at least one row, however large.
+                    let mut bytes = 0usize;
+                    let size = |r: &Vec<Option<String>>| r.iter().map(|v| v.as_ref().map(|s| s.len()).unwrap_or(0)).sum::<usize>();
+                    if let Some(r) = carry.take() { bytes += size(&r); rows.push(r); }
+                    while rows.len() < n && bytes < PAGE_BYTES {
                         match result.next() {
-                            Some(Ok(row)) => rows.push(decode_row(&row, &bin)),
+                            Some(Ok(row)) => { let r = decode_row(&row, &bin); bytes += size(&r); rows.push(r) }
                             Some(Err(e)) => { err = Some(db_err(e)); break; }
                             None => break,
                         }
                     }
-                    // Only look ahead when the page actually filled: a short page already means
-                    // the result set is exhausted, and asking for another row would be pointless.
-                    if err.is_none() && rows.len() == n {
+                    // Only look ahead when the page actually filled (by rows or by size): a short
+                    // page already means the result set is exhausted, and asking for another row
+                    // would be pointless.
+                    if err.is_none() && (rows.len() == n || bytes >= PAGE_BYTES) {
                         match result.next() {
                             Some(Ok(row)) => carry = Some(decode_row(&row, &bin)),
                             Some(Err(e)) => { err = Some(db_err(e)); }
@@ -3510,8 +3521,71 @@ fn col_def_line(col: &ColumnDef) -> String {
 struct SqlStmt { stmt: String, checked: bool, kind: &'static str }
 struct TableDiff { name: String, status: &'static str, sql: Vec<SqlStmt> }
 
+// The table's keys and constraints as the server writes them in SHOW CREATE TABLE, by what they
+// are and their name: ("pk", "PRIMARY"), ("index", name), ("fk", name), ("check", name), each with
+// its line.
+fn key_lines(create: &str) -> Vec<(&'static str, String, String)> {
+    let mut out = Vec::new();
+    for raw in create.lines() {
+        let l = raw.trim().trim_end_matches(',').to_string();
+        let name_after = |prefix_len: usize| -> Option<String> {
+            let rest = &l[prefix_len..];
+            let rest = rest.trim_start();
+            if !rest.starts_with('`') { return None; }
+            let mut name = String::new(); let mut it = rest[1..].chars().peekable();
+            while let Some(c) = it.next() {
+                if c == '`' { if it.peek() == Some(&'`') { it.next(); name.push('`'); continue; } return Some(name); }
+                name.push(c);
+            }
+            None
+        };
+        let up = l.to_uppercase();
+        if up.starts_with("PRIMARY KEY") { out.push(("pk", "PRIMARY".to_string(), l.clone())); continue; }
+        for pre in ["UNIQUE KEY", "FULLTEXT KEY", "SPATIAL KEY", "KEY"] {
+            if up.starts_with(pre) { if let Some(n) = name_after(pre.len()) { out.push(("index", n, l.clone())); } break; }
+        }
+        if up.starts_with("CONSTRAINT") {
+            if let Some(n) = name_after("CONSTRAINT".len()) {
+                if up.contains(" FOREIGN KEY ") { out.push(("fk", n, l.clone())); } else if up.contains(" CHECK ") || up.contains(" CHECK(") { out.push(("check", n, l.clone())); }
+            }
+        }
+    }
+    out
+}
+
+// The statements that bring the target's keys and constraints to the source's: what is missing is
+// added, what differs is dropped and added again, and what only the target has is offered as a
+// drop, not ticked - as with columns. Foreign keys go last among the additions, after the indexes
+// they may need, and are dropped first.
+fn key_diffs(t: &str, src_create: &str, tgt_create: &str) -> Vec<SqlStmt> {
+    let src = key_lines(src_create); let tgt = key_lines(tgt_create);
+    let find = |v: &Vec<(&'static str, String, String)>, k: &str, n: &str| v.iter().find(|(kk, nn, _)| *kk == k && nn == n).map(|(_, _, l)| l.clone());
+    let drop_clause = |k: &str, n: &str| match k { "pk" => "DROP PRIMARY KEY".to_string(), "index" => format!("DROP INDEX {}", sql_id(n)), "fk" => format!("DROP FOREIGN KEY {}", sql_id(n)), _ => format!("DROP CONSTRAINT {}", sql_id(n)) };
+    let (mut first, mut adds, mut fks, mut drops) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for (k, n, l) in &src {
+        match find(&tgt, k, n) {
+            None => { let s = SqlStmt { stmt: format!("ALTER TABLE {} ADD {};", sql_id(t), l), checked: true, kind: "add_key" }; if *k == "fk" { fks.push(s) } else { adds.push(s) } }
+            Some(tl) if &tl != l => {
+                if *k == "fk" || *k == "check" {
+                    first.push(SqlStmt { stmt: format!("ALTER TABLE {} {};", sql_id(t), drop_clause(k, n)), checked: true, kind: "modify_key" });
+                    let s = SqlStmt { stmt: format!("ALTER TABLE {} ADD {};", sql_id(t), l), checked: true, kind: "modify_key" };
+                    if *k == "fk" { fks.push(s) } else { adds.push(s) }
+                } else {
+                    adds.push(SqlStmt { stmt: format!("ALTER TABLE {} {}, ADD {};", sql_id(t), drop_clause(k, n), l), checked: true, kind: "modify_key" });
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut tgt_only: Vec<&(&'static str, String, String)> = tgt.iter().filter(|(k, n, _)| find(&src, k, n).is_none()).collect();
+    tgt_only.sort_by_key(|(k, _, _)| if *k == "fk" { 0 } else { 1 });
+    for (k, n, _) in tgt_only { drops.push(SqlStmt { stmt: format!("ALTER TABLE {} {};", sql_id(t), drop_clause(k, n)), checked: false, kind: "drop_key" }); }
+    first.into_iter().chain(adds).chain(fks).chain(drops).collect()
+}
+
 fn compare_table_sets(
     src_conn: &mut Conn, src_db: &str,
+    tgt_conn: &mut Conn, tgt_db: &str,
     src_cols: &std::collections::BTreeMap<String, Vec<ColumnDef>>,
     tgt_cols: &std::collections::BTreeMap<String, Vec<ColumnDef>>,
     request_id: Option<&str>,
@@ -3566,6 +3640,11 @@ fn compare_table_sets(
             if !s_by_name.contains_key(c.name.as_str()) {
                 diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} DROP COLUMN {};", sql_id(t), sql_id(&c.name)), checked: false, kind: "drop_column" });
             }
+        }
+        // Keys, foreign keys and CHECK constraints were not compared at all: a table whose only
+        // difference was a missing index or foreign key showed as the same.
+        if let (Some(sc), Some(tc)) = (get_create_table_sql(&mut *src_conn, src_db, t), get_create_table_sql(&mut *tgt_conn, tgt_db, t)) {
+            diffs.extend(key_diffs(t, &sc, &tc));
         }
         if diffs.is_empty() { out.push(TableDiff { name: t.clone(), status: "same", sql: Vec::new() }); }
         else { out.push(TableDiff { name: t.clone(), status: "diff", sql: diffs }); }
@@ -4327,7 +4406,7 @@ async fn compare_schemas(req: Value) -> R {
             tgt_cols.retain(|k, _| keep.contains(k));
         }
         let rid = req["requestId"].as_str().map(String::from);
-        let (diffs, cancelled) = compare_table_sets(&mut src_conn, &src_db, &src_cols, &tgt_cols, rid.as_deref());
+        let (diffs, cancelled) = compare_table_sets(&mut src_conn, &src_db, &mut tgt_conn, &tgt_db, &src_cols, &tgt_cols, rid.as_deref());
         if let Some(r) = &rid { clear_compare_cancel(r); }
         let tables: Vec<Value> = diffs.into_iter().map(|t| json!({
             "name": t.name, "status": t.status,
@@ -6464,6 +6543,37 @@ mod cursor_tests {
         Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"}))
     }
 
+    // A page also ends at PAGE_BYTES: a thousand large BLOBs in one answer hung the app. The first
+    // page of 12 rows of 3 MB (6 MB each as hex) holds fewer than 12, and paging on returns every
+    // row, whole, with none lost at the page boundaries.
+    #[tokio::test]
+    #[ignore]
+    async fn a_page_of_large_blobs_stops_at_its_size_budget() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let q = |sql: &str| { let c = conn.clone(); let s = sql.to_string();
+            async move { query(json!({"sql":s,"conn":c,"db":"nobs_test"})).await.unwrap() } };
+        q("DROP TABLE IF EXISTS page_blobs").await;
+        q("CREATE TABLE page_blobs (id INT PRIMARY KEY, b LONGBLOB)").await;
+        for i in 1..=12 { q(&format!("INSERT INTO page_blobs VALUES ({i}, REPEAT(0x41, 3*1024*1024))")).await; }
+        let first = query(json!({"sql":"SELECT id, b FROM page_blobs ORDER BY id","conn":conn,"db":"nobs_test","pageSize":1000})).await.unwrap();
+        let n0 = first["rows"].as_array().map(|r| r.len()).unwrap_or(0);
+        assert!(n0 >= 1 && n0 < 12 && first["hasMore"] == true, "the first page was not cut by size: {} rows, hasMore {}", n0, first["hasMore"]);
+        let cid = first["cursorId"].as_str().unwrap_or("").to_string();
+        let mut ids: Vec<String> = first["rows"].as_array().unwrap().iter().map(|r| r[0].as_str().unwrap().to_string()).collect();
+        let whole = |r: &Value| r[1].as_str().map(|s| s.len() == 2 + 2 * 3 * 1024 * 1024).unwrap_or(false);
+        assert!(first["rows"].as_array().unwrap().iter().all(whole), "a value came back cut");
+        let mut more = true;
+        for _ in 0..20 {
+            if !more { break; }
+            let b = fetch_cursor_batch(json!({"cursorId": cid, "pageSize": 1000})).await.unwrap();
+            assert!(b["rows"].as_array().unwrap().iter().all(whole), "a value came back cut");
+            ids.extend(b["rows"].as_array().unwrap().iter().map(|r| r[0].as_str().unwrap().to_string()));
+            more = b["hasMore"].as_bool().unwrap_or(false);
+        }
+        assert_eq!(ids, (1..=12).map(|i| i.to_string()).collect::<Vec<_>>());
+        q("DROP TABLE IF EXISTS page_blobs").await;
+    }
+
     // Opens a cursor over the first `total` rows of bulk_rows and pages it to exhaustion at
     // `page` rows a time, returning every id it was handed, in order.
     async fn page_all(conn: &Value, total: usize, page: usize) -> Vec<String> {
@@ -7255,6 +7365,31 @@ mod compare_tests {
         assert!(!ap["log"].to_string().contains("FAILED"), "{ap}");
         assert_eq!(scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='cmp_fk_tgt'"), "2");
         raw("DROP DATABASE cmp_fk_src"); raw("DROP DATABASE cmp_fk_tgt");
+    }
+
+    // Keys, foreign keys and CHECK constraints were not compared: a table that differed only there
+    // showed as the same. Missing ones are added, and one only the target has is offered, unticked.
+    #[tokio::test]
+    #[ignore]
+    async fn schema_sync_compares_keys_foreign_keys_and_checks() {
+        let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        for db in ["cmp_key_src", "cmp_key_tgt"] { raw(&format!("DROP DATABASE IF EXISTS {db}")); raw(&format!("CREATE DATABASE {db}")); }
+        for db in ["cmp_key_src", "cmp_key_tgt"] { raw(&format!("CREATE TABLE {db}.p (id INT PRIMARY KEY) ENGINE=InnoDB")); }
+        raw("CREATE TABLE cmp_key_src.c (id INT PRIMARY KEY, p INT, n INT, KEY ix_n (n), CONSTRAINT fk_p FOREIGN KEY (p) REFERENCES p (id), CONSTRAINT ck_n CHECK (n >= 0)) ENGINE=InnoDB");
+        raw("CREATE TABLE cmp_key_tgt.c (id INT PRIMARY KEY, p INT, n INT, KEY ix_extra (p)) ENGINE=InnoDB");
+        let r = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_key_src","targetConnName":P_RW,"targetDb":"cmp_key_tgt"})).await.unwrap();
+        let c = r["tables"].as_array().unwrap().iter().find(|t| t["name"] == "c").cloned().unwrap();
+        assert_eq!(c["status"], "diff", "{c}");
+        let all: Vec<Value> = c["sql"].as_array().unwrap().clone();
+        assert!(all.iter().any(|s| s["checked"] == false && s["stmt"].as_str().unwrap().contains("DROP INDEX `ix_extra`")), "{c}");
+        let stmts: Vec<Value> = all.iter().filter(|s| s["checked"] == true).map(|s| s["stmt"].clone()).collect();
+        let ap = compare_apply(json!({"targetConnName":P_RW,"targetDb":"cmp_key_tgt","statements":stmts})).await.unwrap();
+        assert!(!ap["log"].to_string().contains("FAILED"), "{ap}");
+        let again = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_key_src","targetConnName":P_RW,"targetDb":"cmp_key_tgt"})).await.unwrap();
+        let c2 = again["tables"].as_array().unwrap().iter().find(|t| t["name"] == "c").cloned().unwrap();
+        let left: Vec<&str> = c2["sql"].as_array().unwrap().iter().map(|s| s["stmt"].as_str().unwrap()).collect();
+        assert!(left.iter().all(|s| s.contains("DROP INDEX `ix_extra`")), "only the target's own index is left to decide on: {left:?}");
+        raw("DROP DATABASE cmp_key_src"); raw("DROP DATABASE cmp_key_tgt");
     }
 
     // EXTRA was not compared: a target column that had lost its ON UPDATE CURRENT_TIMESTAMP or its

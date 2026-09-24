@@ -1265,6 +1265,8 @@ function keyWhere(t,ri,bc,types){
 // Stops the batch - which runs as one transaction - unless where matches exactly one row: none when
 // the row was changed or deleted since it was read, or its key cannot be matched; more when the key
 // is ambiguous. Both servers refuse to put two rows into a variable (error 1172).
+// The same check for several rows at once: the batch stops unless every where matches exactly one.
+function oneRowGuardMany(tbl,wheres){return 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE '+wheres.map(w=>'(SELECT COUNT(*) FROM '+tbl+' WHERE '+w+') <> 1').join(' OR ')+' INTO @nobs_one_row;';}
 function oneRowGuard(tbl,where){return 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM '+tbl+' WHERE '+where+') <> 1 INTO @nobs_one_row;';}
 const ONE_ROW_REFUSED='Nothing was saved. A row you changed or deleted no longer matches exactly one row in the table: it may have been changed or deleted since it was loaded, or its key cannot be matched exactly (a FLOAT key shown rounded, or a TIMESTAMP key in the hour the clocks go back). Reload the table and try again.';
 async function tableColTypes(db,table){
@@ -1315,7 +1317,10 @@ let allDbsSeq=0,allDbsTimer=null;
 function setAllDbsBtn(){const b=$('allSchemasBtn');if(!b)return;b.classList.toggle('on',!!allDbs);b.title=allDbs?'Back to '+(objData?objData.db:'the selected schema')+' only':'Search this name across all schemas';}
 function toggleAllDbs(){if(allDbs){leaveAllDbs();renderObjects();return;}allDbs={term:'',items:null};setAllDbsBtn();searchAllSchemas();$('objFilter').focus();}
 function leaveAllDbs(){if(!allDbs)return;allDbs=null;allDbsSeq++;clearTimeout(allDbsTimer);setAllDbsBtn();}
-function objFilterInput(){if(!allDbs){renderObjects();return;}clearTimeout(allDbsTimer);allDbsTimer=setTimeout(searchAllSchemas,300);}
+// A schema with thousands of objects rebuilt its whole list on every key typed; it waits for a pause.
+let objFilterTimer=null;
+function objFilterInput(){if(!allDbs){const r=objData&&objData.r,n=r?['tables','views','procedures','functions','triggers','events'].reduce((a,k)=>a+((r[k]||[]).length),0):0;
+  if(n<2000){renderObjects();return;}clearTimeout(objFilterTimer);objFilterTimer=setTimeout(renderObjects,150);return;}clearTimeout(allDbsTimer);allDbsTimer=setTimeout(searchAllSchemas,300);}
 async function searchAllSchemas(){
   if(!allDbs)return;
   const term=($('objFilter').value||'').trim();const seq=++allDbsSeq;
@@ -2401,9 +2406,14 @@ function renderObjects(){if(allDbs){renderAllDbs();return;}const box=$('objects'
  }
  const groups=[['Tables',r.tables,'table'],['Views',r.views,'view'],['Procedures',r.procedures,'procedure'],['Functions',r.functions,'function'],['Triggers',r.triggers,'trigger'],['Events',r.events,'event']];
  groups.forEach(([label,items,type])=>{if(!tf.has(type))return;const fil=(items||[]).filter(n=>!f||n.toLowerCase().includes(f));if(!fil.length)return;if(!objGroupHdr(box,type,label+' ('+fil.length+(f?'/'+items.length:'')+')',folded.has(type)))return;
-  fil.forEach(n=>{const d=document.createElement('div');d.className='item';d.title=n;if(type==='table'&&objData.sizes&&(n in objData.sizes)){const a=document.createElement('span');a.className='onm';a.textContent=n;const b=document.createElement('span');b.className='osz';b.textContent=fmtBytes(objData.sizes[n]);d.appendChild(a);d.appendChild(b);}else{d.textContent=n;}
+  // At most OBJ_CAP of a kind are drawn; the rest are counted, and the filter finds them. Ten
+  // thousand rows in the sidebar made opening and filtering a large schema hang.
+  const more=fil.length-OBJ_CAP;
+  fil.slice(0,OBJ_CAP).forEach(n=>{const d=document.createElement('div');d.className='item';d.title=n;if(type==='table'&&objData.sizes&&(n in objData.sizes)){const a=document.createElement('span');a.className='onm';a.textContent=n;const b=document.createElement('span');b.className='osz';b.textContent=fmtBytes(objData.sizes[n]);d.appendChild(a);d.appendChild(b);}else{d.textContent=n;}
    d.onclick=()=>{[...box.querySelectorAll('.item')].forEach(c=>c.classList.remove('sel'));d.classList.add('sel');objOpen(db,type,n);};
-   d.oncontextmenu=e=>{e.preventDefault();objMenu(e,db,type,n);};box.appendChild(d);});});}
+   d.oncontextmenu=e=>{e.preventDefault();objMenu(e,db,type,n);};box.appendChild(d);});
+  if(more>0){const m=document.createElement('div');m.className='muted';m.style.cssText='padding:4px 10px;font-size:11px';m.textContent=fmtCount(more)+' more - type in the filter above to find them';box.appendChild(m);}});}
+const OBJ_CAP=2000;
 // The columns of the schema, table by table: every name for plain suggestions, and each table's own
 // for a name typed after its alias. Other schemas are read the first time a query reaches into one.
 async function buildColHints(db){acTableCols={};acPend={};const d=await acLoadSchema(db);
@@ -5163,9 +5173,20 @@ async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const 
  // updates grouped by row
  const kt=await tableColTypes(t.db,t.table);let noKey=false;
  const byRow={};Object.keys(t.pending.upd).forEach(k=>{const[ri,ci]=k.split(':').map(Number);(byRow[ri]=byRow[ri]||{})[ci]=t.pending.upd[k];});
+ // Every change was checked and made with a statement of its own - two round trips each, so
+ // deleting 10,000 picked rows over a slow link took minutes with the rows locked throughout. The
+ // checks now go 200 to a statement, and so do deletes; each update still has its own values.
+ // Deletes come after the updates, so a row that was both edited and deleted is checked as it is
+ // by then. One change is written exactly as before.
+ const updWh=[],updSql=[],delWh=[];
  Object.keys(byRow).forEach(ri=>{ri=+ri;const sets=Object.keys(byRow[ri]).map(ci=>qid(t.cols[ci])+'='+litForCol(+ci,byRow[ri][ci]));
-   const wh=keyWhere(t,ri,bc,kt);if(wh==null){noKey=true;return;}S.push(oneRowGuard(tbl,wh));S.push('UPDATE '+tbl+' SET '+sets.join(',')+' WHERE '+wh+' LIMIT 1;');});
- t.pending.del.forEach(ri=>{const wh=keyWhere(t,ri,bc,kt);if(wh==null){noKey=true;return;}S.push(oneRowGuard(tbl,wh));S.push('DELETE FROM '+tbl+' WHERE '+wh+' LIMIT 1;');});
+   const wh=keyWhere(t,ri,bc,kt);if(wh==null){noKey=true;return;}updWh.push(wh);updSql.push('UPDATE '+tbl+' SET '+sets.join(',')+' WHERE '+wh+' LIMIT 1;');});
+ t.pending.del.forEach(ri=>{const wh=keyWhere(t,ri,bc,kt);if(wh==null){noKey=true;return;}delWh.push(wh);});
+ const chunks=(a,n)=>{const out=[];for(let i=0;i<a.length;i+=n)out.push(a.slice(i,i+n));return out;};
+ if(updWh.length===1){S.push(oneRowGuard(tbl,updWh[0]));S.push(updSql[0]);}
+ else if(updWh.length){chunks(updWh,200).forEach(c=>S.push(oneRowGuardMany(tbl,c)));S.push(...updSql);}
+ if(delWh.length===1){S.push(oneRowGuard(tbl,delWh[0]));S.push('DELETE FROM '+tbl+' WHERE '+delWh[0]+' LIMIT 1;');}
+ else if(delWh.length){chunks(delWh,200).forEach(c=>{S.push(oneRowGuardMany(tbl,c));S.push('DELETE FROM '+tbl+' WHERE '+c.map(w=>'('+w+')').join(' OR ')+' LIMIT '+c.length+';');});}
  if(noKey){toast('Nothing was saved: the result does not include every key column ('+t.pk.join(', ')+'), so the rows cannot be found exactly. Include the key in the query.',true);return;}
  t.pending.ins.forEach(row=>{const cols=Object.keys(row);if(!cols.length)return;S.push('INSERT INTO '+tbl+' ('+cols.map(qid).join(',')+') VALUES ('+cols.map(c=>litForCol(t.cols.indexOf(c),row[c])).join(',')+');');});
  // Reachable even though Apply is only enabled when something's pending: a +Row with every
@@ -5173,7 +5194,8 @@ async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const 
  // above), and if that's the ONLY thing pending, S ends up empty with nothing to tell the user
  // apply didn't silently do something - say so instead of just doing nothing visibly.
  if(!S.length){toast('Nothing to apply - new row(s) with no values are ignored. Fill in a column, or Revert to remove them.',true);return;}
- const changes=S.filter(s=>!s.startsWith('SELECT 1 FROM (SELECT 1 AS x')).length;
+ // Rows, not statements: several deletes go in one statement.
+ const changes=S.filter(s=>!s.startsWith('SELECT 1 FROM (SELECT 1 AS x')&&!s.startsWith('DELETE FROM')).length+delWh.length;
  if(preview){viewText('SQL that Apply would run - '+changes+' change'+(changes===1?'':'s'),S.join('\n'),{readonly:true});return false;}
  log('APPLY:\n'+S.join('\n'));
  // Runs as one transaction, so a failure part-way leaves the table exactly as it was.

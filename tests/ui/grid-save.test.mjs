@@ -34,7 +34,7 @@ function extractConst(src, name) {
   return src.slice(start, src.indexOf(';\n', start) + 1);
 }
 
-const NAMES = ['applyChanges', 'keyWhere', 'oneRowGuard', 'litAs', 'lit', 'strLit',
+const NAMES = ['applyChanges', 'keyWhere', 'oneRowGuard', 'oneRowGuardMany', 'litAs', 'lit', 'strLit',
   'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput'];
 const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n');
 
@@ -65,6 +65,21 @@ test('every update and delete is preceded by a guard on the same WHERE', async (
     guardOf("`id`='2'"), "DELETE FROM `d`.`t` WHERE `id`='2' LIMIT 1;",
   ]);
   assert.ok(r.toasts.some(m => m === 'Applied 2 change(s).'), 'the guards are not counted as changes: ' + r.toasts);
+});
+
+// Many changes: the checks go 200 to a statement, and so do deletes, which come after the updates -
+// two round trips per change made deleting thousands of rows take minutes over a slow link.
+test('several changes are checked together, and deletes go together after the updates', async () => {
+  const r = await apply({ cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a'], ['2', 'b'], ['3', 'c'], ['4', 'd']],
+                          upd: { '0:1': 'x', '1:1': 'y' }, del: [2, 3], types: { id: 'int', v: 'varchar' } });
+  const many = ws => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE ' + ws.map(w => '(SELECT COUNT(*) FROM `d`.`t` WHERE ' + w + ') <> 1').join(' OR ') + ' INTO @nobs_one_row;';
+  assert.deepEqual(r.stmts, [
+    many(["`id`='1'", "`id`='2'"]),
+    "UPDATE `d`.`t` SET `v`='x' WHERE `id`='1' LIMIT 1;", "UPDATE `d`.`t` SET `v`='y' WHERE `id`='2' LIMIT 1;",
+    many(["`id`='3'", "`id`='4'"]),
+    "DELETE FROM `d`.`t` WHERE (`id`='3') OR (`id`='4') LIMIT 2;",
+  ]);
+  assert.ok(r.toasts.includes('Applied 4 change(s).'), 'rows are counted, not statements: ' + r.toasts);
 });
 
 test('a FLOAT key is matched by its text', async () => {
