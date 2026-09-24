@@ -5274,6 +5274,10 @@ function csvNullHint(rows){
  if(!rows.some(r=>r.some(v=>v===null)))return;
  toast('NULLs were written as '+nm+'. Clear "NULL value" in the Export dialog to copy them as blanks instead.');
 }
+// A value that is the NULL marker's own text is written the same way as NULL, and the import reads
+// it back as NULL. Nothing in a CSV can tell the two apart, so it is said when it happens.
+function csvMarkerClash(rows){const nm=csvNullMarker();if(!nm)return;const n=rows.reduce((a,r)=>a+r.filter(v=>v===nm).length,0);
+ if(n){const m=n+' value(s) are the text '+nm+', which this CSV also uses for NULL - importing it will read them as NULL. Choose another NULL value under Export if they must stay text.';toast(m,true);log(m);}}
 function csvNullMarker(){ const el=$('expNullVal'); return el?el.value:'\\N'; }
 // A bare \r (no following \n) has to be quoted too, not just \n - both this app's own CSV
 // importer and a spreadsheet's CSV rules treat a lone \r as ending the row, so an unquoted one
@@ -5363,14 +5367,14 @@ function toggleSel(id,ri,ch){const t=T(id);if(!t.selected)t.selected=new Set();i
 function selAll(id,ch){const t=T(id);if(!t.selected)t.selected=new Set();const view=viewIndices(id);view.forEach(ri=>{if(ch)t.selected.add(ri);else t.selected.delete(ri);});renderBody(id);updateEditBar(id);}
 function copySel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}copyText(bTSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (TSV).').then(st=>{if(st!=='failed')tsvShapeHint(rows,'the text NULL');});}
 function copySelCsv(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}copyText(bCSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (CSV).').then(st=>{if(st!=='failed')csvNullHint(rows);});}
-async function csvGrid(id){const t=T(id);if(!t.cols)return;if(wholeTableShown(t)){exportFull(t.db,t.table,'csv');return;}const a=await allResultRows(id);if(!a)return;dl(bCSV(a.cols,a.rows),(t.table||'result')+'.csv');log('Exported '+a.rows.length+' row(s) to CSV.');}
+async function csvGrid(id){const t=T(id);if(!t.cols)return;if(wholeTableShown(t)){exportFull(t.db,t.table,'csv');return;}const a=await allResultRows(id);if(!a)return;dl(bCSV(a.cols,a.rows),(t.table||'result')+'.csv');csvMarkerClash(a.rows);log('Exported '+a.rows.length+' row(s) to CSV.');}
 async function insGrid(id){const t=T(id);if(!t.cols)return;if(wholeTableShown(t)){exportFull(t.db,t.table,'inserts');return;}const a=await allResultRows(id);if(!a)return;const bc=await gridBinCols(id);
  // A result bound to one table is written as INSERTs into that table, without its generated
  // columns, which cannot be given a value.
  const info=t.table?await tableColumnsInfo(t.db,t.table):null;const gen=new Set((info||[]).filter(c=>c.generated).map(c=>c.name.toLowerCase()));
  const keep=a.cols.map((c,i)=>i).filter(i=>!gen.has(String(a.cols[i]).toLowerCase()));const tbl=t.table?(qid(t.db)+'.'+qid(t.table)):'`table`';
  const s=a.rows.map(r=>insertSkipExisting(tbl,keep.map(i=>a.cols[i]),'('+keep.map(i=>litAs(r[i],bc?bc[i]:null)).join(',')+')')).join('\n');dl(insertsFile(s),(t.table||'result')+'_inserts.sql');log('Exported '+a.rows.length+' row(s) as INSERTs.');}
-function csvSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}dl(bCSV(t.cols,rows),(t.table||'result')+'_selected.csv');log('Exported '+rows.length+' selected row(s) to CSV.');}
+function csvSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}dl(bCSV(t.cols,rows),(t.table||'result')+'_selected.csv');csvMarkerClash(rows);log('Exported '+rows.length+' selected row(s) to CSV.');}
 async function insSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}const tbl=t.table?(qid(t.db)+'.'+qid(t.table)):'`table`';const bc=await gridBinCols(id);
  // A generated column cannot be given a value, so it is left out.
  const info=t.table?await tableColumnsInfo(t.db,t.table):null;const gen=new Set((info||[]).filter(c=>c.generated).map(c=>c.name.toLowerCase()));
@@ -5996,6 +6000,19 @@ async function grantRevokeDialog(mode){
  return await p;
 }
 async function lockUser(lock){const v=window._selUser;if(!v){toast('Select a user first.',true);return;}const[u,h]=v.split('\x01');const verb=lock?'LOCK':'UNLOCK';if(await exec("ALTER USER "+strLit(u)+"@"+strLit(h)+" ACCOUNT "+verb,(lock?'Locked ':'Unlocked ')+u+'@'+h)){await usersReloadKeep();}}
+// The IDENTIFIED VIA clause of a MariaDB account with several sign-in methods, each password-based
+// one given pw and every other kept as it is; null when the account has only one method.
+function mariaAuthChain(createUser,pw){
+ const bare=sqlBlankStringsAndComments(createUser),at=bare.search(/\bIDENTIFIED\s+VIA\s/i);if(at<0)return null;
+ const start=at+bare.slice(at).match(/^IDENTIFIED\s+VIA\s+/i)[0].length;
+ const endRel=bare.slice(start).search(/\s(REQUIRE|WITH|PASSWORD\s+EXPIRE|ACCOUNT|DEFAULT\s+ROLE)\b/i);
+ const end=endRel<0?bare.length:start+endRel;
+ const parts=[];let from=start,re=/\sOR\s/ig,m;const seg=bare.slice(start,end);
+ while((m=re.exec(seg))){parts.push(createUser.slice(from,start+m.index).trim());from=start+m.index+m[0].length;}
+ parts.push(createUser.slice(from,end).trim());
+ if(parts.length<2)return null;
+ const PW=['mysql_native_password','ed25519','parsec','caching_sha2_password'];
+ return 'IDENTIFIED VIA '+parts.map(x=>{const pl=(x.match(/^\w+/)||[''])[0].toLowerCase();return PW.includes(pl)?pl+' USING PASSWORD('+strLit(pw)+')':x;}).join(' OR ');}
 async function changePassword(){const v=window._selUser;if(!v){toast('Select a user first.',true);return;}const parts=v.split('\x01');const u=parts[0],h=parts[1];
  const res=await inputBox({title:'Change password for '+u+'@'+h,okText:'Change',fields:[{key:'pw',label:'New password',type:'password',value:''},{key:'pw2',label:'Confirm new password',type:'password',value:''}]});
  if(!res)return;if(!res.pw){toast('Password cannot be empty.',true);return;}if(res.pw!==res.pw2){toast('Passwords do not match.',true);return;}
@@ -6005,7 +6022,14 @@ async function changePassword(){const v=window._selUser;if(!v){toast('Select a u
  // like hex as raw bytes instead of the literal text the user typed.
  // MariaDB's IDENTIFIED BY switches an ed25519 account to its default plugin; its plugin is named.
  const sa=window._selAcct,keep=window.mariadb&&sa&&['ed25519','parsec'].includes(sa.plugin)?sa.plugin:'';
- const sql="ALTER USER "+strLit(u)+"@"+strLit(h)+" "+identifiedBy(keep,res.pw)+";";
+ let ident=identifiedBy(keep,res.pw);
+ // A MariaDB account can sign in more than one way - root@localhost on Linux is usually
+ // "unix_socket OR mysql_native_password". IDENTIFIED BY replaces them all with the password
+ // (measured: the other method was gone afterwards), so such an account keeps its chain and only
+ // the password-based methods in it get the new password.
+ if(window.mariadb){const cu=await api('/api/query',{sql:'SHOW CREATE USER '+strLit(u)+'@'+strLit(h)});
+  const chain=cu.ok&&cu.rows.length?mariaAuthChain(String(cu.rows[0][0]),res.pw):null;if(chain)ident=chain;}
+ const sql="ALTER USER "+strLit(u)+"@"+strLit(h)+" "+ident+";";
  const r=await api('/api/exec',{sql:sql});
  if(r.ok){log('Password changed for '+u+'@'+h+'.');toast('Password changed for '+u+'@'+h+'.','ok');}else{toast('Failed: '+(r.error||'unknown'),true);}}
 async function dropUser(){const a=window._selAcct;if(!a)return;const what=a.role?'DROP ROLE':'DROP USER';if(!(await ask(what+' '+uName(a)+' ?')))return;if(await exec(what+' '+uRef(a),a.role?'Dropped role':'Dropped user'))openUsers();}

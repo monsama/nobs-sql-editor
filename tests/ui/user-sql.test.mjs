@@ -32,7 +32,7 @@ function extractFunction(src, name) {
 }
 
 const NAMES = ['strLit', 'lit', 'newUser', 'dropUser', 'grantUser', 'revokeUser', 'lockUser',
-  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql'];
+  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql', 'sqlBlankStringsAndComments', 'mariaAuthChain'];
 const bundle = NAMES.map(n => extractFunction(html, n)).join('\n');
 
 // Builds the dialog functions with everything they touch stubbed out, and returns both the
@@ -54,7 +54,7 @@ function harness({ dialog = {}, selected = null, mariadb = false } = {}) {
     window: { _selUser: selected, _selAcct: selected ? { u, h, role: false } : null, mariadb },
   };
   const keys = Object.keys(env);
-  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,cloneGrantSql};`)(
+  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,cloneGrantSql,mariaAuthChain};`)(
     ...keys.map(k => env[k]));
   return { sql, fns };
 }
@@ -527,4 +527,15 @@ test('editWidgetFor actually applies that round-trip test', () => {
   const body = extractFunction(html, 'editWidgetFor');
   assert.match(body, /nativeDateToMysql\(/,
     'editWidgetFor must convert back and compare, not just check the conversion produced something');
+});
+
+// A MariaDB account that signs in more than one way keeps every way when its password changes:
+// IDENTIFIED BY replaced them all (measured on 12.3 - a gssapi alternative was gone afterwards).
+test('a password change keeps the other ways a MariaDB account signs in', () => {
+  const { fns } = harness({ mariadb: true });
+  assert.equal(fns.mariaAuthChain("CREATE USER `r`@`localhost` IDENTIFIED VIA mysql_native_password USING 'invalid' OR unix_socket", 'n3w'),
+    "IDENTIFIED VIA mysql_native_password USING PASSWORD('n3w') OR unix_socket");
+  assert.equal(fns.mariaAuthChain("CREATE USER `u`@`%` IDENTIFIED VIA gssapi USING 'u OR x' OR ed25519 USING 'abc' REQUIRE SSL", 'p'),
+    "IDENTIFIED VIA gssapi USING 'u OR x' OR ed25519 USING PASSWORD('p')", 'an OR inside a quoted value is not a separator');
+  assert.equal(fns.mariaAuthChain("CREATE USER `a`@`%` IDENTIFIED BY PASSWORD '*AB'", 'x'), null, 'a single method is changed the ordinary way');
 });

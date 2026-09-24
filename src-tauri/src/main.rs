@@ -4597,6 +4597,7 @@ async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
             w.write_all(hdr.as_bytes()).map_err(|e| e.to_string())?; w.write_all(b"\n").map_err(|e| e.to_string())?;
         }
         let mut n: usize = 0;
+        let mut clash: usize = 0;
         let mut batch: Vec<String> = Vec::new();
         let mut cancelled = false;
         for rr in result.by_ref() {
@@ -4612,6 +4613,9 @@ async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
                     batch.clear();
                 }
             } else {
+                // A value that is the NULL marker's own text is written as NULL is, and comes back
+                // from the import as NULL; nothing in a CSV tells them apart, so it is counted and said.
+                if !null_marker.is_empty() { clash += cells.iter().filter(|c| c.as_deref() == Some(null_marker.as_str())).count(); }
                 let line = cells.iter().map(csv_field).collect::<Vec<_>>().join(",");
                 w.write_all(line.as_bytes()).map_err(|e| e.to_string())?; w.write_all(b"\n").map_err(|e| e.to_string())?;
             }
@@ -4631,7 +4635,8 @@ async fn export_table_run(app: Option<tauri::AppHandle>, req: Value) -> R {
         }
         if let Some(a) = &app { let _ = a.emit("export_progress", json!({"rows": n, "done": true})); }
         log_line(&format!("EXPORT ok: {} rows from {} to {}", n, tbl, file));
-        Ok(json!({"ok":true,"message":format!("Exported {} row(s) to {}", n, file)}))
+        let note = if clash > 0 { format!(" - {} value(s) are the text {}, which this file also uses for NULL: importing it will read them as NULL. Choose another NULL value if they must stay text.", clash, null_marker) } else { String::new() };
+        Ok(json!({"ok":true,"message":format!("Exported {} row(s) to {}{}", n, file, note)}))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -6562,6 +6567,28 @@ mod csv_null_tests {
         assert!(e.contains("already written") && !e.contains("rolled back"), "the failed Append must say what stayed: {}", e);
         q("DROP TABLE IF EXISTS csv_myisam").await;
         let _ = std::fs::remove_file(&file);
+    }
+
+    // MariaDB's UUID, INET4 and INET6 hold text-like values. Flagged as binary, the grid would show
+    // them as hex and key an edit by a hex literal the column does not compare equal to.
+    #[tokio::test]
+    #[ignore]
+    async fn mariadb_uuid_and_inet_columns_are_not_binary() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let q = |sql: &str| { let c = conn.clone(); let s = sql.to_string();
+            async move { query(json!({"sql":s,"conn":c,"db":"nobs_test"})).await.unwrap() } };
+        let v = q("SELECT VERSION()").await;
+        let ver = v["rows"][0][0].as_str().unwrap_or("").to_string();
+        if !ver.contains("MariaDB") { eprintln!("not MariaDB ({ver}) - skipping"); return; }
+        q("DROP TABLE IF EXISTS uuid_inet").await;
+        q("CREATE TABLE uuid_inet (u UUID PRIMARY KEY, a INET6, b INET4)").await;
+        q("INSERT INTO uuid_inet VALUES ('123e4567-e89b-12d3-a456-426614174000', '2001:db8::1', '10.0.0.1')").await;
+        let r = q("SELECT u, a, b FROM uuid_inet").await;
+        println!("  {}", r);
+        let bin: Vec<bool> = r["binaryCols"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+        assert_eq!(bin, vec![false, false, false], "{r}");
+        assert_eq!(r["rows"][0][0].as_str(), Some("123e4567-e89b-12d3-a456-426614174000"), "{r}");
+        q("DROP TABLE IF EXISTS uuid_inet").await;
     }
 
     // A NULL and an empty string both came out as an empty field, so a CSV could not tell them
