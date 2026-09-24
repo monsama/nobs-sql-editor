@@ -673,7 +673,8 @@ fn explain_conn_error(ssl: &str, has_ca: bool, err: &str) -> String {
     // PAM and LDAP accounts. The server asked for the password as typed, and this connection is not
     // encrypted (build_conn answers that only over TLS) - or it asked through MariaDB's "dialog"
     // plugin, which only the client tools can answer.
-    if err.contains("mysql_clear_password must be enabled") {
+    // The driver words it one way on the first request and another on a switch to it.
+    if err.contains("mysql_clear_password must be enabled") || err.contains("Unknown authentication protocol: `mysql_clear_password`") {
         return format!("{err}\n\nThis account signs in with its password sent as typed (PAM or LDAP), and \
 this connection is not encrypted, so the password was not sent. Set SSL to \"required\" (or a verify \
 mode) on a server that has TLS.");
@@ -7821,6 +7822,8 @@ mod ssl_tests {
     fn a_pam_sign_in_that_cannot_happen_says_what_would_make_it() {
         let clear = explain_conn_error("disabled", false, "Driver error: `mysql_clear_password must be enabled on the client side'");
         assert!(clear.contains("not encrypted") && clear.contains("\"required\""), "{clear}");
+        let switched = explain_conn_error("disabled", false, "DriverError { Unknown authentication protocol: `mysql_clear_password` }");
+        assert!(switched.contains("not encrypted"), "{switched}");
         let dialog = explain_conn_error("default", false, "Driver error: `Unknown authentication protocol: `dialog`'");
         assert!(dialog.contains("pam_use_cleartext_plugin=ON"), "{dialog}");
     }

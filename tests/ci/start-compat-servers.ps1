@@ -126,6 +126,14 @@ foreach ($spec in $Servers) {
             Invoke-Sql $client $port "ALTER USER 'root'@'localhost' IDENTIFIED BY '$Password'; CREATE USER 'root'@'%' IDENTIFIED BY '$Password'; GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;" -NoPassword
         }
     }
+    # MariaDB before 10.4 keeps its accounts in MyISAM tables, and 10.2.7 on Windows corrupted the
+    # index of mysql.user in the middle of a run - locally and in CI, on a fresh data directory -
+    # which then shows as doubled SHOW GRANTS lines and "Index for table 'user' is corrupt". Aria
+    # (crash-safe, what 10.4 on uses for them) does not; that is the server's bug, not the app's.
+    if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
+        $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
+        Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
+    }
     Invoke-Sql $client $port -File (Resolve-Path $Fixture).Path
     Invoke-Sql $client $port 'SELECT VERSION(), @@lower_case_table_names, (SELECT COUNT(*) FROM nobs_test.ro_canary)'
     $key = $name.ToUpper()
