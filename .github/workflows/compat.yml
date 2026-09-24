@@ -1,0 +1,179 @@
+name: compat
+
+# The live suite and the GUI scenarios against servers the main suite (test.yml: current MariaDB
+# and MySQL) does not cover, and PAM sign-in. What these have found so far, each fixed and now
+# checked here:
+#   - MySQL 5.7: the app's MySQL 8.4 client tools asked for utf8mb4 with a collation 5.7 does not
+#     know, 5.7 fell back to latin1, and a data-only export turned every character latin1 cannot
+#     hold into "?"; a 5.7 dump's import was reported with a warning about NO_AUTO_CREATE_USER.
+#   - MariaDB 10.2: a mariadb-dump file's sandbox line failed its client too; Create user offered
+#     password expiry the server does not have and left the account half made; Clone copied no
+#     grants from the 'user'@'host' form 10.2 and 5.7 write.
+#   - MySQL 9.4 with lower_case_table_names=2: Compare offered a table and a column that differ
+#     only in case as missing; a VECTOR column was shown as bytes but not treated as binary.
+#   - PAM: the app could not sign in at all (mysql_clear_password was never enabled), and the
+#     dialog plugin failed with a message that said nothing about what to do.
+# Tests use what each server has and leave out only what it cannot have (INVISIBLE, CHECK, roles,
+# ACCOUNT LOCK, TLS on the 10.2 zip) - see caps in main.rs and G.caps in tests/gui/prelude.js.
+#
+# The PowerShell edition runs the same servers from its own compat.yml.
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  # Weekly as well: the old server archives live on the vendors' archive sites, and a moved file
+  # should be noticed before a change needs this. Monday morning, after test.yml's run.
+  schedule:
+    - cron: '47 6 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  old-and-new-servers:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mysql57
+            spec: 'mysql57:mysql:5.7.44:3357'
+          - name: maria102
+            spec: 'maria102:mariadb:10.2.7:3102'
+          # lower_case_table_names=2 keeps the case a name was given and compares ignoring it. It
+          # is only accepted on a file system that ignores case, which is why this runs on Windows.
+          - name: mysql94-lctn2
+            spec: 'mysql94:mysql:9.4.0:3394:lctn2'
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Cache server downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            C:\nobs-ci\cache
+            C:\nobs-compat\cache
+          key: nobs-compat-${{ matrix.name }}-${{ hashFiles('tests/ci/start-test-servers.ps1', 'tests/ci/start-compat-servers.ps1') }}
+
+      # Current MariaDB and MySQL, for their client tools: MariaDB's go where the apps' own download
+      # puts them, MySQL is unpacked where a real installation lives. The server under test is then
+      # reached with the tools a user of this app has.
+      - name: Client tools (and the main suite's servers)
+        shell: pwsh
+        run: ./tests/ci/start-test-servers.ps1
+
+      - name: Start ${{ matrix.name }}
+        shell: pwsh
+        run: ./tests/ci/start-compat-servers.ps1 -Servers '${{ matrix.spec }}'
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Build the app for the GUI tests
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Live tests
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          $env:NOBS_TEST_DSN = $env:NOBS_COMPAT_DSN
+          cargo test -- --include-ignored --test-threads=1
+
+      - name: GUI tests
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $env:NOBS_TEST_DSN = $env:NOBS_COMPAT_DSN
+          $env:NOBS_GUI_SCREENSHOT = Join-Path $env:RUNNER_TEMP 'screen.png'
+          # Exit 3: the run never reached a scenario (see test.yml), so trying again hides nothing.
+          node tests/gui/run.mjs --app desktop --target src-tauri/target/debug/nobs-sql-editor.exe
+          if ($LASTEXITCODE -eq 3) {
+            "  the app never started - trying once more (exit 3)"
+            node tests/gui/run.mjs --app desktop --target src-tauri/target/debug/nobs-sql-editor.exe
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Screen at failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gui-screen-${{ matrix.name }}
+          path: ${{ runner.temp }}/screen*.png
+
+      - name: Server log
+        if: ${{ failure() }}
+        shell: pwsh
+        run: Get-ChildItem C:\nobs-compat -Recurse -Filter *.err | ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 60 }
+
+  # MariaDB's auth_pam has no Windows build, so this runs on Linux with the server in Docker - two
+  # of them: one with pam_use_cleartext_plugin=ON, which PAM then asks through mysql_clear_password
+  # (the only way the app's driver can answer), and one without, which asks through the dialog
+  # plugin (which it cannot, and says so). PAM checks the password with pam_exec against a fixed
+  # one, so a wrong password is refused - pam_permit would let anything in and prove nothing.
+  # Both servers make their own TLS certificate (MariaDB 11.4 on), which the app requires before it
+  # sends a password as typed.
+  pam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start MariaDB with PAM
+        run: |
+          set -e
+          for p in 3406:ON 3407:OFF; do
+            port=${p%%:*}; clear=${p##*:}
+            docker run -d --name pam$port -p $port:3306 -e MARIADB_ROOT_PASSWORD=CiTest.123 mariadb:11.8 \
+              --plugin-load-add=auth_pam --pam-use-cleartext-plugin=$clear
+          done
+          # pam_exec hands the password to the check on stdin, with a NUL after it.
+          printf '%s\n' '#!/bin/sh' 'pw=$(tr -d "\000")' '[ "$pw" = "Pam-pw-1" ]' > nobs-pam-check
+          printf '%s\n' 'auth required pam_exec.so expose_authtok quiet /usr/local/bin/nobs-pam-check' 'account required pam_permit.so' > mariadb.pam
+          for port in 3406 3407; do
+            docker cp nobs-pam-check pam$port:/usr/local/bin/nobs-pam-check
+            docker exec pam$port chmod 755 /usr/local/bin/nobs-pam-check
+            docker cp mariadb.pam pam$port:/etc/pam.d/mariadb
+            for i in $(seq 60); do docker exec pam$port mariadb -uroot -pCiTest.123 -e 'SELECT 1' >/dev/null 2>&1 && break; sleep 2; done
+            docker exec pam$port mariadb -uroot -pCiTest.123 -e "
+              CREATE USER nobs_pam@'%' IDENTIFIED VIA pam USING 'mariadb';
+              CREATE DATABASE nobs_pam; GRANT ALL ON nobs_pam.* TO nobs_pam@'%';
+              SELECT VERSION(), @@have_ssl, @@pam_use_cleartext_plugin;"
+          done
+
+      # The Tauri app's own build needs the webview and D-Bus headers even for its tests.
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev libssl-dev pkg-config mariadb-client
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: pam
+
+      - name: PAM sign-in
+        working-directory: src-tauri
+        env:
+          NOBS_TEST_PAM: '127.0.0.1:3406:nobs_pam:Pam-pw-1'
+          NOBS_TEST_PAM_DIALOG: '127.0.0.1:3407:nobs_pam:Pam-pw-1'
+          MYSQL_BIN: mariadb
+        run: cargo test pam_tests -- --ignored --nocapture --test-threads=1
+
+      - name: Server logs
+        if: ${{ failure() }}
+        run: for c in pam3406 pam3407; do echo "== $c"; docker logs --tail 60 $c; done

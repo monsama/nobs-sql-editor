@@ -8,12 +8,13 @@
   const sv = await G.A('/api/conn-save', { name: PROF, conn: getConn(), accent: '#3b82f6', env: 'test', readonly: false, savepw: true });
   if (!G.check('a connection profile for Compare is saved', sv.ok, sv.error)) return G.report();
   try {
+    const { inv } = await G.caps();
     await G.run(`DROP DATABASE IF EXISTS ${S}; DROP DATABASE IF EXISTS ${T};
 CREATE DATABASE ${S} DEFAULT CHARACTER SET utf8mb4; CREATE DATABASE ${T} DEFAULT CHARACTER SET utf8mb4;
 CREATE TABLE ${S}.t (id INT PRIMARY KEY,
   name VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL COMMENT 'customer name',
   a INT NULL DEFAULT 7,
-  secret VARCHAR(10) NULL INVISIBLE,
+  secret VARCHAR(10) NULL${inv},
   st ENUM('a','b') NOT NULL DEFAULT 'b',
   upd TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   g INT GENERATED ALWAYS AS (a * 2) VIRTUAL) DEFAULT CHARSET=utf8mb4;

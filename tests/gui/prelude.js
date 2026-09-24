@@ -23,6 +23,21 @@
   G.one = async (sql, db) => { const r = await G.q(sql, db); return r[0] ? r[0][0] : null; };
   G.run = async (sql, db) => { const r = await G.A('/api/script', { sql, db }); if (!r.ok) throw new Error(r.error); return r; };
 
+  // What the server supports. The compatibility suite (compat.yml) runs these scenarios against
+  // MySQL 5.7 and MariaDB 10.2 as well; a scenario uses what the server has and leaves out only
+  // what it cannot have. `inv` is " INVISIBLE" where the server has it - else the column is plain.
+  G.caps = async () => {
+    if (G._caps) return G._caps;
+    const v = String(await G.one('SELECT VERSION()'));
+    const maria = /mariadb/i.test(v), n = (v.match(/^(\d+)\.(\d+)\.(\d+)/) || [0, 0, 0, 0]).slice(1).map(Number);
+    const since = (my, ma) => { const w = maria ? ma : my; for (let i = 0; i < 3; i++) if (n[i] !== w[i]) return n[i] > w[i]; return true; };
+    const c = { version: v, maria, invisible: since([8, 0, 23], [10, 3, 3]), roles: since([8, 0, 0], [10, 0, 5]),
+      lock: since([5, 7, 6], [10, 4, 2]), expire: since([5, 7, 4], [10, 4, 3]), windows: since([8, 0, 2], [10, 2, 0]),
+      vector: !maria && since([9, 0, 0], [99, 0, 0]) };
+    c.inv = c.invisible ? ' INVISIBLE' : '';
+    return (G._caps = c);
+  };
+
   // Checks. A scenario records them and ends with `return G.report()`.
   G.checks = [];
   G.check = (name, ok, detail) => { G.checks.push({ name, ok: !!ok, detail: ok ? undefined : (typeof detail === 'string' ? detail : JSON.stringify(detail)) }); return !!ok; };

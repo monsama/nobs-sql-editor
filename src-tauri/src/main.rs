@@ -62,10 +62,11 @@ fn set_aside_partial(file: &str) -> String {
 // The warnings in what mysql printed with --show-warnings, less the ones about the dump's own
 // spelling that change no data: deprecated syntax (1287), the utf8/utf8mb3 and NATIONAL aliases
 // (3719, 3720, 3778), and the integer display width (1681) - MySQL 8 raises one of those for every
-// table in a dump that says "utf8" - and a value given for a generated column (1906), which the
-// server computes again anyway; MariaDB's mysqldump writes one into every such row.
+// table in a dump that says "utf8" - a value given for a generated column (1906), which the
+// server computes again anyway; MariaDB's mysqldump writes one into every such row - and MySQL
+// 5.7's note that NO_AUTO_CREATE_USER is deprecated (3090), raised by every 5.7 dump's sql_mode.
 fn import_warnings(out: &str) -> Vec<String> {
-    const HARMLESS: &[&str] = &["1287", "1681", "1906", "3719", "3720", "3778"];
+    const HARMLESS: &[&str] = &["1287", "1681", "1906", "3090", "3719", "3720", "3778"];
     out.lines().map(|l| l.trim())
         .filter(|l| l.starts_with("Warning (Code "))
         .filter(|l| { let code: String = l["Warning (Code ".len()..].chars().take_while(|c| c.is_ascii_digit()).collect(); !HARMLESS.contains(&code.as_str()) })
@@ -558,8 +559,14 @@ fn build_conn(connj: &Value) -> Result<Conn, String> {
     // Import, which run the client tools, did use it. Plaintext is the fallback only when TLS
     // itself is what failed (the server has none, or the handshake did not work); a refused
     // login is not tried a second time, which could count twice against an account lockout.
+    //
+    // mysql_clear_password - how a PAM or LDAP account signs in (MariaDB with
+    // pam_use_cleartext_plugin=ON, MySQL Enterprise) - sends the password as it is typed, so it is
+    // answered only on a connection that is encrypted: "required" and the verify modes always are,
+    // and "default" on its TLS attempt. The plaintext fallback, and "disabled", refuse it.
+    if ssl == "required" || ssl_mode_verifies(ssl) { ob = ob.enable_cleartext_plugin(true); }
     if ssl == "default" {
-        let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true)));
+        let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true))).enable_cleartext_plugin(true);
         match Conn::new(Opts::from(tls)) {
             Ok(c) => return Ok(c),
             Err(e) if tls_was_the_problem(&e) => {}
@@ -663,6 +670,20 @@ Check the table before applying these changes again.")
 // different mode, not a different file, and without saying so the natural next move is to keep
 // swapping CA files that were never the problem.
 fn explain_conn_error(ssl: &str, has_ca: bool, err: &str) -> String {
+    // PAM and LDAP accounts. The server asked for the password as typed, and this connection is not
+    // encrypted (build_conn answers that only over TLS) - or it asked through MariaDB's "dialog"
+    // plugin, which only the client tools can answer.
+    if err.contains("mysql_clear_password must be enabled") {
+        return format!("{err}\n\nThis account signs in with its password sent as typed (PAM or LDAP), and \
+this connection is not encrypted, so the password was not sent. Set SSL to \"required\" (or a verify \
+mode) on a server that has TLS.");
+    }
+    if err.contains("Unknown authentication protocol: `dialog`") {
+        return format!("{err}\n\nThis account signs in through PAM with MariaDB's dialog plugin, which \
+this app cannot answer. On the server, SET GLOBAL pam_use_cleartext_plugin=ON (and in its config file) \
+makes PAM ask for the password in a way the app can answer - over an encrypted connection, so set SSL \
+to \"required\".");
+    }
     let tls_related = err.contains("TlsError") || err.contains("certificate") || err.contains("Certificate");
     if !ssl_mode_verifies(ssl) || !tls_related { return err.to_string(); }
     let name_mismatch = err.contains("CN name does not match") || err.contains("name mismatch")
@@ -692,6 +713,8 @@ fn is_binaryish(c: &Column) -> bool {
     match c.column_type() {
         // BIT is always rendered as a hex literal
         MYSQL_TYPE_BIT => true,
+        // MySQL 9's VECTOR: 4-byte floats, read and written as their bytes.
+        MYSQL_TYPE_VECTOR => true,
         // BLOB/TEXT and CHAR/VARCHAR share type codes; only charset 63 (binary) is real binary data.
         // TEXT columns (e.g. the "OK" status from CHECK/ANALYZE TABLE) have a real charset -> keep as text.
         MYSQL_TYPE_BLOB | MYSQL_TYPE_TINY_BLOB | MYSQL_TYPE_MEDIUM_BLOB | MYSQL_TYPE_LONG_BLOB
@@ -2083,10 +2106,21 @@ fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, Strin
     // converted UTF-8 text as if it were cp850. MariaDB's client happens to default to utf8mb4.
     // Export's --default-character-set on the command line still takes precedence.
     s += "default-character-set=utf8mb4\n";
+    // MySQL's own client from 8.0 on asks for utf8mb4 as utf8mb4_0900_ai_ci, a collation MySQL 5.7
+    // (and MariaDB) does not have, and such a server quietly falls back to its own default - latin1
+    // on a stock 5.7. A data-only dump then came out in latin1 under a "SET NAMES utf8mb4" heading
+    // and turned every character latin1 cannot hold into "?". SET NAMES on connecting takes the
+    // server's own utf8mb4 collation, on any server. "loose-" because 5.7's mysqldump has no
+    // init-command (and asks for utf8mb4 in a way 5.7 understands).
+    if !client_is_mariadb(tool) { s += "loose-init-command=SET NAMES utf8mb4\n"; }
+    // A PAM or LDAP account wants its password as typed. MySQL's client sends it only when told to,
+    // and it is told only on a connection that is encrypted, as build_conn does. (MariaDB's sends it
+    // when asked, and answers the dialog plugin as well.)
+    let ssl = connj["ssl"].as_str().unwrap_or("default");
+    if !client_is_mariadb(tool) && (ssl == "required" || ssl_mode_verifies(ssl)) { s += "loose-enable-cleartext-plugin\n"; }
     // The ssl setting used to stop at the native driver: export and import went out over whatever
     // the CLI happened to negotiate, so a connection saved as "required" - or as "disabled" - was
     // quietly something else as soon as it was dumped or loaded.
-    let ssl = connj["ssl"].as_str().unwrap_or("default");
     for line in ssl_cnf_lines(ssl, client_is_mariadb(tool)) { s += line; s += "\n"; }
     // Same CA the native driver uses, so a dump goes out under the same verification the rest of
     // the app does. MySQL's client REFUSES ssl-mode=VERIFY_* without one - "CA certificate is
@@ -2577,7 +2611,11 @@ async fn import_run(req: Value, mbin: String) -> R {
             // column, or out of range, is cut and the import carried on - logged as a plain OK.
             let mut args = vec![format!("--defaults-extra-file={}", cnf), "--show-warnings".into()];
             if req["force"].as_bool().unwrap_or(false) { args.push("--force".into()); }
-            if req["fkOff"].as_bool().unwrap_or(false) { args.push("--init-command=SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0".into()); }
+            // This replaces the options file's init-command, so it repeats its SET NAMES (cnf_file).
+            if req["fkOff"].as_bool().unwrap_or(false) {
+                let names = if client_is_mariadb(&mbin) { "" } else { "SET NAMES utf8mb4; " };
+                args.push(format!("--init-command={}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", names));
+            }
             // The "binary-mode" checkbox sends this, but nothing ever read it - checking it in
             // the UI silently did nothing, so the exact NUL-byte error its tooltip promises to
             // fix ("ASCII '\0' appeared in the statement") kept recurring with the box checked.
@@ -2594,11 +2632,12 @@ async fn import_run(req: Value, mbin: String) -> R {
             cmd.args(&args).stdout(Stdio::piped());
             let out = match dump_plan(&names, &target) {
                 DumpPlan::Refuse(why) => { log.push(format!("SKIPPED {} : {}", short(), why)); continue; }
-                // MariaDB's mariadb-dump (11.x and later) opens with a line MySQL's own client does
-                // not know - "/*M!999999\- enable the sandbox mode */" - and a MariaDB dump restored
-                // into MySQL failed at line 1 with "Unknown command '\-'". MySQL's client is given
-                // the file without it; the line only asks MariaDB's client to refuse shell commands.
-                DumpPlan::AsIs if !client_is_mariadb(&mbin) && dump_starts_with_sandbox_line(&f) => {
+                // MariaDB's mariadb-dump (11.x and later) opens with a line neither MySQL's client
+                // nor an older MariaDB one (10.2) knows - "/*M!999999\- enable the sandbox mode */" -
+                // and restoring such a dump failed at line 1 with "Unknown command '\-'". Every
+                // client is given the file without it: the line only asks the client to refuse
+                // shell commands, and the Windows client has no shell command (\!) anyway.
+                DumpPlan::AsIs if dump_starts_with_sandbox_line(&f) => {
                     let path = f.clone();
                     let feed: StdinFeed = Box::new(move |mut stdin| {
                         use std::io::{BufRead, Write};
@@ -2620,7 +2659,7 @@ async fn import_run(req: Value, mbin: String) -> R {
                 DumpPlan::Rename(from) => {
                     log.push(format!("{} holds database '{}' - restoring it into '{}' instead", short(), from, target));
                     let (path, to) = (f.clone(), target.clone());
-                    let mut skip_first = !client_is_mariadb(&mbin) && dump_starts_with_sandbox_line(&f);
+                    let mut skip_first = dump_starts_with_sandbox_line(&f);
                     let feed: StdinFeed = Box::new(move |mut stdin| {
                         use std::io::{BufRead, Write};
                         let Ok(file) = std::fs::File::open(&path) else { return };
@@ -2899,7 +2938,12 @@ async fn export_run(req: Value, dbin: String) -> R {
 
         // Flags shared by every mysqldump call in this run (no database-level flags here -
         // those differ between "table" mode, which dumps table-by-table, and db/single modes).
-        let mut common = vec![format!("--defaults-extra-file={}", cnf), format!("--default-character-set={}", o["charset"].as_str().unwrap_or("utf8mb4"))];
+        let charset = o["charset"].as_str().unwrap_or("utf8mb4");
+        let mut common = vec![format!("--defaults-extra-file={}", cnf), format!("--default-character-set={}", charset)];
+        // The chosen character set replaces the options file's SET NAMES utf8mb4 (see cnf_file).
+        if !client_is_mariadb(&dbin) && !charset.is_empty() && charset.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            common.push(format!("--loose-init-command=SET NAMES {}", charset));
+        }
         if flag("singletx") { common.push("--single-transaction".into()); }
         if flag("quick") { common.push("--quick".into()); }
         if flag("hexblob") { common.push("--hex-blob".into()); }
@@ -3150,7 +3194,7 @@ async fn importcsv(req: Value) -> R {
         // such a CSV cell as raw bytes instead of the literal text, with no error. Only the columns
         // information_schema actually reports as binary/BIT get that treatment; everything else
         // goes through sql_str_lit(), which always quotes.
-        const BIN_TYPES: &[&str] = &["binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob", "bit"];
+        const BIN_TYPES: &[&str] = &["binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob", "bit", "vector"];
         let bin_cols: std::collections::HashSet<String> = crows.iter()
             .filter(|r| {
                 let ty = r.get(1).and_then(|v| v.as_deref()).unwrap_or("").to_lowercase();
@@ -3603,61 +3647,72 @@ fn compare_table_sets(
     tgt_cols: &std::collections::BTreeMap<String, Vec<ColumnDef>>,
     request_id: Option<&str>,
 ) -> (Vec<TableDiff>, bool) {
-    let mut names: Vec<&String> = src_cols.keys().chain(tgt_cols.keys()).collect();
+    // Column names ignore case on every server, and table names do wherever the target's
+    // lower_case_table_names is 1 or 2 (Windows and macOS by default). Matched exactly, a source
+    // `Users` against a target `users` came out as a table missing from the target - whose CREATE
+    // then failed as already there - and a column `Name` against `name` as a column to add, which
+    // was refused as a duplicate. What is sent to the target names its tables as the target does.
+    let fold = tgt_conn.query_first::<u32, _>("SELECT @@lower_case_table_names").ok().flatten().unwrap_or(0) != 0;
+    let key = |n: &str| if fold { n.to_lowercase() } else { n.to_string() };
+    let src_by: std::collections::BTreeMap<String, &String> = src_cols.keys().map(|n| (key(n), n)).collect();
+    let tgt_by: std::collections::BTreeMap<String, &String> = tgt_cols.keys().map(|n| (key(n), n)).collect();
+    let mut names: Vec<&String> = src_by.keys().chain(tgt_by.keys()).collect();
     names.sort(); names.dedup();
     let mut out = Vec::new();
     let mut cancelled = false;
-    for t in names {
+    for k in names {
         if let Some(rid) = request_id { if is_compare_cancelled(rid) { cancelled = true; break; } }
-        let in_src = src_cols.contains_key(t);
-        let in_tgt = tgt_cols.contains_key(t);
-        if in_src && !in_tgt {
-            let ddl = get_create_table_sql(&mut *src_conn, src_db, t).unwrap_or_default();
-            out.push(TableDiff { name: t.clone(), status: "missing_target",
-                sql: vec![SqlStmt { stmt: ddl, checked: true, kind: "create_table" }] });
-            continue;
-        }
-        if in_tgt && !in_src {
-            out.push(TableDiff { name: t.clone(), status: "missing_source",
-                sql: vec![SqlStmt { stmt: format!("DROP TABLE {};", sql_id(t)), checked: false, kind: "drop_table" }] });
-            continue;
-        }
-        let s_cols = &src_cols[t]; let t_cols = &tgt_cols[t];
+        let (t, tt) = match (src_by.get(k).copied(), tgt_by.get(k).copied()) {
+            (Some(s), None) => {
+                let ddl = get_create_table_sql(&mut *src_conn, src_db, s).unwrap_or_default();
+                out.push(TableDiff { name: s.clone(), status: "missing_target",
+                    sql: vec![SqlStmt { stmt: ddl, checked: true, kind: "create_table" }] });
+                continue;
+            }
+            (None, Some(tn)) => {
+                out.push(TableDiff { name: tn.clone(), status: "missing_source",
+                    sql: vec![SqlStmt { stmt: format!("DROP TABLE {};", sql_id(tn)), checked: false, kind: "drop_table" }] });
+                continue;
+            }
+            (Some(s), Some(tn)) => (s, tn),
+            (None, None) => continue,
+        };
+        let s_cols = &src_cols[t]; let t_cols = &tgt_cols[tt];
         let mut defs: Option<std::collections::HashMap<String, String>> = None;
         let mut def_of = |c: &ColumnDef, conn: &mut Conn| -> String {
             let d = defs.get_or_insert_with(|| get_create_table_sql(conn, src_db, t).map(|s| column_definitions(&s)).unwrap_or_default());
             col_definition(c, d)
         };
-        let t_by_name: std::collections::HashMap<&str, &ColumnDef> = t_cols.iter().map(|c| (c.name.as_str(), c)).collect();
-        let s_by_name: std::collections::HashMap<&str, &ColumnDef> = s_cols.iter().map(|c| (c.name.as_str(), c)).collect();
+        let t_by_name: std::collections::HashMap<String, &ColumnDef> = t_cols.iter().map(|c| (c.name.to_lowercase(), c)).collect();
+        let s_by_name: std::collections::HashMap<String, &ColumnDef> = s_cols.iter().map(|c| (c.name.to_lowercase(), c)).collect();
         let mut diffs = Vec::new();
         for (ci, c) in s_cols.iter().enumerate() {
-            match t_by_name.get(c.name.as_str()) {
+            match t_by_name.get(&c.name.to_lowercase()) {
                 // In the place it has in the source, after the same column: an added column used to go
                 // at the end, so the two tables' column order - and every SELECT * and INSERT without
                 // column names - differed from then on.
                 None => {
                     let place = if ci == 0 { " FIRST".to_string() } else { format!(" AFTER {}", sql_id(&s_cols[ci - 1].name)) };
-                    diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} ADD COLUMN {}{};", sql_id(t), def_of(c, &mut *src_conn), place), checked: true, kind: "add_column" })
+                    diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} ADD COLUMN {}{};", sql_id(tt), def_of(c, &mut *src_conn), place), checked: true, kind: "add_column" })
                 }
                 Some(tc) => {
                     if c.ctype != tc.ctype || c.nullable != tc.nullable || c.default != tc.default
                         || c.collation != tc.collation || c.comment != tc.comment || c.generation != tc.generation
                         || extra_norm(&c.extra) != extra_norm(&tc.extra) {
-                        diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} MODIFY COLUMN {};", sql_id(t), def_of(c, &mut *src_conn)), checked: true, kind: "modify_column" });
+                        diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} MODIFY COLUMN {};", sql_id(tt), def_of(c, &mut *src_conn)), checked: true, kind: "modify_column" });
                     }
                 }
             }
         }
         for c in t_cols {
-            if !s_by_name.contains_key(c.name.as_str()) {
-                diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} DROP COLUMN {};", sql_id(t), sql_id(&c.name)), checked: false, kind: "drop_column" });
+            if !s_by_name.contains_key(&c.name.to_lowercase()) {
+                diffs.push(SqlStmt { stmt: format!("ALTER TABLE {} DROP COLUMN {};", sql_id(tt), sql_id(&c.name)), checked: false, kind: "drop_column" });
             }
         }
         // Keys, foreign keys and CHECK constraints were not compared at all: a table whose only
         // difference was a missing index or foreign key showed as the same.
-        if let (Some(sc), Some(tc)) = (get_create_table_sql(&mut *src_conn, src_db, t), get_create_table_sql(&mut *tgt_conn, tgt_db, t)) {
-            diffs.extend(key_diffs(t, &sc, &tc));
+        if let (Some(sc), Some(tc)) = (get_create_table_sql(&mut *src_conn, src_db, t), get_create_table_sql(&mut *tgt_conn, tgt_db, tt)) {
+            diffs.extend(key_diffs(tt, &sc, &tc));
         }
         if diffs.is_empty() { out.push(TableDiff { name: t.clone(), status: "same", sql: Vec::new() }); }
         else { out.push(TableDiff { name: t.clone(), status: "diff", sql: diffs }); }
@@ -3688,7 +3743,7 @@ fn get_table_fk_cols(conn: &mut Conn, db: &str, table: &str) -> Result<Vec<Strin
 fn binary_column_set(conn: &mut Conn, db: &str, table: &str) -> Result<std::collections::HashSet<String>, String> {
     column_set_of(conn, db, table, &["binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob", "bit",
         "geometry", "point", "linestring", "polygon", "multipoint", "multilinestring", "multipolygon",
-        "geometrycollection", "geomcollection"])
+        "geometrycollection", "geomcollection", "vector"])
 }
 // A FLOAT is read as rounded text (1.1 is stored as 1.10000002384), and that text compared to the
 // column matches nothing - so rows keyed by one could not be fetched or updated by their key. Such
@@ -5335,6 +5390,52 @@ fn main() {
 // bug silently loses or corrupts someone's data, and they are all pure
 // functions, so there is no reason not to pin their behaviour.
 // ---------------------------------------------------------------------------
+// What the test server supports, for the live tests that use a feature older servers lack. The
+// compatibility suite (.github/workflows/compat.yml) runs every live test against MySQL 5.7 and
+// MariaDB 10.2 as well; a test uses what the server has and leaves out only what it cannot have.
+#[cfg(test)]
+pub(crate) mod caps {
+    use super::*;
+    pub struct Caps { pub maria: bool, pub ver: (u32, u32, u32), pub tls: bool }
+    impl Caps {
+        fn since(&self, mysql: (u32, u32, u32), maria: (u32, u32, u32)) -> bool { self.ver >= if self.maria { maria } else { mysql } }
+        // Enforced CHECK constraints; MySQL 5.7 parses and ignores them.
+        pub fn check(&self) -> bool { self.since((8, 0, 16), (10, 2, 1)) }
+        pub fn invisible(&self) -> bool { self.since((8, 0, 23), (10, 3, 3)) }
+        pub fn roles(&self) -> bool { self.since((8, 0, 0), (10, 0, 5)) }
+        pub fn account_lock(&self) -> bool { self.since((5, 7, 6), (10, 4, 2)) }
+        // UUID arrived in MariaDB 10.7, INET4 in 10.10.
+        pub fn uuid_inet_types(&self) -> bool { self.maria && self.ver >= (10, 10, 0) }
+        // MySQL 9.0's VECTOR (MariaDB's 11.7 VECTOR is written differently and not covered here).
+        pub fn mysql_vector(&self) -> bool { !self.maria && self.ver >= (9, 0, 0) }
+        // " INVISIBLE" where the server has it, else nothing - the column is then an ordinary one.
+        pub fn invisible_kw(&self) -> &'static str { if self.invisible() { " INVISIBLE" } else { "" } }
+    }
+    pub fn of(conn: &Value) -> Caps {
+        let mut c = build_conn(conn).expect("connect to read the server's version");
+        let v: String = c.query_first("SELECT VERSION()").unwrap().unwrap_or_default();
+        let mut n = v.split(|ch: char| !ch.is_ascii_digit()).filter(|s| !s.is_empty()).map(|s| s.parse().unwrap_or(0));
+        let ver = (n.next().unwrap_or(0), n.next().unwrap_or(0), n.next().unwrap_or(0));
+        // Only a server that says outright it has no TLS counts as without it, so a TLS setup that
+        // is merely broken still fails the TLS tests.
+        let ssl: Option<(String, String)> = c.query_first("SHOW VARIABLES LIKE 'have_ssl'").unwrap_or(None);
+        Caps { maria: v.to_lowercase().contains("mariadb"), ver, tls: ssl.map(|s| s.1 != "DISABLED").unwrap_or(true) }
+    }
+    pub fn from_env() -> Option<Caps> {
+        let dsn = std::env::var("NOBS_TEST_DSN").ok()?;
+        let d: Vec<&str> = dsn.splitn(4, ':').collect();
+        if d.len() != 4 { return None; }
+        Some(of(&json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default"})))
+    }
+    // For the TLS tests: false, with a note, on a server built or started without TLS.
+    pub fn tls_or_skip() -> bool {
+        match from_env() {
+            Some(c) if !c.tls => { eprintln!("the server has no TLS (have_ssl=DISABLED) - skipping"); false }
+            _ => true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5371,6 +5472,7 @@ mod tests {
         let mut c = build_conn(&conn).unwrap();
         let v: String = c.query_first("SELECT VERSION()").unwrap().unwrap();
         let maria = v.to_lowercase().contains("mariadb");
+        let cap = caps::of(&conn);
         let role = if maria { "nobs_xfer_role".to_string() } else { "'nobs_xfer_role'@'%'".to_string() };
         let accounts = ["'nobs_xfer_plain'@'%'", "'nobs_xfer_cols'@'localhost'"];
         let clean = |c: &mut Conn| {
@@ -5387,13 +5489,16 @@ mod tests {
             out
         };
         clean(&mut c);
-        for s in [format!("CREATE ROLE {}", role), format!("GRANT SELECT ON nobs_test.* TO {}", role),
+        let lock = if cap.account_lock() { " ACCOUNT LOCK" } else { "" };
+        let setup = [format!("CREATE ROLE {}", role), format!("GRANT SELECT ON nobs_test.* TO {}", role),
                   "CREATE USER 'nobs_xfer_plain'@'%' IDENTIFIED BY 'Plain-pw-1'".into(), "GRANT INSERT ON nobs_test.* TO 'nobs_xfer_plain'@'%'".into(),
                   format!("GRANT {} TO 'nobs_xfer_plain'@'%'", role),
                   if maria { format!("SET DEFAULT ROLE {} FOR 'nobs_xfer_plain'@'%'", role) } else { format!("SET DEFAULT ROLE {} TO 'nobs_xfer_plain'@'%'", role) },
-                  "CREATE USER 'nobs_xfer_cols'@'localhost' IDENTIFIED BY 'Cols-pw-2' WITH MAX_QUERIES_PER_HOUR 100 ACCOUNT LOCK".into(),
-                  "GRANT SELECT (id) ON nobs_test.ro_canary TO 'nobs_xfer_cols'@'localhost' WITH GRANT OPTION".into()] {
-            c.query_drop(&s).unwrap_or_else(|e| panic!("setup {}: {}", s, e));
+                  format!("CREATE USER 'nobs_xfer_cols'@'localhost' IDENTIFIED BY 'Cols-pw-2' WITH MAX_QUERIES_PER_HOUR 100{lock}"),
+                  "GRANT SELECT (id) ON nobs_test.ro_canary TO 'nobs_xfer_cols'@'localhost' WITH GRANT OPTION".into()];
+        // A server without roles (MySQL 5.7) still transfers its accounts.
+        for s in setup.iter().filter(|s| cap.roles() || !s.contains("ROLE") && !s.contains(role.as_str())) {
+            c.query_drop(s).unwrap_or_else(|e| panic!("setup {}: {}", s, e));
         }
         let before = snap(&mut c);
         let others: Vec<String> = c.query("SELECT DISTINCT user FROM mysql.user WHERE user NOT LIKE 'nobs\\_xfer\\_%'").unwrap();
@@ -6108,6 +6213,7 @@ mod apply_tests {
     #[ignore]
     async fn a_failed_batch_applies_nothing() {
         let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        if !caps::of(&conn).check() { eprintln!("the server does not enforce CHECK - skipping"); return; }
         one(&conn, "UPDATE txn_child SET descr='original' WHERE id=1").await;
         let batch = "UPDATE nobs_test.txn_child SET descr='EDITED FIRST' WHERE id=1 LIMIT 1;\n\
                      UPDATE nobs_test.txn_child SET qty=-1 WHERE id=2 LIMIT 1;\n\
@@ -6692,6 +6798,27 @@ mod csv_null_tests {
         let _ = std::fs::remove_file(&file);
     }
 
+    // MySQL 9's VECTOR is a column of 4-byte floats that arrives as its bytes. The grid shows it as
+    // hex, and a value written back the way the grid writes a binary one is stored unchanged.
+    #[tokio::test]
+    #[ignore]
+    async fn a_mysql_vector_column_reads_and_writes_as_its_bytes() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        if !caps::of(&conn).mysql_vector() { eprintln!("no MySQL VECTOR type on this server - skipping"); return; }
+        let run = |sql: &str| { let c = conn.clone(); let s = sql.to_string();
+            async move { let r = script(json!({"sql":s,"conn":c,"db":"nobs_test"})).await.unwrap(); assert_eq!(r["ok"], true, "{r}"); } };
+        run("DROP TABLE IF EXISTS vec_t; CREATE TABLE vec_t (id INT PRIMARY KEY, v VECTOR(3)); INSERT INTO vec_t VALUES (1, STRING_TO_VECTOR('[1,2,3]'))").await;
+        let r = query(json!({"sql":"SELECT id, v FROM vec_t","conn":conn,"db":"nobs_test"})).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        assert_eq!(r["binaryCols"][1], true, "a VECTOR is bytes, shown as hex: {r}");
+        assert_eq!(r["rows"][0][1].as_str().map(str::to_uppercase).as_deref(), Some("0X0000803F0000004000004040"), "{r}");
+        // 1, 2 and 4 as little-endian floats - what an edited cell holding that hex writes.
+        run("UPDATE vec_t SET v = 0x0000803F0000004000008040 WHERE id = 1 LIMIT 1").await;
+        let back = query(json!({"sql":"SELECT VECTOR_TO_STRING(v) FROM vec_t","conn":conn,"db":"nobs_test"})).await.unwrap();
+        assert_eq!(back["rows"][0][0].as_str(), Some("[1.00000e+00,2.00000e+00,4.00000e+00]"), "{back}");
+        run("DROP TABLE vec_t").await;
+    }
+
     // MariaDB's UUID, INET4 and INET6 hold text-like values. Flagged as binary, the grid would show
     // them as hex and key an edit by a hex literal the column does not compare equal to.
     #[tokio::test]
@@ -6703,6 +6830,7 @@ mod csv_null_tests {
         let v = q("SELECT VERSION()").await;
         let ver = v["rows"][0][0].as_str().unwrap_or("").to_string();
         if !ver.contains("MariaDB") { eprintln!("not MariaDB ({ver}) - skipping"); return; }
+        if !caps::of(&conn).uuid_inet_types() { eprintln!("MariaDB {ver} has no UUID/INET4 types - skipping"); return; }
         q("DROP TABLE IF EXISTS uuid_inet").await;
         q("CREATE TABLE uuid_inet (u UUID PRIMARY KEY, a INET6, b INET4)").await;
         q("INSERT INTO uuid_inet VALUES ('123e4567-e89b-12d3-a456-426614174000', '2001:db8::1', '10.0.0.1')").await;
@@ -6812,7 +6940,8 @@ mod csv_null_tests {
         let one = |sql: &str| { let c = conn.clone(); let s = sql.to_string();
             async move { let r = query(json!({"sql":s,"conn":c,"db":"nobs_test"})).await.unwrap(); r["rows"][0][0].as_str().unwrap_or("").to_string() } };
         q("DROP TABLE IF EXISTS csv_x_child; DROP TABLE IF EXISTS csv_x_src; DROP TABLE IF EXISTS csv_x_dst; DROP TABLE IF EXISTS csv_x_parent").await;
-        q("CREATE TABLE csv_x_src (id INT PRIMARY KEY, a INT, secret VARCHAR(10) INVISIBLE, g INT GENERATED ALWAYS AS (a * 2) VIRTUAL)").await;
+        let inv = caps::of(&conn).invisible_kw();
+        q(&format!("CREATE TABLE csv_x_src (id INT PRIMARY KEY, a INT, secret VARCHAR(10){inv}, g INT GENERATED ALWAYS AS (a * 2) VIRTUAL)")).await;
         q("INSERT INTO csv_x_src (id, a, secret) VALUES (1, 5, 'hidden')").await;
         q("CREATE TABLE csv_x_dst LIKE csv_x_src").await;
         let dir = std::env::temp_dir();
@@ -7266,6 +7395,7 @@ mod compare_tests {
     async fn compare_rows_apply_diff_rolls_back_a_failed_batch() {
         let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
 
+        if !caps::of(&conn_j()).check() { eprintln!("the server does not enforce CHECK - skipping"); return; }
         raw("DROP DATABASE IF EXISTS cmp_diff_rt"); raw("CREATE DATABASE cmp_diff_rt");
         raw("CREATE TABLE cmp_diff_rt.t (id INT PRIMARY KEY, qty INT CHECK (qty >= 0))");
         raw("INSERT INTO cmp_diff_rt.t VALUES (1, 10), (2, 20)");
@@ -7308,9 +7438,10 @@ mod compare_tests {
     #[ignore]
     async fn compare_copies_float_keys_invisible_and_generated_columns() {
         let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let inv = caps::of(&conn_j()).invisible_kw();
         for db in ["cmp_kx_src", "cmp_kx_tgt"] {
             raw(&format!("DROP DATABASE IF EXISTS {db}")); raw(&format!("CREATE DATABASE {db}"));
-            raw(&format!("CREATE TABLE {db}.t (k FLOAT PRIMARY KEY, a INT, secret VARCHAR(10) INVISIBLE, g INT GENERATED ALWAYS AS (a * 2) STORED)"));
+            raw(&format!("CREATE TABLE {db}.t (k FLOAT PRIMARY KEY, a INT, secret VARCHAR(10){inv}, g INT GENERATED ALWAYS AS (a * 2) STORED)"));
         }
         raw("INSERT INTO cmp_kx_src.t (k, a, secret) VALUES (1.1, 5, 's1'), (0.3, 6, 's3')");
         raw("INSERT INTO cmp_kx_tgt.t (k, a, secret) VALUES (0.3, 0, 'old')");
@@ -7403,6 +7534,27 @@ mod compare_tests {
         let left: Vec<&str> = c2["sql"].as_array().unwrap().iter().map(|s| s["stmt"].as_str().unwrap()).collect();
         assert!(left.iter().all(|s| s.contains("DROP INDEX `ix_extra`")), "only the target's own index is left to decide on: {left:?}");
         raw("DROP DATABASE cmp_key_src"); raw("DROP DATABASE cmp_key_tgt");
+    }
+
+    // Names that differ only in case: a column is the same column on every server, and a table the
+    // same table where the target's lower_case_table_names is not 0. Both used to be offered as
+    // missing, and the ADD COLUMN or CREATE TABLE then failed. The table half only shows on a server
+    // that keeps the case it was given (lower_case_table_names=2, compat.yml's MySQL 9.4); elsewhere
+    // the two names are stored alike and this checks the columns alone.
+    #[tokio::test]
+    #[ignore]
+    async fn schema_sync_matches_names_that_differ_only_in_case() {
+        let Some(_guard) = setup_conns() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        for db in ["cmp_case_src", "cmp_case_tgt"] { raw(&format!("DROP DATABASE IF EXISTS {db}")); raw(&format!("CREATE DATABASE {db}")); }
+        raw("CREATE TABLE cmp_case_src.Users (id INT PRIMARY KEY, Name VARCHAR(10))");
+        raw("CREATE TABLE cmp_case_tgt.users (id INT PRIMARY KEY, name VARCHAR(10))");
+        println!("  lower_case_table_names={}", scalar("SELECT @@lower_case_table_names"));
+        let r = compare_schemas(json!({"sourceConnName":P_RW,"sourceDb":"cmp_case_src","targetConnName":P_RW,"targetDb":"cmp_case_tgt"})).await.unwrap();
+        let tables: Vec<(String, String)> = r["tables"].as_array().unwrap().iter()
+            .map(|t| (t["name"].as_str().unwrap().to_string(), t["status"].as_str().unwrap().to_string())).collect();
+        assert_eq!(tables.len(), 1, "one table, not one missing on each side: {tables:?}");
+        assert_eq!(tables[0].1, "same", "a column named in another case is the same column: {r}");
+        raw("DROP DATABASE cmp_case_src"); raw("DROP DATABASE cmp_case_tgt");
     }
 
     // EXTRA was not compared: a target column that had lost its ON UPDATE CURRENT_TIMESTAMP or its
@@ -7578,6 +7730,7 @@ mod ssl_tests {
 
     #[test]
     fn required_actually_encrypts() {
+        if !caps::tls_or_skip() { return; }
         if conn_json("required").is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return; }
         let c = cipher_for("required").expect("\"required\" must be able to connect");
         assert!(!c.is_empty(), "ssl=required connected in PLAINTEXT - the server reported no cipher");
@@ -7592,6 +7745,7 @@ mod ssl_tests {
 
     #[test]
     fn verify_is_never_weaker_than_required() {
+        if !caps::tls_or_skip() { return; }
         if conn_json("verify").is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return; }
         match cipher_for("verify") {
             // Refusing is the expected outcome against a self-signed certificate. What must not
@@ -7660,6 +7814,15 @@ mod ssl_tests {
         // verify mode should not be answered with advice about certificates.
         assert_eq!(explain_conn_error("required", false, tls), tls);
         assert_eq!(explain_conn_error("verify", false, "Access denied for user 'x'"), "Access denied for user 'x'");
+    }
+
+    // PAM accounts: what the driver says is right and says nothing about what to do.
+    #[test]
+    fn a_pam_sign_in_that_cannot_happen_says_what_would_make_it() {
+        let clear = explain_conn_error("disabled", false, "Driver error: `mysql_clear_password must be enabled on the client side'");
+        assert!(clear.contains("not encrypted") && clear.contains("\"required\""), "{clear}");
+        let dialog = explain_conn_error("default", false, "Driver error: `Unknown authentication protocol: `dialog`'");
+        assert!(dialog.contains("pam_use_cleartext_plugin=ON"), "{dialog}");
     }
 
     // Once a CA has been supplied, "set a CA" is no longer useful advice. The real error texts below
@@ -7986,10 +8149,19 @@ mod cnf_tests {
             "ssl=required did not reach the options file:\n{body}");
         assert!(body.contains("password=\"p\""), "the rest of the file is still written:\n{body}");
         assert!(body.contains("\ndefault-character-set=utf8mb4\n"), "the client character set is pinned:\n{body}");
+        assert!(!body.contains("init-command"), "a MariaDB client asks for utf8mb4 in a way every server knows:\n{body}");
+        // Any tool whose --version does not say MariaDB counts as MySQL's; cargo is always at hand.
+        let (_f3, p3) = cnf_file(&conn, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
+        let b3 = std::fs::read_to_string(&p3).unwrap();
+        assert!(b3.contains("\nloose-init-command=SET NAMES utf8mb4\n"), "a MySQL client says SET NAMES itself, which 5.7 understands:\n{b3}");
+        // A PAM password goes as typed, so MySQL's client may send it only over TLS.
+        assert!(b3.contains("\nloose-enable-cleartext-plugin\n"), "ssl=required allows a PAM sign-in:\n{b3}");
+        let plain = json!({"host":"h","port":"3306","user":"u","ssl":"default"});
+        let (_f4, p4) = cnf_file(&plain, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
+        assert!(!std::fs::read_to_string(&p4).unwrap().contains("cleartext"), "ssl=default may be plaintext, so it does not");
 
         // ...and "default" forces nothing on a connection that did not ask: no TLS switched on, no
         // verification. (A MariaDB client is told not to verify, which 11.4+ would otherwise do.)
-        let plain = json!({"host":"h","port":"3306","user":"u","ssl":"default"});
         let (_f2, p2) = cnf_file(&plain, "definitely-not-a-real-binary").unwrap();
         let b2 = std::fs::read_to_string(&p2).unwrap();
         assert!(!b2.lines().any(|l| l == "ssl" || l.starts_with("ssl-mode") || l == "ssl-verify-server-cert"),
@@ -8146,6 +8318,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
 
     #[test]
     fn required_ignores_the_ca_and_still_connects() {
+        if !caps::tls_or_skip() { return; }
         let wrong_file = unrelated_ca_file();
         let Some(conn) = conn_with("required", &wrong_file.path().to_string_lossy()) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
         let c = build_conn(&conn).expect("ssl=required must connect whatever CA is configured - it verifies nothing");
@@ -8157,12 +8330,67 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
     // as no CA at all, and never mention a file.
     #[test]
     fn a_missing_ca_file_is_reported_as_a_missing_file() {
+        if !caps::tls_or_skip() { return; }
         for mode in ["verify", "verify-ca"] {
             let Some(conn) = conn_with(mode, r"C:\definitely\not\here\ca.pem") else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
             let e = build_conn(&conn).err().unwrap_or_else(|| panic!("ssl={mode} with a missing CA file connected anyway"));
             assert!(e.contains("IoError") || e.contains("cannot find"),
                 "ssl={mode}: a missing CA file should fail as a missing file, which proves the path is read: {e}");
         }
+    }
+}
+
+// PAM sign-in, against a MariaDB with auth_pam - compat.yml starts two in Docker on Linux, since
+// there is no auth_pam on Windows. NOBS_TEST_PAM is host:port:user:password of an account
+// IDENTIFIED VIA pam on a server with pam_use_cleartext_plugin=ON and TLS; NOBS_TEST_PAM_DIALOG
+// the same on one without pam_use_cleartext_plugin, so PAM asks through the dialog plugin. The
+// account has every privilege on the database nobs_pam. Run with --ignored.
+#[cfg(test)]
+mod pam_tests {
+    use super::*;
+    fn conn(var: &str, ssl: &str) -> Option<Value> {
+        let d = std::env::var(var).ok()?;
+        let p: Vec<&str> = d.splitn(4, ':').collect();
+        Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":ssl}))
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_pam_account_signs_in_over_tls_and_nowhere_else() {
+        let Some(req) = conn("NOBS_TEST_PAM", "required") else { eprintln!("NOBS_TEST_PAM not set - skipping"); return };
+        let mut c = build_conn(&req).expect("a PAM account signs in over TLS");
+        let who: String = c.query_first("SELECT CURRENT_USER()").unwrap().unwrap();
+        assert!(who.starts_with(&format!("{}@", req["user"].as_str().unwrap())), "signed in as {who}");
+        let cipher: Option<(String, String)> = c.query_first("SHOW STATUS LIKE 'Ssl_cipher'").unwrap();
+        assert!(cipher.map(|x| !x.1.is_empty()).unwrap_or(false), "the password went over a connection without TLS");
+        // "default" takes TLS when the server offers it, so it signs in as well.
+        build_conn(&conn("NOBS_TEST_PAM", "default").unwrap()).expect("ssl=default signs a PAM account in over TLS");
+        // Without TLS the password is not sent, and the message says why.
+        let e = build_conn(&conn("NOBS_TEST_PAM", "disabled").unwrap()).err().unwrap_or_else(|| panic!("ssl=disabled must not send a PAM password"));
+        assert!(e.contains("not encrypted"), "{e}");
+        // PAM itself decides: a wrong password is refused. Without this, a server that let anyone
+        // in would pass every check above.
+        let mut bad = req.clone(); bad["password"] = json!("not-the-password");
+        assert!(build_conn(&bad).is_err(), "a wrong password was accepted - PAM is not checking");
+
+        // The client tools sign in the same way, through the options file.
+        let Ok(mbin) = std::env::var("MYSQL_BIN") else { eprintln!("MYSQL_BIN not set - the client tools part is skipped"); return };
+        let f = std::env::temp_dir().join("nobs-pam-import.sql");
+        std::fs::write(&f, "DROP TABLE IF EXISTS pam_t;\nCREATE TABLE pam_t (id INT);\nINSERT INTO pam_t VALUES (1);\n").unwrap();
+        let r = import_run(json!({"files":[f.to_string_lossy()], "targetDb":"nobs_pam", "conn":req}), mbin).await.unwrap();
+        let log = r["log"].to_string();
+        assert!(log.contains("OK "), "the import signed in as the PAM account: {log}");
+        let n: Option<u32> = c.query_first("SELECT COUNT(*) FROM nobs_pam.pam_t").unwrap();
+        assert_eq!(n, Some(1));
+        let _ = std::fs::remove_file(&f);
+    }
+
+    #[test]
+    #[ignore]
+    fn a_pam_account_behind_the_dialog_plugin_is_explained() {
+        let Some(req) = conn("NOBS_TEST_PAM_DIALOG", "required") else { eprintln!("NOBS_TEST_PAM_DIALOG not set - skipping"); return };
+        let e = build_conn(&req).err().unwrap_or_else(|| panic!("the dialog plugin cannot be answered, so this does not sign in"));
+        assert!(e.contains("pam_use_cleartext_plugin=ON"), "{e}");
     }
 }
 

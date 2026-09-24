@@ -4,6 +4,7 @@
 (async () => {
   const DB = 'nobs_gui_audit';
   try {
+    const { inv } = await G.caps();
     await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB};
 CREATE TABLE ${DB}.f (k FLOAT PRIMARY KEY, v VARCHAR(10));
 INSERT INTO ${DB}.f VALUES (1.1,'a'),(2.5,'b');
@@ -13,7 +14,7 @@ INSERT INTO ${DB}.ts VALUES ('2026-10-25 00:30:00','summer'),('2026-10-25 01:30:
 SET time_zone=DEFAULT;
 CREATE TABLE ${DB}.d (id INT PRIMARY KEY, v VARCHAR(10));
 INSERT INTO ${DB}.d VALUES (1,'one'),(2,'two');
-CREATE TABLE ${DB}.x (id INT PRIMARY KEY, a INT, secret VARCHAR(10) INVISIBLE, g INT GENERATED ALWAYS AS (a*2) STORED);
+CREATE TABLE ${DB}.x (id INT PRIMARY KEY, a INT, secret VARCHAR(10)${inv}, g INT GENERATED ALWAYS AS (a*2) STORED);
 INSERT INTO ${DB}.x (id,a,secret) VALUES (1,5,'hidden');`);
     const refused = m => m.some(x => x.startsWith('ERR Nothing was saved. A row you changed or deleted no longer matches exactly one row'));
 

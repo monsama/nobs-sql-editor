@@ -26,7 +26,7 @@ INSERT INTO ${DB}.t VALUES (1,'a');`);
 
     // A paged result borrows the tab's connection and gives it back. The PowerShell edition answers
     // a transaction's query in one piece rather than in pages.
-    await on('INSERT INTO t SELECT seq, NULL FROM (SELECT 10+ROW_NUMBER() OVER () AS seq FROM information_schema.COLUMNS LIMIT 30) x');
+    await on('INSERT INTO t SELECT seq, NULL FROM (SELECT 11 + a.d * 10 + b.d AS seq FROM (SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2) a, (SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) b) x');
     const page = await G.A('/api/query', { sql: 'SELECT id FROM t ORDER BY id', db: DB, session: sess, pageSize: 5 });
     G.check('a large result comes from the transaction', page.ok && (page.hasMore ? page.rows.length === 5 : page.rows.length > 30), page);
     if (page.cursorId) await G.A('/api/close-cursor', { cursorId: page.cursorId });

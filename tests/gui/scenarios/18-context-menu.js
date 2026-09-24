@@ -8,7 +8,7 @@
 
   // whatever schema this run has to hand - the scenario before this one may have left none selected
   const sys = ['information_schema', 'performance_schema', 'mysql', 'sys'];
-  const db = (await G.q('SELECT DATABASE()'))[0][0] || (await G.q('SHOW DATABASES')).map(r => r[0]).filter(d => !sys.includes(d))[0];
+  const db = (await G.q('SELECT DATABASE()'))[0][0] || (await G.q("SELECT DISTINCT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY 1")).map(r => r[0]).filter(d => !sys.includes(d))[0];
   const tbl = (await G.q('SHOW TABLES FROM ' + '`' + db + '`'))[0][0];
   const i = openTab(tbl, 'SELECT * FROM `' + db + '`.`' + tbl + '`;', db, false, tbl);
   await openRun(i);

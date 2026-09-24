@@ -3,7 +3,7 @@
 // a result coming or going, or whether there is something to commit.
 (async () => {
   const sys = ['information_schema', 'performance_schema', 'mysql', 'sys'];
-  const db = (await G.q('SELECT DATABASE()'))[0][0] || (await G.q('SHOW DATABASES')).map(r => r[0]).filter(d => !sys.includes(d))[0];
+  const db = (await G.q('SELECT DATABASE()'))[0][0] || (await G.q("SELECT DISTINCT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY 1")).map(r => r[0]).filter(d => !sys.includes(d))[0];
   const tbl = (await G.q('SHOW TABLES FROM `' + db + '`'))[0][0];
   const i = openTab(tbl, 'SELECT * FROM `' + db + '`.`' + tbl + '` LIMIT 20;', db, false, tbl);
   const bar = $('pane_' + i).querySelector('.toolbar');

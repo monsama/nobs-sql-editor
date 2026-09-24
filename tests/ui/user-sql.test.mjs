@@ -32,12 +32,13 @@ function extractFunction(src, name) {
 }
 
 const NAMES = ['strLit', 'lit', 'newUser', 'dropUser', 'grantUser', 'revokeUser', 'lockUser',
-  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql', 'sqlBlankStringsAndComments', 'mariaAuthChain'];
+  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql', 'sqlBlankStringsAndComments', 'mariaAuthChain',
+  'srvSince', 'acctHasExpiry', 'acctHasLock'];
 const bundle = NAMES.map(n => extractFunction(html, n)).join('\n');
 
 // Builds the dialog functions with everything they touch stubbed out, and returns both the
 // captured SQL and the harness so a test can set the selected user.
-function harness({ dialog = {}, selected = null, mariadb = false } = {}) {
+function harness({ dialog = {}, selected = null, mariadb = false, serverVersion = '' } = {}) {
   const sql = [];
   const [u, h] = selected ? selected.split('\x01') : [];
   const env = {
@@ -51,15 +52,33 @@ function harness({ dialog = {}, selected = null, mariadb = false } = {}) {
     openUsers: () => {},
     showGrants: () => {}, usersReloadKeep: async () => {},
     exec: async (s) => { sql.push(s); return true; },
-    window: { _selUser: selected, _selAcct: selected ? { u, h, role: false } : null, mariadb },
+    window: { _selUser: selected, _selAcct: selected ? { u, h, role: false } : null, mariadb, serverVersion },
   };
   const keys = Object.keys(env);
-  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,cloneGrantSql,mariaAuthChain};`)(
+  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,acctSettingFields,cloneGrantSql,mariaAuthChain};`)(
     ...keys.map(k => env[k]));
   return { sql, fns };
 }
 
 const SEP = '\x01'; // how the Users list packs user+host into _selUser
+
+// Password expiry per account came with MariaDB 10.4.3 (MySQL 5.7.4). On 10.2, Create user made the
+// account and then failed on ALTER USER ... PASSWORD EXPIRE, leaving it half set up.
+test('a server without password expiry is neither offered it nor sent it', async () => {
+  const dialog = { user: 'u', host: '%', pw: 'pw', plugin: '', more: true, ssl: 'NONE', exp: 'never', days: '90', mq: '100', mu: '0', mc: '0', muc: '0' };
+  const old = harness({ dialog, mariadb: true, serverVersion: '10.2.7-MariaDB' });
+  assert.ok(!old.fns.acctSettingFields(null, 'more').some(f => f.key === 'exp' || f.key === 'days'));
+  await old.fns.newUser();
+  assert.ok(!old.sql.some(s => /PASSWORD EXPIRE/.test(s)), old.sql.join('\n'));
+  assert.ok(old.sql.some(s => /MAX_QUERIES_PER_HOUR 100/.test(s)), 'the limits still go through');
+  const cur = harness({ dialog, mariadb: true, serverVersion: '11.8.3-MariaDB' });
+  assert.ok(cur.fns.acctSettingFields(null, 'more').some(f => f.key === 'exp'));
+  await cur.fns.newUser();
+  assert.ok(cur.sql.some(s => /PASSWORD EXPIRE NEVER/.test(s)), cur.sql.join('\n'));
+  // A version that cannot be read takes nothing away.
+  const unknown = harness({ dialog, mariadb: false, serverVersion: '' });
+  assert.ok(unknown.fns.acctSettingFields(null, 'more').some(f => f.key === 'exp'));
+});
 
 test('a user name containing a quote is escaped, not broken', async () => {
   const h = harness({ dialog: { user: "o'brien", host: 'localhost', pw: 'pw' } });
@@ -165,6 +184,19 @@ test('a clone gets the grants under its own name, and not the source password', 
     'GRANT `role` TO `new`@`localhost`;',
     'SET DEFAULT ROLE `role` FOR `new`@`localhost`;',
   ]);
+});
+
+// MySQL 5.7 and MariaDB 10.2 write the account in quotes, and differ on a quote inside the name.
+test('a clone gets the grants from the quoted forms older servers write', () => {
+  const h = harness();
+  assert.deepEqual(h.fns.cloneGrantSql([
+    "GRANT USAGE ON *.* TO 'src'@'%' IDENTIFIED BY PASSWORD '*ABC' REQUIRE SSL",
+    "GRANT SELECT ON `d`.* TO 'src'@'%'",
+  ], { u: 'src', h: '%' }, 'new', '%'), ['GRANT USAGE ON *.* TO `new`@`%` REQUIRE SSL;', 'GRANT SELECT ON `d`.* TO `new`@`%`;']);
+  assert.deepEqual(h.fns.cloneGrantSql(["GRANT SELECT ON `d`.* TO 'o\\'b'@'%'"], { u: "o'b", h: '%' }, 'new', '%'),
+    ['GRANT SELECT ON `d`.* TO `new`@`%`;'], 'MySQL 5.7');
+  assert.deepEqual(h.fns.cloneGrantSql(["GRANT SELECT ON `d`.* TO 'o'b'@'%'"], { u: "o'b", h: '%' }, 'new', '%'),
+    ['GRANT SELECT ON `d`.* TO `new`@`%`;'], 'MariaDB 10.2');
 });
 
 test('nothing is sent when no user is selected', async () => {

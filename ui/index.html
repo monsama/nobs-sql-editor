@@ -1199,7 +1199,7 @@ function lit(v){if(v===null)return 'NULL';const s=String(v);if(/^0x[0-9A-Fa-f]+$
 // Which of a grid's columns hold binary values - the ones shown as 0x... The Tauri build reads that
 // from the result set itself; the PowerShell one asks information_schema, which needs a table.
 // null when neither can tell, and the caller then falls back to lit(), which goes by the value.
-const BIN_COL_TYPE=/^(binary|varbinary|tinyblob|blob|mediumblob|longblob|bit|geometry|point|linestring|polygon|multipoint|multilinestring|multipolygon|geometrycollection|geomcollection)\b/i;
+const BIN_COL_TYPE=/^(binary|varbinary|tinyblob|blob|mediumblob|longblob|bit|geometry|point|linestring|polygon|multipoint|multilinestring|multipolygon|geometrycollection|geomcollection|vector)\b/i;
 async function tableBinCols(db,table,cols){
  try{
   const r=await api('/api/query',{sql:"SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+strLit(db)+" AND TABLE_NAME="+strLit(table)});
@@ -1991,6 +1991,7 @@ async function connect() {window._connFormTouched=true;
   }
   log('  Connected: ' + r.version + ' (' + (r.mariadb ? 'MariaDB' : 'MySQL') + ')');
   window.mariadb = !!r.mariadb;
+  window.serverVersion = r.version || '';
   document.body.classList.remove('disconnected');
   document.body.classList.remove('show-connform');
   // The box to the left already shows a saved connection's name, so the chip beside it is the
@@ -2042,7 +2043,7 @@ async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirt
   if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped'+(open.length?'; what was not committed is rolled back':'')+'.')))return;
   await Promise.all(running.map(t=>cancelQuery(t.id)));}
  disconnect();}
-function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';}window.curAccent='';window.readOnly=false;window.curEnv='';
+function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
@@ -6111,7 +6112,7 @@ async function openUsers(){if(!(await usersLoad()))return;$('userFilter').value=
 function usersButtons(){const a=window._selAcct;['uPrivBtn','uRolesBtn','uDropBtn','uAcctBtn'].forEach(id=>{const b=$(id);if(b)b.disabled=!a||(id==='uAcctBtn'&&a.role);});
  const ab=$('uAcctBtn');if(ab)ab.title=a&&a.role?'A role does not sign in, so it has no account settings':'Sign-in method, SSL, expiry and limits; password; lock';}
 function usersNewMenu(e){e.stopPropagation();const b=e.currentTarget.getBoundingClientRect();const a=window._selAcct;
- menu(b.left,b.bottom+2,[['Create user...',()=>newUser()],['Create role...',()=>roleCreate()],a&&!a.role&&'-',a&&!a.role&&['Clone '+uName(a)+'...',()=>acctClone()]]);}
+ menu(b.left,b.bottom+2,[['Create user...',()=>newUser()],_uRoleSupport&&['Create role...',()=>roleCreate()],a&&!a.role&&'-',a&&!a.role&&['Clone '+uName(a)+'...',()=>acctClone()]]);}
 function usersAcctMenu(e){e.stopPropagation();const b=e.currentTarget.getBoundingClientRect();const a=window._selAcct;if(!a||a.role)return;
  menu(b.left,b.bottom+2,[['Settings...',()=>acctEdit()],['Change password...',()=>changePassword()],'-',a.locked?['Unlock - allow sign-in again',()=>lockUser(false)]:['Lock - stop it signing in',()=>lockUser(true)]]);}
 function usersRender(){usersButtons();const box=$('userSel'),q=($('userFilter').value||'').trim().toLowerCase();box.innerHTML='';
@@ -6230,13 +6231,21 @@ async function authPlugins(){const r=await api('/api/query',{sql:"SELECT PLUGIN_
 // with WITH ... BY. No plugin means the server's default.
 function identifiedBy(plugin,pw){if(!plugin)return 'IDENTIFIED BY '+strLit(pw);
  return window.mariadb?'IDENTIFIED VIA '+plugin+' USING PASSWORD('+strLit(pw)+')':'IDENTIFIED WITH '+plugin+' BY '+strLit(pw);}
+// Whether the connected server is at least this version - MySQL's number or MariaDB's. A version
+// that cannot be read counts as new enough, so nothing is taken away on a guess.
+function srvSince(my,ma){const m=String(window.serverVersion||'').match(/^(\d+)\.(\d+)\.(\d+)/);if(!m)return true;
+ const n=m.slice(1).map(Number),w=window.mariadb?ma:my;for(let i=0;i<3;i++)if(n[i]!==w[i])return n[i]>w[i];return true;}
+// Password expiry per account came with MySQL 5.7.4 and MariaDB 10.4.3, locking with 5.7.6 and 10.4.2.
+// Offered on an older server, Create user made the account and then failed on the next statement.
+function acctHasExpiry(){return srvSince([5,7,4],[10,4,3]);}
+function acctHasLock(){return srvSince([5,7,6],[10,4,2]);}
 function acctExpiry(a){return !a||a.lifetime==null?'default':a.lifetime===0?'never':'days';}
 function acctSettingFields(a,group){return [
  // An account that requires a particular certificate (ISSUER, SUBJECT or CIPHER) keeps that as its
  // own choice; it used to show as "SSL not required", one change away from being written so.
  {key:'ssl',label:'Connection security',type:'select',options:[{value:'NONE',label:'SSL not required'},{value:'ANY',label:'SSL required'},{value:'X509',label:'SSL with a client certificate required'},...(a&&a.ssl==='SPECIFIED'?[{value:'SPECIFIED',label:'A specific client certificate required (kept as it is)'}]:[])],value:a&&['X509','ANY','SPECIFIED'].includes(a.ssl)?a.ssl:'NONE',group},
- {key:'exp',label:'Password expiry',type:'select',options:[{value:'default',label:'Server default'},{value:'never',label:'Never expires'},{value:'days',label:'Expires after the days below'}],value:acctExpiry(a),group},
- {key:'days',label:'Days until the password expires',value:a&&a.lifetime>0?String(a.lifetime):'90',group},
+ ...(acctHasExpiry()?[{key:'exp',label:'Password expiry',type:'select',options:[{value:'default',label:'Server default'},{value:'never',label:'Never expires'},{value:'days',label:'Expires after the days below'}],value:acctExpiry(a),group},
+ {key:'days',label:'Days until the password expires',value:a&&a.lifetime>0?String(a.lifetime):'90',group}]:[]),
  {key:'mq',label:'Queries an hour (0 = no limit)',value:String(a?a.mq:0),group},
  {key:'mu',label:'Updates an hour (0 = no limit)',value:String(a?a.mu:0),group},
  {key:'mc',label:'Connections an hour (0 = no limit)',value:String(a?a.mc:0),group},
@@ -6247,7 +6256,7 @@ function acctSettingSql(who,res,a){const out=[],n=k=>Math.max(0,parseInt(res[k],
  const lim=[['MAX_QUERIES_PER_HOUR','mq'],['MAX_UPDATES_PER_HOUR','mu'],['MAX_CONNECTIONS_PER_HOUR','mc'],['MAX_USER_CONNECTIONS','muc']].filter(([,k])=>n(k)!==(a?a[k]:0));
  if(lim.length)out.push('ALTER USER '+who+' WITH '+lim.map(([s,k])=>s+' '+n(k)).join(' ')+';');
  const days=Math.max(1,n('days'));
- if(res.exp!==acctExpiry(a)||(res.exp==='days'&&a&&a.lifetime!==days))
+ if(acctHasExpiry()&&'exp' in res&&(res.exp!==acctExpiry(a)||(res.exp==='days'&&a&&a.lifetime!==days)))
   out.push('ALTER USER '+who+' '+(res.exp==='never'?'PASSWORD EXPIRE NEVER':res.exp==='days'?'PASSWORD EXPIRE INTERVAL '+days+' DAY':'PASSWORD EXPIRE DEFAULT')+';');
  return out;}
 // Statements that carry a password are logged without it.
@@ -6255,7 +6264,7 @@ function logNoSecrets(s){log(s.replace(/(BY|PASSWORD\()\s*'(?:[^'\\]|\\.|'')*'/g
 async function newUser(){const plugins=await authPlugins();
  const res=await inputBox({title:'Create user',okText:'Create',width:'520px',fields:[{key:'user',label:'User name'},{key:'host',label:'Host - % for anywhere',value:'%'},{key:'pw',label:'Password',type:'password'},
   {key:'plugin',label:'Sign-in method',type:'select',options:[{value:'',label:'Server default'},...plugins.map(p=>({value:p,label:p}))],value:''},
-  {key:'more',label:'More settings: connection security, password expiry, limits',type:'checkbox',value:false,reveals:'more'},...acctSettingFields(null,'more')]});
+  {key:'more',label:'More settings: connection security, '+(acctHasExpiry()?'password expiry, ':'')+'limits',type:'checkbox',value:false,reveals:'more'},...acctSettingFields(null,'more')]});
  if(!res||!res.user.trim())return;const u=res.user.trim(),h=res.host.trim()||'%',who=strLit(u)+'@'+strLit(h);
  const s=['CREATE USER '+who+' '+identifiedBy(res.plugin,res.pw)+';',...(res.more?acctSettingSql(who,res,null):[])];
  const r=await api('/api/script',{sql:s.join('\n')});if(!r.ok){toast(r.error,true);return;}
@@ -6266,12 +6275,12 @@ async function acctEdit(){const a=window._selAcct;if(!a){toast('Select an accoun
  const res=await inputBox({title:'Account settings of '+uName(a),okText:'Apply',width:'520px',fields:[
   {key:'plugin',label:'Sign-in method - to change it, give a password as well',type:'select',options:plugins.map(p=>({value:p,label:p})),value:a.plugin},
   {key:'pw',label:'New password - only to change it, or the sign-in method',type:'password',value:''},
-  ...acctSettingFields(a),{key:'locked',label:'Locked - cannot sign in',type:'checkbox',value:a.locked}]});
+  ...acctSettingFields(a),...(acctHasLock()?[{key:'locked',label:'Locked - cannot sign in',type:'checkbox',value:a.locked}]:[])]});
  if(!res)return;const who=uRef(a),out=acctSettingSql(who,res,a);
  // MariaDB's IDENTIFIED BY switches the account to its default plugin, so the plugin is always named there.
  if(res.pw)out.unshift('ALTER USER '+who+' '+identifiedBy(res.plugin!==a.plugin||window.mariadb?res.plugin:'',res.pw)+';');
  else if(res.plugin!==a.plugin){toast('Changing the sign-in method needs the password as well.',true);return;}
- if(res.locked!==a.locked)out.push('ALTER USER '+who+' ACCOUNT '+(res.locked?'LOCK':'UNLOCK')+';');
+ if('locked' in res&&res.locked!==a.locked)out.push('ALTER USER '+who+' ACCOUNT '+(res.locked?'LOCK':'UNLOCK')+';');
  if(!out.length){toast('Nothing to change.');return;}
  const r=await api('/api/script',{sql:out.join('\n')});if(!r.ok){toast(r.error,true);return;}
  logNoSecrets(out.join('\n'));toast('Account settings changed.','ok');await usersReloadKeep();}
@@ -6280,8 +6289,11 @@ async function acctEdit(){const a=window._selAcct;if(!a){toast('Select an accoun
 // A new account like the selected one: its sign-in method, settings, grants and roles, with a name,
 // host and password of its own. The grants are the source's SHOW GRANTS with the new name put in;
 // MariaDB writes the source's password into its GRANT USAGE line, and that part is left out.
-function cloneGrantSql(lines,a,u,h){const bq=s=>'`'+String(s).replace(/`/g,'``')+'`',src=bq(a.u)+'@'+bq(a.h),dst=bq(u)+'@'+bq(h);
- return lines.map(s=>{for(const kw of [' TO ',' FOR ']){const i=s.lastIndexOf(kw+src);if(i>=0){const t=s.slice(0,i)+kw+dst+s.slice(i+kw.length+src.length);
+// The account is written as MySQL 8 and MariaDB 10.3+ write it, `u`@`h`, or as MySQL 5.7 ('u' with
+// \' inside) and MariaDB 10.2 ('u' as it is) do - a clone there used to come out with no grants.
+function cloneGrantSql(lines,a,u,h){const bq=s=>'`'+String(s).replace(/`/g,'``')+'`',dst=bq(u)+'@'+bq(h);
+ const forms=[bq,s=>"'"+String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'",s=>"'"+s+"'"],srcs=forms.map(f=>f(a.u)+'@'+f(a.h));
+ return lines.map(s=>{for(const src of srcs)for(const kw of [' TO ',' FOR ']){const i=s.lastIndexOf(kw+src);if(i>=0){const t=s.slice(0,i)+kw+dst+s.slice(i+kw.length+src.length);
    return t.replace(/\s+IDENTIFIED\s+(BY\s+PASSWORD\s+'[^']*'|VIA\s+.*?)(?=\s+(WITH|REQUIRE)\b|$)/i,'')+';';}}return null;}).filter(Boolean);}
 // REQUIRE ISSUER/SUBJECT/CIPHER as the account has it. A clone used to get no requirement at all -
 // weaker than the account it was made from - since SHOW GRANTS on MySQL 8 does not carry it.
