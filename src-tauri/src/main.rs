@@ -6570,7 +6570,7 @@ mod cursor_tests {
         for i in 1..=12 { q(&format!("INSERT INTO page_blobs VALUES ({i}, REPEAT(0x41, 3*1024*1024))")).await; }
         let first = query(json!({"sql":"SELECT id, b FROM page_blobs ORDER BY id","conn":conn,"db":"nobs_test","pageSize":1000})).await.unwrap();
         let n0 = first["rows"].as_array().map(|r| r.len()).unwrap_or(0);
-        assert!(n0 >= 1 && n0 < 12 && first["hasMore"] == true, "the first page was not cut by size: {} rows, hasMore {}", n0, first["hasMore"]);
+        assert!((1..12).contains(&n0) && first["hasMore"] == true, "the first page was not cut by size: {} rows, hasMore {}", n0, first["hasMore"]);
         let cid = first["cursorId"].as_str().unwrap_or("").to_string();
         let mut ids: Vec<String> = first["rows"].as_array().unwrap().iter().map(|r| r[0].as_str().unwrap().to_string()).collect();
         let whole = |r: &Value| r[1].as_str().map(|s| s.len() == 2 + 2 * 3 * 1024 * 1024).unwrap_or(false);
