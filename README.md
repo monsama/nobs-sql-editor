@@ -1,19 +1,20 @@
 # NOBS SQL Editor
 
-A lightweight desktop client for **MySQL** and **MariaDB**, built with
-[Tauri](https://tauri.app) (Rust backend + HTML/JS frontend).
+A desktop client for **MySQL** and **MariaDB** on Windows, built with
+[Tauri](https://tauri.app) (a Rust backend with an HTML/JS frontend).
 
-**Windows** is the platform that is built, tested and released. The code itself is
-portable and Tauri supports macOS and Linux, so it can be built from source there
-(see [Building from source](#building-from-source)) - but no installers are published
-for them, and CI does not test them, so treat that as unsupported rather than ready.
+Only the Windows build is tested and released. Tauri also runs on macOS and Linux, so
+you can build the app from source there (see [Building from source](#building-from-source)),
+but there are no installers for those platforms and CI doesn't test them. Consider them
+unsupported.
 
-**On a machine where you cannot install software**, there is a second edition:
-[NOBS SQL Editor, PowerShell edition](https://github.com/monsama/nobs-sql-editor-powershell)
-is the same UI as a single `.ps1` script that starts a local server and opens your
-browser - nothing to install, no admin rights, and no installer for SmartScreen to
-object to. It shells out to `mysql.exe` for everything, so it needs the client tools
-where this one can talk to the server directly.
+**Can't install software on your machine?** Use the
+[PowerShell edition](https://github.com/monsama/nobs-sql-editor-powershell) instead. It has
+the same interface, packed into a single `.ps1` script that starts a local server and opens
+your browser. There is nothing to install, it needs no admin rights, and there is no
+installer for SmartScreen to warn about. The trade-off is that it runs everything through
+`mysql.exe`, so it needs the MySQL or MariaDB client tools, while the desktop app talks to
+the server directly.
 
 ## Download
 
