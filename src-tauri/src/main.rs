@@ -130,6 +130,13 @@ mod definer_tests {
     use super::*;
 
     #[test]
+    fn a_path_mysqldump_cannot_take_is_explained() {
+        let e = friendly_dump_err("mysqldump: Can't create/write to file 'C:\\x\\??????\\d.sql' (OS errno 22 - Invalid argument)");
+        assert!(e.contains("system code page") && e.contains("MariaDB tools"), "{e}");
+        assert_eq!(friendly_dump_err("ERROR 1045 (28000): Access denied"), "ERROR 1045 (28000): Access denied");
+    }
+
+    #[test]
     fn option_file_values_are_quoted_so_hash_spaces_and_quotes_survive() {
         // Measured against both clients' --print-defaults: each of these comes back exactly.
         assert_eq!(cnf_quote("ab#cd"), "\"ab#cd\"");
@@ -1511,6 +1518,12 @@ fn first_err(s: &str) -> String {
 // version of either) is used against the other. Name the likely cause instead of leaving a bare
 // "unknown variable" for the user to puzzle over.
 fn friendly_dump_err(raw: &str) -> String {
+    // MySQL's own mysqldump reads its arguments in the Windows code page: a folder named in another
+    // script - Отчёты, 報告 - reaches it as question marks, and it cannot create the file (measured,
+    // 8.4). MariaDB's tools take the path as it is.
+    if raw.contains("Can't create/write to file") && raw.contains('?') {
+        return format!("{} - the folder's name has characters MySQL's mysqldump cannot take on this Windows (it reads its arguments in the system code page). Export to a folder whose path has none, or use the MariaDB tools (Settings).", raw);
+    }
     if let Some(opt) = raw.split("unknown variable '").nth(1).and_then(|s| s.split('\'').next()) {
         format!("{} - '{}' isn't supported by this build of the tool (MySQL and MariaDB's client tools, and different versions of each, support different flag sets). Uncheck the matching export/import option, or point Settings at the other flavor's .exe.", raw, opt)
     } else {

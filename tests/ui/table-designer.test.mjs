@@ -34,8 +34,8 @@ function extract(src, name) {
 const consts = html.split(/\r?\n/).filter(l => /^const D_(TEXTY|NUMERIC|TEMPORAL)=/.test(l)).join('\n');
 const D = new Function(
   'const RESERVED=new Set(["key","order","select"]);\n' + consts + '\n' +
-  ['qid', 'strLit', 'lit', 'dColFromInfo', 'colDef', 'dAlterSql', 'sqlBlankStringsAndComments', 'dColumnLines', 'dKeepFromCreate'].map(n => extract(html, n)).join('\n') +
-  '\nreturn {dColFromInfo,colDef,dAlterSql,dColumnLines,dKeepFromCreate};')();
+  ['qid', 'strLit', 'lit', 'dColFromInfo', 'colDef', 'dAlterSql', 'sqlBlankStringsAndComments', 'dColumnLines', 'dKeepFromCreate', 'dTsNotes'].map(n => extract(html, n)).join('\n') +
+  '\nreturn {dColFromInfo,colDef,dAlterSql,dColumnLines,dKeepFromCreate,dTsNotes};')();
 
 const FIXTURES = [
   {version:"8.0.46", mariadb:false, tableColl:"utf8mb4_0900_ai_ci", rows:[
@@ -217,6 +217,20 @@ test('NOT NULL is not written with DEFAULT NULL', () => {
   const c = { name: 'v', type: 'VARCHAR', len: '5', nn: true, ai: false, def: 'NULL', comment: '', keep: { origName: 'v', origType: 'VARCHAR', defShown: 'NULL', defSql: 'NULL' } };
   assert.doesNotMatch(D.colDef(c), /DEFAULT NULL/);
   assert.match(D.colDef({ ...c, nn: false }), /DEFAULT NULL/);
+});
+
+// With explicit_defaults_for_timestamp OFF, a TIMESTAMP NOT NULL written without a default may get
+// DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, and no column definition can prevent it
+// except a default of its own; the generated SQL says so.
+test('a TIMESTAMP NOT NULL without a default is called out when the server would give it one', () => {
+  const ts = { name: 't', type: 'TIMESTAMP', len: '', nn: true, ai: false, def: '', comment: '', keep: { origName: 't', origType: 'TIMESTAMP' } };
+  assert.deepEqual(D.dTsNotes([ts]), [], 'nothing is said while the setting is unknown or ON');
+  globalThis.window = { _dTsAuto: true };
+  try {
+    assert.equal(D.dTsNotes([ts]).length, 1);
+    assert.equal(D.dTsNotes([{ ...ts, def: '2000-01-01 00:00:00' }]).length, 0, 'a default of its own prevents it');
+    assert.equal(D.dTsNotes([{ ...ts, nn: false }]).length, 0);
+  } finally { delete globalThis.window; }
 });
 
 test('the fixtures cover both servers', () => {

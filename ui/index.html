@@ -6446,10 +6446,20 @@ function dAlterSql(orig,cols,tbl){
  const ticked=cols.filter(c=>c.pk),pkCols=[...oldOrder.map(n=>ticked.find(c=>was(c)===n)).filter(Boolean),...ticked.filter(c=>!oldOrder.includes(was(c)))];
  const oldPk=oldOrder.join(','),newPk=pkCols.map(was).join(',');
  if(oldPk!==newPk){if(oldPk)alt.push('DROP PRIMARY KEY');if(pkCols.length)alt.push('ADD PRIMARY KEY ('+pkCols.map(c=>qid(c.name)).join(',')+')');}
+ if(alt.length)notes.push(...dTsNotes(cols.filter(c=>{const on=c.keep&&c.keep.origName;const o=on!=null?orig.find(x=>x.name===on):null;return !o||alt.some(a=>a.includes(qid(c.name)));})));
  const head=notes.length?notes.join('\n')+'\n':'';
  return alt.length?head+'ALTER TABLE '+tbl+'\n  '+alt.join(',\n  ')+';':head+'-- no changes detected';
 }
-async function designTable(name,db){dEdited=false;db=db||curSchema||'';$('dSchema').value=db;$('dName').value=name||'';$('dCols').innerHTML='';$('dLog').textContent='';dOrig=null;
+// With explicit_defaults_for_timestamp OFF (MariaDB's default before 10.10, and a setting some MySQL
+// servers keep), a TIMESTAMP NOT NULL written without a default is given DEFAULT CURRENT_TIMESTAMP ON
+// UPDATE CURRENT_TIMESTAMP when it is the table's first - measured on MySQL 8: a MODIFY that only
+// changed the comment added both. Nothing in the column definition can say "no default" there, so
+// the generated SQL says what will happen.
+async function dReadTimestampMode(){window._dTsAuto=false;try{const r=await api('/api/query',{sql:'SELECT @@SESSION.explicit_defaults_for_timestamp'});if(r&&r.ok&&r.rows.length)window._dTsAuto=(String(r.rows[0][0])==='0'||String(r.rows[0][0]).toUpperCase()==='OFF');}catch(e){}}
+function dTsNotes(cols){if(typeof window==='undefined'||!window._dTsAuto)return [];
+ return cols.filter(c=>c.type==='TIMESTAMP'&&c.nn&&(c.def==null||c.def==='')&&!(c.keep&&c.keep.onUpdate)&&!(c.keep&&c.keep.defSql!=null&&c.def===c.keep.defShown))
+  .map(c=>'-- explicit_defaults_for_timestamp is OFF on this server: '+qid(c.name)+' as written here may be given DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP. Give it a default to prevent that.');}
+async function designTable(name,db){dEdited=false;await dReadTimestampMode();db=db||curSchema||'';$('dSchema').value=db;$('dName').value=name||'';$('dCols').innerHTML='';$('dLog').textContent='';dOrig=null;
  if(name){$('dTitle').textContent='Alter table';$('dMode').textContent='(existing - generates ALTER)';
    const r=await api('/api/query',{sql:"SELECT COLUMN_NAME,DATA_TYPE,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,COLUMN_KEY,COLUMN_COMMENT,CHARACTER_SET_NAME,COLLATION_NAME,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" ORDER BY ORDINAL_POSITION"});
    const tc=await api('/api/query',{sql:"SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
@@ -6490,7 +6500,7 @@ function dMark(){dEdited=true;$('dEditNote').textContent='✎ manually edited - 
 function dReadCols(){return [...$('dCols').children].map(tr=>({name:tr.querySelector('.dn').value.replace(/\s+$/,''),type:tr.querySelector('.dt').value,len:tr.querySelector('.dl').value.trim(),nn:tr.querySelector('.dnn').checked,ai:tr.querySelector('.dai').checked,pk:tr.querySelector('.dpk').checked,def:tr.querySelector('.dd').value,comment:tr.querySelector('.dc').value,keep:tr._keep||null})).filter(c=>c.name.trim());}
 function dGen(force){if(dEdited&&!force)return;const db=$('dSchema').value.replace(/\s+$/,''),name=$('dName').value.replace(/\s+$/,'');const cols=dReadCols();const pk=cols.filter(c=>c.pk).map(c=>qid(c.name));
  if(!name){$('dSql').value='-- enter a table name';return;}const tbl=qid(db)+'.'+qid(name);
- if(!dOrig){let s='CREATE TABLE '+tbl+' (\n  '+cols.map(colDef).join(',\n  ');if(pk.length)s+=',\n  PRIMARY KEY ('+pk.join(',')+')';s+='\n);';$('dSql').value=s;dEdited=false;$('dEditNote').textContent='';return;}
+ if(!dOrig){const tsn=dTsNotes(cols);let s=(tsn.length?tsn.join('\n')+'\n':'')+'CREATE TABLE '+tbl+' (\n  '+cols.map(colDef).join(',\n  ');if(pk.length)s+=',\n  PRIMARY KEY ('+pk.join(',')+')';s+='\n);';$('dSql').value=s;dEdited=false;$('dEditNote').textContent='';return;}
  $('dSql').value=dAlterSql(dOrig,cols,tbl);dEdited=false;$('dEditNote').textContent='';}
 async function dApply(){if(roBlock())return;const sql=$('dSql').value;$('dLog').textContent='Applying...';const r=await api('/api/script',{sql,db:curSchema});if(r.ok){$('dLog').textContent='Applied OK.';log('DESIGN OK');if(curSchema)loadObjects(curSchema);}else{const _n=ddlFailureNote(r.error,sql);$('dLog').textContent=_n;log('DESIGN error: '+_n);}}
 
