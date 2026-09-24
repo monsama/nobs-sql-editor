@@ -49,6 +49,88 @@ struct Job {
     child: Mutex<Option<std::process::Child>>,
 }
 static JOBS: OnceLock<Mutex<std::collections::HashMap<String, std::sync::Arc<Job>>>> = OnceLock::new();
+// What a failed or cancelled mysqldump left behind is moved aside to "<file>.partial". It used to
+// stay under the export's own name - with the timestamp off, in place of the last good backup - and
+// looked like a finished dump to anyone restoring from the folder later. The per-table export's
+// own temporary file is removed by its caller instead.
+fn set_aside_partial(file: &str) -> String {
+    if file.ends_with(".tmp") || !std::path::Path::new(file).exists() { return String::new(); }
+    let p = format!("{}.partial", file);
+    match std::fs::rename(file, &p) { Ok(_) => format!(" (the incomplete file was kept as {})", p), Err(_) => String::new() }
+}
+
+// DEFINER=`user`@`host` as mysqldump writes it into views, triggers, routines and events.
+fn definer_regex() -> regex::bytes::Regex {
+    regex::bytes::Regex::new(r"DEFINER=`(?:[^`]|``)*`@`(?:[^`]|``)*`\s*").unwrap()
+}
+
+// Leaves DEFINER out of a dump's object definitions, and nothing else. The whole file used to go
+// through the pattern as one string: a row whose text held "DEFINER=`root`@`localhost`" - a
+// table that keeps DDL, an audit log - was changed in the backup, a dump that was not UTF-8
+// (latin1, binary data without --hex-blob) was left as it was without a word, and the whole dump
+// was held in memory twice. It is now read as bytes, a line at a time, into a file beside it
+// that then takes its place. Rows are never touched: mysqldump writes each INSERT on a line of
+// its own and escapes line breaks inside values, so a line that starts with INSERT is data.
+fn strip_definers(file: &str, re: &regex::bytes::Regex) -> std::io::Result<()> {
+    use std::io::{BufRead, BufReader, BufWriter, Write};
+    let tmp = format!("{}.definer.tmp", file);
+    let res = (|| -> std::io::Result<()> {
+        let mut r = BufReader::new(std::fs::File::open(file)?);
+        let mut w = BufWriter::new(std::fs::File::create(&tmp)?);
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            if r.read_until(b'\n', &mut line)? == 0 { break; }
+            if line.starts_with(b"INSERT ") || line.starts_with(b"REPLACE ") { w.write_all(&line)?; }
+            else { w.write_all(&re.replace_all(&line, &b""[..]))?; }
+        }
+        w.flush()?;
+        drop(w);
+        std::fs::rename(&tmp, file)
+    })();
+    if res.is_err() { let _ = std::fs::remove_file(&tmp); }
+    res
+}
+
+#[cfg(test)]
+mod definer_tests {
+    use super::*;
+
+    #[test]
+    fn option_file_values_are_quoted_so_hash_spaces_and_quotes_survive() {
+        // Measured against both clients' --print-defaults: each of these comes back exactly.
+        assert_eq!(cnf_quote("ab#cd"), "\"ab#cd\"");
+        assert_eq!(cnf_quote(" sp "), "\" sp \"");
+        assert_eq!(cnf_quote("x\"y\\z"), "\"x\\\"y\\\\z\"");
+        assert_eq!(cnf_quote("a\r\nb"), "\"ab\"");
+    }
+
+    #[test]
+    fn definer_goes_from_definitions_and_rows_keep_every_byte() {
+        let dir = std::env::temp_dir().join(format!("nobs-definer-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("d.sql");
+        let mut dump: Vec<u8> = Vec::new();
+        dump.extend_from_slice(b"/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\r\n");
+        dump.extend_from_slice(b"CREATE DEFINER=`a``b`@`%` PROCEDURE `p`()\nBEGIN SELECT 1; END\n");
+        dump.extend_from_slice(b"INSERT INTO `log` VALUES (1,'CREATE DEFINER=`root`@`localhost` VIEW v',");
+        dump.extend_from_slice(&[b'\'', 0xE9, 0xFF, b'\'', b')', b';', b'\n']);
+        dump.extend_from_slice(b"-- end");
+        std::fs::write(&f, &dump).unwrap();
+        strip_definers(f.to_str().unwrap(), &definer_regex()).unwrap();
+        let out = std::fs::read(&f).unwrap();
+        let mut want: Vec<u8> = Vec::new();
+        want.extend_from_slice(b"/*!50013 SQL SECURITY DEFINER */\r\n");
+        want.extend_from_slice(b"CREATE PROCEDURE `p`()\nBEGIN SELECT 1; END\n");
+        want.extend_from_slice(b"INSERT INTO `log` VALUES (1,'CREATE DEFINER=`root`@`localhost` VIEW v',");
+        want.extend_from_slice(&[b'\'', 0xE9, 0xFF, b'\'', b')', b';', b'\n']);
+        want.extend_from_slice(b"-- end");
+        assert_eq!(out, want);
+        assert!(!dir.join("d.sql.definer.tmp").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 fn jobs() -> &'static Mutex<std::collections::HashMap<String, std::sync::Arc<Job>>> {
     JOBS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
@@ -983,26 +1065,74 @@ fn split_off_keyword(s: &str, kw: &str) -> Option<String> {
     None
 }
 
+// The text with its comments taken out the way the server reads them, strings left as they are.
+// "--" is a comment only when a space or control character follows it - "SELECT 1--1" is one
+// minus minus one - and nothing inside quotes is a comment. Patterns that ignored both let
+// "SELECT 1--1; DELETE FROM t", "SELECT '#'; DELETE FROM t" and "SELECT '/*'; DELETE FROM t;
+// SELECT '*/'" through as read-only, the DELETE hidden in what was taken for a comment.
+// /*! ... */ and /*M! ... */ are not comments at all: the server runs what they hold, so their
+// contents stay. Whether a backslash escapes a quote depends on the server's sql_mode, which is
+// why the caller asks both ways.
+fn strip_sql_comments(sql: &str, backslash_escapes: bool) -> String {
+    let c: Vec<char> = sql.chars().collect();
+    let n = c.len();
+    let mut out = String::with_capacity(sql.len());
+    let mut q: Option<char> = None;
+    let mut i = 0;
+    while i < n {
+        let ch = c[i];
+        if let Some(qc) = q {
+            out.push(ch);
+            if ch == '\\' && backslash_escapes && qc != '`' && i + 1 < n { out.push(c[i + 1]); i += 2; continue; }
+            if ch == qc { q = None; }
+            i += 1;
+            continue;
+        }
+        if ch == '\'' || ch == '"' || ch == '`' { q = Some(ch); out.push(ch); i += 1; continue; }
+        if ch == '#' || (ch == '-' && i + 1 < n && c[i + 1] == '-' && (i + 2 >= n || c[i + 2].is_whitespace() || c[i + 2].is_control())) {
+            while i < n && c[i] != '\n' { i += 1; }
+            out.push(' ');
+            continue;
+        }
+        if ch == '/' && i + 1 < n && c[i + 1] == '*' {
+            let mut j = i + 2;
+            while j + 1 < n && !(c[j] == '*' && c[j + 1] == '/') { j += 1; }
+            let (body_end, end) = if j + 1 < n { (j, j + 2) } else { (n, n) };
+            let mut k = i + 2;
+            if k < body_end && c[k] == 'M' && k + 1 < body_end && c[k + 1] == '!' { k += 1; }
+            if k < body_end && c[k] == '!' {
+                k += 1;
+                while k < body_end && c[k].is_ascii_digit() { k += 1; }
+                out.push(' ');
+                out.extend(&c[k..body_end]);
+            }
+            out.push(' ');
+            i = end;
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
+    out
+}
+
+// Read-only only if it is read-only however a backslash is read: 'a\'; DELETE ...' is one string
+// where a backslash escapes and a string followed by a DELETE where it does not (sql_mode
+// NO_BACKSLASH_ESCAPES), and the other way round - so a text that would run a write under either
+// reading is refused.
 fn sql_is_readonly(sql: &str) -> bool {
+    sql_is_readonly_as(sql, true) && sql_is_readonly_as(sql, false)
+}
+
+fn sql_is_readonly_as(sql: &str, backslash_escapes: bool) -> bool {
     if sql.trim().is_empty() { return true; }
-    // /*! ... */ and /*!50000 ... */ are NOT comments: MySQL executes their contents. Stripping
-    // them like a comment hid the statement inside from the keyword check below, so
-    // "/*!50000 DELETE FROM t */" passed as read-only and then deleted rows. Unwrap them first
-    // so the SQL they carry is checked like any other, and only then strip real comments.
-    let re_exec  = regex::Regex::new(r"(?s)/\*!\d*(.*?)\*/").unwrap();
-    let re_block = regex::Regex::new(r"(?s)/\*.*?\*/").unwrap();
-    let re_dash  = regex::Regex::new(r"(?m)--.*$").unwrap();
-    let re_hash  = regex::Regex::new(r"(?m)#.*$").unwrap();
     // MariaDB's ANALYZE [FORMAT=JSON] <statement> form (distinct from ANALYZE TABLE) actually
     // EXECUTES the wrapped statement while profiling it - bare "ANALYZE" was allow-listed for the
     // genuinely read-only ANALYZE TABLE form, which also let "ANALYZE DELETE FROM t" straight
     // through untouched. This strips a leading FORMAT=JSON clause so the wrapped statement's own
     // keyword is what's left to check.
     let re_analyze_fmt = regex::Regex::new(r"(?i)^FORMAT\s*=\s*JSON\s+").unwrap();
-    let unwrapped = re_exec.replace_all(sql, " $1 ");
-    let step1 = re_block.replace_all(&unwrapped, " ");
-    let step2 = re_dash.replace_all(&step1, " ");
-    let s = re_hash.replace_all(&step2, " ");
+    let s = strip_sql_comments(sql, backslash_escapes);
     const ALLOW: &[&str] = &["SELECT","SHOW","DESCRIBE","DESC","EXPLAIN","USE","WITH","SET","HELP","VALUES","TABLE","ANALYZE","CHECK","CHECKSUM"];
     for stmt in s.split(';') {
         let t = stmt.trim();
@@ -1077,6 +1207,16 @@ fn sql_is_readonly(sql: &str) -> bool {
     }
     true
 }
+// The values written here escape a backslash as "\\" (sql_str_lit). On a server whose sql_mode has
+// NO_BACKSLASH_ESCAPES a backslash is an ordinary character, and "C:\\temp" was stored as it was
+// written, one backslash too many - a CSV import, a synced row, a saved cell. The connections that
+// write them are the app's own and last for one job, so the mode is taken off there rather than
+// every literal being written two ways. A server that refuses the SET keeps its mode; nothing
+// else changes.
+fn backslash_escapes_on(c: &mut Conn) {
+    let _ = c.query_drop("SET SESSION sql_mode = TRIM(BOTH ',' FROM REPLACE(CONCAT(',', @@SESSION.sql_mode, ','), ',NO_BACKSLASH_ESCAPES,', ','))");
+}
+
 // The actual escaping: backslash first (so a literal backslash never combines with the quote
 // doubling below to re-open the string), then the quote itself. Used directly wherever a plain
 // string literal is needed (schema/table names from information_schema, usernames, ...) - unlike
@@ -1326,7 +1466,7 @@ async fn schemas(req: Value) -> R {
         names.sort();
         let schemas: Vec<Value> = names.into_iter().map(|db| {
             let sql = format!(
-                "SELECT SUM(DATA_LENGTH + INDEX_LENGTH) FROM information_schema.TABLES WHERE TABLE_SCHEMA={} AND TABLE_TYPE='BASE TABLE'",
+                "SELECT SUM(DATA_LENGTH + INDEX_LENGTH) FROM information_schema.TABLES WHERE TABLE_SCHEMA={} AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED')",
                 sql_lit(&db)
             );
             let size = run_select(&mut c, &sql).ok()
@@ -1346,8 +1486,8 @@ async fn objects(req: Value) -> R {
         let db = sql_str_lit(req["db"].as_str().unwrap_or(""));
         let mut c = build_conn(&req["conn"])?;
         let sql = format!(
-            "SELECT 'table' t,TABLE_NAME n FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE='BASE TABLE' \
-             UNION ALL SELECT 'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE='VIEW' \
+            "SELECT 'table' t,TABLE_NAME n FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') \
+             UNION ALL SELECT 'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('VIEW','SYSTEM VIEW') \
              UNION ALL SELECT IF(ROUTINE_TYPE='PROCEDURE','procedure','function'),ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA={d} \
              UNION ALL SELECT 'trigger',TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA={d} \
              UNION ALL SELECT 'event',EVENT_NAME FROM information_schema.EVENTS WHERE EVENT_SCHEMA={d} ORDER BY 1,2", d = db);
@@ -1718,7 +1858,7 @@ async fn rowop(req: Value) -> R {
         let pairs = |o: &Value| -> Vec<(String, Value)> {
             o.as_object().map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default()
         };
-        let mut c = build_conn(&req["conn"])?;
+        let mut c = build_conn(&req["conn"])?; backslash_escapes_on(&mut c);
         let bin = binary_column_set(&mut c, db, table)?;
         let litc = |k: &str, v: &Value| -> String { json_val_for(v, bin.contains(&k.to_lowercase())) };
         let sql = match op {
@@ -1754,6 +1894,13 @@ async fn rowop(req: Value) -> R {
 // it does nothing for an actual embedded newline BYTE, which this strips outright since none of
 // these fields have any legitimate use for one.
 fn cnf_safe(s: &str) -> String { s.replace(['\r', '\n'], "") }
+
+// A value for an option file, in double quotes. Unquoted, the client ends the value at a "#" (the
+// rest is a comment), drops spaces at either end and takes off a pair of quotes around it, so a
+// password such as "ab#cd" reached the server as "ab" - Export, Import and scripts failed to log in
+// while the grid, which does not use the file, worked. Inside the quotes a backslash and a double
+// quote are escaped; both clients were measured to read back exactly what was meant.
+fn cnf_quote(s: &str) -> String { format!("\"{}\"", cnf_safe(s).replace('\\', "\\\\").replace('"', "\\\"")) }
 
 // Which SSL option dialect a client binary speaks. The MariaDB and MySQL clients name these
 // MUTUALLY EXCLUSIVELY, so the wrong set is not a weaker connection, it is no connection:
@@ -1820,12 +1967,12 @@ fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, Strin
     let mut s = String::from("[client]\n");
     // Through the SSH tunnel when the connection has one, as build_conn does.
     let (host, port) = endpoint(connj)?;
-    s += &format!("host={}\nport={}\nuser={}\n", cnf_safe(&host), port, cnf_safe(connj["user"].as_str().unwrap_or("root")));
+    s += &format!("host={}\nport={}\nuser={}\n", cnf_safe(&host), port, cnf_quote(connj["user"].as_str().unwrap_or("root")));
     // MySQL option files treat backslash as an escape character in values (\t, \n, \\, ...), so a
     // password containing a literal backslash has to be doubled here or the .cnf parser would
     // silently consume it as (the start of) an escape sequence instead of a literal character -
     // corrupting the password and breaking auth for anyone whose password happens to contain one.
-    if let Some(p) = connj["password"].as_str() { if !p.is_empty() { s += &format!("password={}\n", cnf_safe(p).replace('\\', "\\\\")); } }
+    if let Some(p) = connj["password"].as_str() { if !p.is_empty() { s += &format!("password={}\n", cnf_quote(p)); } }
     // A .sql file without its own SET NAMES is read in the client's default character set, and
     // MySQL's mysql.exe takes the console code page for that (cp850 here), so an import through it
     // converted UTF-8 text as if it were cp850. MariaDB's client happens to default to utf8mb4.
@@ -2642,7 +2789,7 @@ async fn export_run(req: Value, dbin: String) -> R {
         // different host, a managed DB service, a teammate's machine, CI) then fails or warns on
         // every one of those objects. Stripping it leaves `SQL SECURITY DEFINER/INVOKER` intact
         // and just falls back to CURRENT_USER at creation time - safe on the same server too.
-        let definer_re = if flag("nodefiner") { Some(regex::Regex::new(r"DEFINER=`(?:[^`]|``)*`@`(?:[^`]|``)*`\s*").unwrap()) } else { None };
+        let definer_re = if flag("nodefiner") { Some(definer_regex()) } else { None };
 
         let run = |bin: &str, args: &[String], file: &str| -> Result<(bool, String), String> {
             let mut cmd = Command::new(bin);
@@ -2650,14 +2797,12 @@ async fn export_run(req: Value, dbin: String) -> R {
             let out = run_job_child(job.as_ref(), &mut cmd);
             match out {
                 Ok(o2) if o2.status.success() => {
+                    let mut note = String::new();
                     if let Some(re) = &definer_re {
-                        if let Ok(content) = std::fs::read_to_string(file) {
-                            let stripped = re.replace_all(&content, "");
-                            let _ = std::fs::write(file, stripped.as_ref());
-                        }
+                        if let Err(e) = strip_definers(file, re) { note = format!(" - DEFINER could not be left out: {}", e); }
                     }
                     let sz = std::fs::metadata(file).map(|m| m.len()).unwrap_or(0);
-                    Ok((true, format!("OK  {} ({:.2} MB)", file, sz as f64 / 1048576.0)))
+                    Ok((true, format!("OK  {} ({:.2} MB){}", file, sz as f64 / 1048576.0, note)))
                 }
                 Ok(o2) => {
                     // A child killed by Cancel has no stderr to report - run_job_child skips
@@ -2666,11 +2811,12 @@ async fn export_run(req: Value, dbin: String) -> R {
                     // with nothing after the colon. Name the real reason instead, and never
                     // report an empty one.
                     let e = first_err(&String::from_utf8_lossy(&o2.stderr));
-                    if !e.trim().is_empty() { Ok((false, friendly_dump_err(&e))) }
+                    let kept = set_aside_partial(file);
+                    if !e.trim().is_empty() { Ok((false, format!("{}{}", friendly_dump_err(&e), kept))) }
                     else if EXPORT_CANCEL.load(Ordering::SeqCst) || job_is_cancelled(&job) { Ok((false, RUN_CANCELLED.into())) }
-                    else { Ok((false, format!("mysqldump exited with {} and no error output", o2.status))) }
+                    else { Ok((false, format!("mysqldump exited with {} and no error output{}", o2.status, kept))) }
                 }
-                Err(e) => Ok((false, e.to_string())),
+                Err(e) => { let kept = set_aside_partial(file); Ok((false, format!("{}{}", e, kept))) }
             }
         };
 
@@ -2758,7 +2904,7 @@ async fn export_run(req: Value, dbin: String) -> R {
                 if EXPORT_CANCEL.load(Ordering::SeqCst) || job_is_cancelled(&job) { log.push("CANCELLED (remaining databases skipped)".into()); cancelled = true; break; }
                 let mut conn = match build_conn(&req["conn"]) { Ok(c) => c, Err(e) => { log.push(format!("FAILED (connect) {} : {}", d, e)); continue; } };
                 // A view has no rows, so data only has nothing of it to split out; its tables only.
-                let only_tables = if o["what"].as_str() == Some("data") { " AND TABLE_TYPE='BASE TABLE'" } else { "" };
+                let only_tables = if o["what"].as_str() == Some("data") { " AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED')" } else { "" };
                 let sql = format!("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={}{} ORDER BY TABLE_NAME", sql_lit(d), only_tables);
                 let tabs: Vec<String> = match run_select(&mut conn, &sql) {
                     Ok((_cols, rows)) => rows.iter().filter_map(|r| r.first().cloned().flatten()).collect(),
@@ -2785,6 +2931,10 @@ async fn export_run(req: Value, dbin: String) -> R {
                     match dumped {
                         Ok((true, _)) => {
                             let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+                            // The routines file is written below under "<db>.routines_events"; a
+                            // table of that name would otherwise share the file with it, and one of
+                            // the two would be lost.
+                            if flag("routines") || flag("events") { used.insert(mkfile(&format!("{}.routines_events", d)).to_lowercase()); }
                             let mut file_for = |name: &str| {
                                 // Names that differ only in characters a file name cannot hold
                                 // ("a b", "a_b") used to write the same file, the later one
@@ -2852,7 +3002,7 @@ async fn importcsv(req: Value) -> R {
         if !std::path::Path::new(&file).exists() { return Ok(json!({"ok":false,"error":"CSV file not found."})); }
         let db = req["db"].as_str().unwrap_or("").to_string();
         let table = req["table"].as_str().unwrap_or("").to_string();
-        let mut c = build_conn(&req["conn"])?;
+        let mut c = build_conn(&req["conn"])?; backslash_escapes_on(&mut c);
         let colsql = format!("SELECT COLUMN_NAME,DATA_TYPE,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA={} AND TABLE_NAME={} ORDER BY ORDINAL_POSITION", sql_str_lit(&db), sql_str_lit(&table));
         let (_c, crows) = run_select(&mut c, &colsql)?;
         // sql_lit()'s "0xDEADBEEF passes through unquoted as a hex literal" rule exists so a
@@ -3798,7 +3948,7 @@ async fn compare_rows_apply_diff(req: Value) -> R {
         let (connj, readonly) = resolve_saved_conn(&tgt_name)?;
         if readonly { return Ok(json!({"ok":false,"error":"Target connection is read-only / safe mode - blocked."})); }
         if pk_cols.is_empty() || updates.is_empty() { return Ok(json!({"ok":false,"error":"No rows to update."})); }
-        let mut c = build_conn(&connj)?;
+        let mut c = build_conn(&connj)?; backslash_escapes_on(&mut c);
         let obj = format!("{}.{}", sql_id(&tgt_db), sql_id(&table));
         let bin = binary_column_set(&mut c, &tgt_db, &table)?;
         let float = float_column_set(&mut c, &tgt_db, &table)?;
@@ -3950,7 +4100,7 @@ async fn compare_rows_apply(req: Value) -> R {
         let (connj, readonly) = resolve_saved_conn(&tgt_name)?;
         if readonly { return Ok(json!({"ok":false,"error":"Target connection is read-only / safe mode - blocked."})); }
         if columns.is_empty() || rows.is_empty() { return Ok(json!({"ok":false,"error":"No rows to insert."})); }
-        let mut c = build_conn(&connj)?;
+        let mut c = build_conn(&connj)?; backslash_escapes_on(&mut c);
         let col_list = columns.iter().map(|c| sql_id(c)).collect::<Vec<_>>().join(",");
         let obj = format!("{}.{}", sql_id(&tgt_db), sql_id(&table));
         let bin = binary_column_set(&mut c, &tgt_db, &table)?;
@@ -4131,8 +4281,8 @@ async fn search_all_schemas(req: Value) -> R {
         let mut c = build_conn(&req["conn"])?;
         let like = sql_lit(&format!("%{}%", term));
         let sql = format!(
-            "SELECT TABLE_SCHEMA,'table',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE='BASE TABLE' AND TABLE_NAME LIKE {t} \
-             UNION ALL SELECT TABLE_SCHEMA,'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE='VIEW' AND TABLE_NAME LIKE {t} \
+            "SELECT TABLE_SCHEMA,'table',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') AND TABLE_NAME LIKE {t} \
+             UNION ALL SELECT TABLE_SCHEMA,'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE IN ('VIEW','SYSTEM VIEW') AND TABLE_NAME LIKE {t} \
              UNION ALL SELECT ROUTINE_SCHEMA,IF(ROUTINE_TYPE='PROCEDURE','procedure','function'),ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_NAME LIKE {t} \
              UNION ALL SELECT TRIGGER_SCHEMA,'trigger',TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_NAME LIKE {t} \
              UNION ALL SELECT EVENT_SCHEMA,'event',EVENT_NAME FROM information_schema.EVENTS WHERE EVENT_NAME LIKE {t} \
@@ -5095,6 +5245,23 @@ mod tests {
                     "DROP TABLE t", "TRUNCATE t", "ALTER TABLE t ADD c INT", "CREATE TABLE t (a INT)",
                     "GRANT ALL ON *.* TO x", "SELECT 1; DELETE FROM t"] {
             assert!(!sql_is_readonly(sql), "should be blocked: {:?}", sql);
+        }
+    }
+
+    #[test]
+    fn read_only_reads_comments_as_the_server_does() {
+        // "--" without a space is two minus signs, and nothing in quotes is a comment: each of
+        // these hid a DELETE from the check while the server ran it.
+        for sql in ["SELECT 1--1; DELETE FROM t", "SELECT '#'; DELETE FROM t", "SELECT \"--\"; DELETE FROM t",
+                    "SELECT '/*'; DELETE FROM t; SELECT '*/'", "SELECT `#x`; DELETE FROM t",
+                    // a backslash that is an escape on one server and an ordinary character on another
+                    "SELECT 'a\\'; DELETE FROM t; SELECT '", "SELECT 'a\\''; DELETE FROM t; -- '",
+                    "/*M!100100 DELETE FROM t */", "SELECT 1 /*!50000 ; DELETE FROM t */"] {
+            assert!(!sql_is_readonly(sql), "should be blocked: {:?}", sql);
+        }
+        for sql in ["SELECT 1 -- DELETE FROM t", "SELECT 1 # DELETE FROM t", "SELECT 1 /* DELETE FROM t */",
+                    "SELECT 1--1", "SELECT '--', '#', '/*' FROM t", "SELECT 1 --\tDELETE"] {
+            assert!(sql_is_readonly(sql), "should be allowed: {:?}", sql);
         }
     }
 
@@ -7347,7 +7514,7 @@ mod cnf_tests {
         let body = std::fs::read_to_string(&path).unwrap();
         assert!(body.contains("\nssl\n") || body.ends_with("ssl\n"),
             "ssl=required did not reach the options file:\n{body}");
-        assert!(body.contains("password=p"), "the rest of the file is still written:\n{body}");
+        assert!(body.contains("password=\"p\""), "the rest of the file is still written:\n{body}");
         assert!(body.contains("\ndefault-character-set=utf8mb4\n"), "the client character set is pinned:\n{body}");
 
         // ...and "default" stays silent, so nothing is forced on a connection that did not ask.

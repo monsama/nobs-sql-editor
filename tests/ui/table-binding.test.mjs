@@ -33,7 +33,7 @@ function extractConst(src, name) {
   return src.slice(start, src.indexOf(';\n', start) + 1)
 }
 
-const NAMES = ['sqlHead', 'useTarget', 'scriptShowsResults', 'parseSingleEditableTable', 'refreshRunTableBinding',
+const NAMES = ['sqlHead', 'useTarget', 'scriptShowsResults', 'parseSingleEditableTable', 'sqlBlankStringsAndComments', 'refreshRunTableBinding',
   'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'cellHtml', 'ctrlCharNote', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
 const bundle = [extractConst(html, 'CTRL_NAMES'), extractConst(html, 'CTRL_RE'),
   ...NAMES.map(n => extractFunction(html, n))].join('\n');
@@ -90,6 +90,38 @@ test('a result that is not one table is not editable', () => {
   const f = load(tab, 'a');
   f.refreshRunTableBinding('t1', 'SELECT * FROM t JOIN u USING (id)', 'a');
   assert.equal(tab.table, null);
+});
+
+// The table a grid edits is the one outside every bracket, string and comment, and only when each
+// column is the table's own under its own name. The first "from" anywhere used to decide, and a
+// subquery in the column list bound an orders result to users: Apply wrote into the users row with
+// the orders row's key.
+test('only the statement\'s own FROM, and only plain columns, make a result editable', () => {
+  const f = load({}, 'a');
+  const p = sql => { const r = f.parseSingleEditableTable(sql, 'a'); return r && r.db + '.' + r.table; };
+  // still editable
+  assert.equal(p('SELECT * FROM t'), 'a.t');
+  assert.equal(p('SELECT * FROM `b`.`t` WHERE id = 1 ORDER BY id LIMIT 5;'), 'b.t');
+  assert.equal(p('SELECT id, name FROM t WHERE x IN (SELECT y FROM u)'), 'a.t');
+  assert.equal(p('SELECT t.id, t.*, `name` AS name FROM t'), 'a.t');
+  assert.equal(p("SELECT * FROM t WHERE s = 'a FROM u' -- FROM v\n"), 'a.t');
+  assert.equal(p('SELECT SQL_NO_CACHE * FROM t'), 'a.t');
+  assert.equal(p('SELECT * FROM t WHERE a--1\n'), 'a.t', '"--" with no space after it is not a comment');
+  assert.equal(p('SELECT `a,b` FROM t'), 'a.t', 'a comma inside a backticked name is part of it');
+  // a FROM inside a subquery, a comment or a string is not the one that counts
+  assert.equal(p('SELECT id, (SELECT name FROM users WHERE users.id = o.user_id) AS uname FROM orders'), null);
+  assert.equal(p('SELECT *\n-- FROM old_t WHERE\nFROM t'), 'a.t');
+  assert.equal(p('SELECT *\n# FROM old_t WHERE\nFROM t'), 'a.t');
+  assert.equal(p('SELECT *\n/* FROM old_t WHERE */ FROM t'), 'a.t');
+  assert.equal(p("SELECT 'x FROM u WHERE' AS n, t.* FROM t"), null, 'a literal is not a column of t');
+  assert.equal(p('SELECT * FROM (SELECT * FROM t WHERE 1) a JOIN u ON 1'), null);
+  // columns that are not the table's own, or not under their own name
+  assert.equal(p('SELECT id, LEFT(body, 20) AS body FROM t'), null);
+  assert.equal(p('SELECT parent_id AS id, name FROM t'), null);
+  assert.equal(p('SELECT id, 1 FROM t'), null);
+  assert.equal(p('SELECT COUNT(*) FROM t'), null);
+  assert.equal(p('SELECT u.id FROM t'), null, 'another table\'s qualifier');
+  assert.equal(p('SELECT /*!40001 SQL_NO_CACHE */ * FROM t'), null, 'a versioned comment is code');
 });
 
 test('a NUL inside text is shown, not swallowed', () => {

@@ -176,6 +176,12 @@ for (const f of FIXTURES) {
     assert.match(D.colDef(c), /DEFAULT 'o''k'$/);
     const n = { ...byName(orig, 'amount'), def: '5' };
     assert.match(D.colDef(n), /DEFAULT 5$/);
+    // a text column's digits are text; an expression in brackets and a bit literal are SQL
+    assert.match(D.colDef({ ...c, def: '007' }), /DEFAULT '007'$/);
+    assert.match(D.colDef({ ...c, def: '0x41' }), /DEFAULT '0x41'$/);
+    assert.match(D.colDef({ ...c, def: '(uuid())' }), /DEFAULT \(uuid\(\)\)$/);
+    assert.match(D.colDef({ ...byName(orig, 'amount'), def: '1e3' }), /DEFAULT 1e3$/);
+    assert.match(D.colDef({ ...byName(orig, 'ts'), def: '(CURDATE())' }), /DEFAULT \(CURDATE\(\)\)/);
   });
 }
 
