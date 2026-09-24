@@ -4317,18 +4317,41 @@ if(opts.onSave)add('Save','go',async()=>{
  show('mView');setTimeout(()=>{if(opts.multiOptions){}else if(opts.options){sel.focus();}else if(opts.dateType){dt.focus();}else if(!opts.readonly){ta.focus();}},60);}
 // Column type info, fetched once per table (lazily, only when the user actually starts editing
 // a cell there) and cached on the tab, so browsing/running queries never pays this extra cost -
-// only editing a table-backed result does.
-async function getColType(id,colName){
- const t=T(id);if(!t||!t.table)return null;
- if(!t.colTypes){
-  t.colTypes={};
-  try{
-   const r=await api('/api/query',{sql:"SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(dbOf(t))+" AND TABLE_NAME="+lit(t.table)});
-   if(r.ok)r.rows.forEach(row=>{t.colTypes[row[0]]=row[1];});
-  }catch(e){}
+// only editing a table-backed result does. Whether each column takes NULL comes with it: "Set
+// NULL" is offered only where the column can hold one. Every caller waits on the same fetch - a
+// second caller used to find the cache already made but still empty, and read "unknown".
+function colMeta(id){
+ const t=T(id);if(!t||!t.table)return Promise.resolve(null);
+ if(!t._colMetaP){
+  t.colTypes={};t.colNull={};t.colAi={};
+  t._colMetaP=(async()=>{try{
+   const r=await api('/api/query',{sql:"SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(dbOf(t))+" AND TABLE_NAME="+lit(t.table)});
+   if(r.ok)r.rows.forEach(row=>{t.colTypes[row[0]]=row[1];t.colNull[row[0]]=(String(row[2]).toUpperCase()==='YES');t.colAi[row[0]]=/auto_increment/i.test(row[3]||'');});
+  }catch(e){}})();
  }
- return t.colTypes[colName]||null;
+ return t._colMetaP.then(()=>t);
 }
+async function getColType(id,colName){const t=await colMeta(id);return t?(t.colTypes[colName]||null):null;}
+// Whether a column can be set to NULL, as far as is known right now: not a key column, nor one the
+// table declares NOT NULL. When nothing is known - a result that is not one table, a lookup that
+// failed - it is offered, and the server has the last word.
+function canNull(id,colName){const t=T(id);if(!t)return true;
+ if(t.pk&&t.pk.indexOf(colName)>=0)return false;
+ return !(t.colNull&&(colName in t.colNull)&&!t.colNull[colName]);}
+// A new row is different in one way: NULL into an auto-increment column asks for the next number,
+// so it is offered there even though the column is a NOT NULL key.
+function canNullIns(id,colName){const t=T(id);if(!t)return true;
+ if(t.colAi&&t.colAi[colName])return true;
+ return !(t.colNull&&(colName in t.colNull)&&!t.colNull[colName]);}
+// The "set NULL" button inside a cell's box. Its press is kept from the cell under it: the press
+// used to go on to the cell as the start of a drag, the grid was rebuilt by then, and the release
+// over whatever cell now sat under the pointer picked a block of neighbours - which the next typed
+// value, or the next press of this button, then wrote to all of them. The value is written on the
+// click, not the press, so nothing is rebuilt while the button is still held.
+function nullBtnWire(nb,fn){
+ nb.addEventListener('mousedown',e=>{e.preventDefault();e.stopPropagation();});
+ nb.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();fn();});
+ nb.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();});}
 // Parses MySQL's enum('a','b','c') or set('a','b','c') column-type text into the actual list of
 // values - both share the exact same parenthesized-quoted-list syntax. Values can contain commas
 // and escaped quotes (enum('a,b','c''d')), so this can't just split on ',' - it walks the string
@@ -4416,19 +4439,19 @@ function binaryEditMode(flaggedBinary,v){
 }
 async function editCell(td,id,ri,ci){clearTimeout(clickTimer);const t=T(id);t._fullEditAt=Date.now();const key=ri+':'+ci;const cur=(key in t.pending.upd)?t.pending.upd[key]:t.rows[ri][ci];
  const ew=await editWidgetFor(id,t.cols[ci],cur);
- viewText('Cell - '+t.cols[ci]+(cur===null?'  (currently NULL)':''),cur,{onSave:v=>setUpd(id,ri,ci,v),onNull:()=>setUpd(id,ri,ci,null),...ew});}
+ viewText('Cell - '+t.cols[ci]+(cur===null?'  (currently NULL)':''),cur,{onSave:v=>setUpd(id,ri,ci,v),onNull:canNull(id,t.cols[ci])?()=>setUpd(id,ri,ci,null):null,...ew});}
 // The cell window for a result that cannot be edited: the whole value, to read and copy.
 function viewCell(id,ri,ci){const t=T(id);if(!t||!t.rows[ri])return;const v=t.rows[ri][ci];viewText('Cell - '+t.cols[ci]+(v===null?'  (NULL)':''),v===null?'':v,{readonly:true});}
-function setUpd(id,ri,ci,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){toast('Column "'+t.cols[ci]+'" is part of the primary key and cannot be set to NULL.',true);return;}const key=ri+':'+ci;if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;renderGrid(id);}
-// The same for a set of cells given one value, with one rebuild at the end. A key column is never
-// given NULL; it is left as it was, and the user is told.
+function setUpd(id,ri,ci,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){toast('Column "'+t.cols[ci]+'" is part of the primary key and cannot be set to NULL.',true);return;}if(v===null&&!canNull(id,t.cols[ci])){toast('Column "'+t.cols[ci]+'" is NOT NULL and cannot be set to NULL.',true);return;}const key=ri+':'+ci;if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;renderGrid(id);}
+// The same for a set of cells given one value, with one rebuild at the end. A key column or a NOT
+// NULL one is never given NULL; it is left as it was, and the user is told.
 function setUpdMany(id,keys,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}
  let n=0,kept=0;
  keys.forEach(key=>{const p=key.split(':'),ri=+p[0],ci=+p[1];if(!t.rows[ri])return;
-  if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){kept++;return;}
+  if(v===null&&!canNull(id,t.cols[ci])){kept++;return;}
   if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;n++;});
  renderGrid(id);
- if(kept)toast(kept+' primary-key cell'+(kept===1?' was':'s were')+' left as they were - a key cannot be NULL.',true);
+ if(kept)toast(kept+' cell'+(kept===1?' was':'s were')+' left as they were - '+(kept===1?'its column':'their columns')+' cannot hold NULL.',true);
  else if(n>1)toast('Set '+n+' cells.');}
 // Typing with cells picked: the editor opens on the focused cell (or else the anchor) holding the
 // key that was typed, and what is entered there goes into every picked cell still on screen. With
@@ -4616,31 +4639,41 @@ async function inlineEdit(td,id,ri,ci,opts){const t=T(id);const key=ri+':'+ci;co
  // instead now, sized to roughly fit the existing line count; the big modal is still one
  // double-click away for anything that genuinely needs more room.
  const isMulti=cur!=null&&/[\r\n]/.test(String(cur));
+ // Typed into several picked cells, the button is there when any of them can take NULL; the ones
+ // that cannot are left as they were (setUpdMany).
+ const nullCols=opts?[...new Set(opts.keys.map(k=>t.cols[+k.split(':')[1]]))]:[t.cols[ci]];
+ const nullOk=nullCols.some(c=>canNull(id,c));
  // No inp.select() here on purpose - auto-selecting the whole value made entering edit mode look
  // like a big blue highlight box instead of just dropping into the text, so the cursor is placed
  // at the end of the existing value instead (still lets you type to replace via Home+shift, etc).
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" title="Set NULL">&empty;</button></div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur===null?'':cur);inp.focus();const vlen=inp.value.length;inp.setSelectionRange(vlen,vlen);let done=false,dirty=!!opts;
+ td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+(nullOk?'<button tabindex="-1" title="Set NULL">&empty;</button>':'')+'</div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');inp.value=(cur===null?'':cur);inp.focus();const vlen=inp.value.length;inp.setSelectionRange(vlen,vlen);let done=false,dirty=!!opts;
+ // Opened by typing, the box did not wait for the column types; once they are in, the button goes
+ // if none of these columns can hold NULL after all.
+ if(nb&&opts)colMeta(id).then(()=>{if(!nullCols.some(c=>canNull(id,c)))nb.remove();});
  if(opts&&opts.keys.length>1)inp.title='Writes to all '+opts.keys.length+' picked cells';
  const set=v=>{done=true;if(opts)setUpdMany(id,opts.keys,v);else setUpd(id,ri,ci,v);};
  inp.addEventListener('input',()=>dirty=true);
- nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
+ if(nb)nullBtnWire(nb,()=>set(null));
  // A plain Enter commits for a single-line input, but inserts a newline (as it always does in a
  // textarea) for the multi-line case - Ctrl/Cmd+Enter commits there instead, same convention as
  // "Run Query Selection" elsewhere in the app.
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&(!isMulti||e.ctrlKey||e.metaKey)){e.preventDefault();if(dirty)set(inp.value);else{done=true;cellRevert(td,id,ri,ci);}}else if(e.key==='Escape'){done=true;cellRevert(td,id,ri,ci);}});
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else cellRevert(td,id,ri,ci);}},120));}
 function inlineEditIns(td,id,ii,col){const t=T(id);const cur=t.pending.ins[ii][col];
- const isMulti=cur!=null&&/[\r\n]/.test(String(cur));
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+'<button tabindex="-1" title="Set NULL">&empty;</button></div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
+ const isMulti=cur!=null&&/[\r\n]/.test(String(cur));const nullOk=canNullIns(id,col);
+ td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+(nullOk?'<button tabindex="-1" title="Set NULL">&empty;</button>':'')+'</div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
+ if(nb)colMeta(id).then(()=>{if(!canNullIns(id,col))nb.remove();});
  const set=v=>{done=true;t.pending.ins[ii][col]=v;renderGrid(id);};
  inp.addEventListener('input',()=>dirty=true);
- nb.addEventListener('mousedown',e=>{e.preventDefault();set(null);});
+ if(nb)nullBtnWire(nb,()=>set(null));
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&(!isMulti||e.ctrlKey||e.metaKey)){e.preventDefault();if(dirty)set(inp.value);else{done=true;insCellRevert(td,id,ii,col);}}else if(e.key==='Escape'){done=true;insCellRevert(td,id,ii,col);}});
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else insCellRevert(td,id,ii,col);}},120));}
-function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;
+async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;
  // What this result allows, and what is ticked: the menu is built from these rather than
  // offering everything and explaining afterwards which of it was not possible.
  const editable=!!(t.pk&&t.pending),nsel=(t.selected&&t.selected.size)||0,sel=nsel>0;
+ // Whether this column takes NULL - a round trip the first time per table, then cached.
+ if(editable&&t.table)await colMeta(id);
  // How many, in words the menu can say: "row" for one of them, "3 rows" for more.
  const rows=n=>n===1?'row':n+' rows';
  // A copied row belongs to the table it came from: one with a different number of columns cannot
@@ -4653,7 +4686,7 @@ function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+
   (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   if(fkd&&cur!=null){items.push(['Go to referenced row ('+fkd[1]+'.'+fkd[2]+')',()=>goToFkRow(t.db,fkd[1],fkd[2],cur)]);}
-  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],sel&&['Export to Excel ('+nsel+' selected)...',()=>exportRowsAs(id,'xlsx',true)],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],sel&&['Export to JSON ('+nsel+' selected)...',()=>exportRowsAs(id,'json',true)],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],editable&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],sel&&['Export to Excel ('+nsel+' selected)...',()=>exportRowsAs(id,'xlsx',true)],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],sel&&['Export to JSON ('+nsel+' selected)...',()=>exportRowsAs(id,'json',true)],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
@@ -4799,29 +4832,31 @@ async function addFilterClause(id,clause){const t=T(id);if(!t.filterClauses)t.fi
 async function clearFilters(id){const t=T(id);t.filterClauses=[];await openRun(id);log('Filter cleared.');}
 function updateFilterBar(id){const t=T(id);const st=$('st_'+id);if(!st)return;const w=combinedFilterWhere(t);st.title=w?('WHERE '+w):'';}
 let _rf=null;
-function rowForm(id,ri){const t=T(id);_rf={id:id,ri:ri};$('rfTitle').textContent='Edit row'+(t.table?(' - '+t.table):'');const box=$('rfFields');box.innerHTML='';
+async function rowForm(id,ri){const t=T(id);if(t.pending&&t.table)await colMeta(id);_rf={id:id,ri:ri};$('rfTitle').textContent='Edit row'+(t.table?(' - '+t.table):'');const box=$('rfFields');box.innerHTML='';
  t.cols.forEach((c,ci)=>{const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
   const w=document.createElement('div');w.style.display='flex';w.style.alignItems='flex-start';w.style.gap='8px';w.style.margin='4px 0';
   const lb=document.createElement('label');lb.textContent=c+(t.pk&&t.pk.indexOf(c)>=0?' (PK)':'');lb.style.width='170px';lb.style.flex='0 0 170px';lb.style.fontSize='12px';lb.style.textAlign='right';lb.style.paddingTop='5px';lb.style.color='var(--muted)';lb.style.overflow='hidden';lb.style.textOverflow='ellipsis';
   const ta=document.createElement('textarea');ta.id='rf_'+ci;ta.value=(cur===null?'':cur);ta.rows=(cur!=null&&String(cur).length>60)?3:1;ta.style.flex='1';ta.style.fontFamily='"Cascadia Code",Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace';ta.style.fontSize='12px';ta.dataset.null=(cur===null)?'1':'';
   ta.oninput=()=>{ta.dataset.null='';};
+  // No button beside a field that cannot hold NULL; the space is kept so the boxes still line up.
   const nb=document.createElement('button');nb.className='sm nullbtn';nb.innerHTML='&empty;';nb.title='Set this field to NULL';nb.onclick=()=>{ta.value='';ta.dataset.null='1';};
+  if(!canNull(id,c))nb.style.visibility='hidden';
   w.appendChild(lb);w.appendChild(ta);w.appendChild(nb);box.appendChild(w);});
  show('mRowForm');}
-function rfSave(){if(!_rf)return;const t=T(_rf.id),ri=_rf.ri;if(!t.pending){hide('mRowForm');_rf=null;toast('This result is not editable (no primary key detected) - nothing was saved.',true);return;}t.cols.forEach((c,ci)=>{const ta=$('rf_'+ci);if(!ta)return;const v=(ta.dataset.null==='1')?null:ta.value;const orig=t.rows[ri][ci];const key=ri+':'+ci;if(v===orig){if(t.pending&&key in t.pending.upd)delete t.pending.upd[key];}else{if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){/* skip PK->null */}else if(t.pending){t.pending.upd[key]=v;}}});hide('mRowForm');renderGrid(_rf.id);_rf=null;}
+function rfSave(){if(!_rf)return;const t=T(_rf.id),ri=_rf.ri;if(!t.pending){hide('mRowForm');_rf=null;toast('This result is not editable (no primary key detected) - nothing was saved.',true);return;}t.cols.forEach((c,ci)=>{const ta=$('rf_'+ci);if(!ta)return;const v=(ta.dataset.null==='1')?null:ta.value;const orig=t.rows[ri][ci];const key=ri+':'+ci;if(v===orig){if(t.pending&&key in t.pending.upd)delete t.pending.upd[key];}else{if(v===null&&!canNull(_rf.id,t.cols[ci])){/* a key or NOT NULL column is not given NULL */}else if(t.pending){t.pending.upd[key]=v;}}});hide('mRowForm');renderGrid(_rf.id);_rf=null;}
 function toggleDel(id,ri){const t=T(id);if(t.pending.del.has(ri))t.pending.del.delete(ri);else t.pending.del.add(ri);renderGrid(id);}
 function deleteSel(id){const t=T(id);if(!t.pk){toast('This result is not editable (no primary key).',true);return;}const ids=[...(t.selected||[])];if(!ids.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}ids.forEach(ri=>t.pending.del.add(ri));renderGrid(id);log(ids.length+' row(s) marked for deletion - click Apply to commit.');}
 function addRow(id){const t=T(id);t.pending.ins.push({});renderGrid(id);}
 function delIns(id,ii){const t=T(id);t.pending.ins.splice(ii,1);renderGrid(id);}
 async function editIns(td,id,ii,col){clearTimeout(clickTimer);const t=T(id);const cur=t.pending.ins[ii][col];
  const ew=await editWidgetFor(id,col,cur);
- viewText('New row - '+col,(cur==null?'':cur),{onSave:v=>{t.pending.ins[ii][col]=v;renderGrid(id);},onNull:()=>{t.pending.ins[ii][col]=null;renderGrid(id);},...ew});}
-function insCellMenu(e,id,ii,col){e.preventDefault();const t=T(id);const cur=t.pending.ins[ii][col];
+ viewText('New row - '+col,(cur==null?'':cur),{onSave:v=>{t.pending.ins[ii][col]=v;renderGrid(id);},onNull:canNullIns(id,col)?()=>{t.pending.ins[ii][col]=null;renderGrid(id);}:null,...ew});}
+async function insCellMenu(e,id,ii,col){e.preventDefault();const t=T(id);if(t.table)await colMeta(id);const cur=t.pending.ins[ii][col];
  const clip1=singleRowClipboard(),fitsHere=!!(clip1&&clip1.length===t.cols.length);
  const items=[['Copy value',()=>{clipWrite(cellCopyValue(cur));log('Copied value.');}],
   fitsHere&&['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],
   ['Edit value...',()=>editIns(null,id,ii,col)],'-',
-  ['Set NULL',()=>{t.pending.ins[ii][col]=null;renderGrid(id);}],
+  canNullIns(id,col)&&['Set NULL',()=>{t.pending.ins[ii][col]=null;renderGrid(id);}],
   ['Set empty',()=>{t.pending.ins[ii][col]='';renderGrid(id);}],'-',
   ['Delete this new row',()=>delIns(id,ii)]];
  menu(e.clientX,e.clientY,items);}

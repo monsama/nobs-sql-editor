@@ -71,7 +71,7 @@
   G.check('and the copy is taken over from the browser', ev.defaultPrevented, 'the browser copied its own idea of the selection');
 
   // --- the menu offers them too
-  cellMenu({ preventDefault() {}, clientX: 40, clientY: 40 }, i, 1, 0);
+  await cellMenu({ preventDefault() {}, clientX: 40, clientY: 40 }, i, 1, 0);
   const menuItems = [...document.querySelectorAll('#ctx > .item')].map(d => d.textContent);
   G.check('the cell menu offers the picked cells', menuItems.includes('Copy 2 picked cells'), menuItems);
   $('ctx').style.display = 'none';
