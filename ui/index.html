@@ -788,6 +788,15 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none;flex-wrap:nowrap;gap:8px"><span class="muted">Database</span><select id="accDb" style="width:260px" onchange="accLoad()"></select><input id="accFilter" type="search" placeholder="Filter accounts" style="width:220px" oninput="accRender()"><span class="muted" id="accCount" style="margin-left:auto;font-size:12px"></span></div>
  <div id="accList" style="flex:1;min-height:0;overflow:auto;margin-top:8px"></div>
  <div class="row" style="justify-content:flex-end;flex:none;margin-top:10px"><button onclick="hide('mAccess')">Close</button></div></div></div>
+<div class="modal floating" id="mInspect"><div class="box" style="width:900px;max-width:95vw;height:680px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInspect')" title="Drag to move"><h3 style="margin:0 0 10px">Inspect</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mInspect')" title="Maximize" id="maxBtn_mInspect" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInspect')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="upanel" style="flex:1;min-height:0">
+  <div class="uhead"><div class="uhead-t"><div id="inspTitle" class="utitle"></div><div id="inspSub" class="usub"></div></div></div>
+  <section class="usec"><div class="usec-h"><span>Details</span></div><div id="inspInfo" class="ukv"></div></section>
+  <section class="usec"><div class="usec-h"><span>Indexes</span></div><div id="inspIdx"></div></section>
+  <section class="usec"><div class="usec-h"><span>Foreign keys</span></div><div id="inspFk"></div></section>
+  <section class="usec"><div class="usec-h"><span>Referenced by</span></div><div id="inspRef"></div></section>
+ </div>
+ <div class="row" style="flex:none;margin-top:10px"><button onclick="hide('mInspect');window._insp&&openDdl(window._insp.db,'table',window._insp.name)">Show CREATE</button><button class="write" onclick="hide('mInspect');window._insp&&designTable(window._insp.name,window._insp.db)">Design / Alter...</button><span style="flex:1"></span><button onclick="hide('mInspect')">Close</button></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Transfer script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -3122,12 +3131,37 @@ async function duplicateTable(db,name){
 }
 async function maint(db,name,op){const kw=op==='OPTIMIZE'?'OPTIMIZE TABLE':op==='ANALYZE'?'ANALYZE TABLE':op==='CHECK'?'CHECK TABLE':'REPAIR TABLE';const r=await api('/api/query',{sql:kw+' '+qid(db)+'.'+qid(name)});if(r.ok&&r.rows&&r.rows.length){log(op+': '+r.rows.map(x=>x.join(' | ')).join(' ; '));}else if(r.ok){log(op+' OK');}else{log(op+' error: '+r.error);}}
 async function genTemplate(db,name){const r=await api('/api/query',{sql:"SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" ORDER BY ORDINAL_POSITION"});if(!r.ok||!r.rows.length){toast('Could not read columns.',true);return;}const cols=r.rows.map(x=>x[0]);const tbl=qid(db)+'.'+qid(name);const cl=cols.map(qid).join(', ');const vals=cols.map(()=>'?').join(', ');const sets=cols.map(c=>qid(c)+' = ?').join(',\n  ');const sql='-- SELECT\nSELECT '+cl+'\nFROM '+tbl+'\nWHERE 1=1\nLIMIT 100;\n\n-- INSERT\nINSERT INTO '+tbl+' ('+cl+')\nVALUES ('+vals+');\n\n-- UPDATE\nUPDATE '+tbl+' SET\n  '+sets+'\nWHERE /* key */ ;';openTab(name+' templates',sql,db,false,null);}
-async function inspect(db,name){const q=await api('/api/query',{sql:"SELECT ENGINE,TABLE_ROWS,DATA_LENGTH,INDEX_LENGTH,TABLE_COLLATION,CREATE_TIME,UPDATE_TIME FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
- let t='';if(q.ok&&q.rows.length){const r=q.rows[0];t='Engine: '+r[0]+'\nApprox rows: '+r[1]+'\nData size: '+fmtB(r[2])+'\nIndex size: '+fmtB(r[3])+'\nCollation: '+r[4]+'\nCreated: '+r[5]+'\nUpdated: '+r[6];}
- const idx=await api('/api/query',{sql:'SHOW INDEX FROM '+qid(db)+'.'+qid(name)});if(idx.ok&&idx.rows.length){t+='\n\nIndexes:\n'+idx.rows.map(r=>' '+r[2]+' ('+r[4]+')'+(r[1]=='0'?' UNIQUE':'')).join('\n');}
- const fks=await api('/api/query',{sql:"SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME"});if(fks.ok&&fks.rows.length){t+='\n\nForeign keys:\n'+fks.rows.map(r=>' '+r[1]+' -> '+r[2]+'.'+r[3]).join('\n');}
- const ref=await api('/api/query',{sql:"SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA="+lit(db)+" AND REFERENCED_TABLE_NAME="+lit(name)+" ORDER BY TABLE_NAME"});if(ref.ok&&ref.rows.length){t+='\n\nReferenced by:\n'+ref.rows.map(r=>' '+r[0]+'.'+r[1]).join('\n');}
- viewText('Table '+db+'.'+name,t,{readonly:true});}
+// A table at a glance: what it is and how big, its indexes with their columns in order, its
+// foreign keys, and the tables whose keys point at it - each of those a click away.
+async function inspect(db,name){window._insp={db,name};
+ $('inspTitle').textContent=name;$('inspSub').innerHTML='<span class="utag">table</span> in '+esc(db);
+ ['inspInfo','inspIdx','inspFk','inspRef'].forEach(id=>$(id).innerHTML='<div class="unone">Reading...</div>');
+ show('mInspect');
+ const q=await api('/api/query',{sql:"SELECT ENGINE,TABLE_ROWS,DATA_LENGTH,INDEX_LENGTH,TABLE_COLLATION,CREATE_TIME,UPDATE_TIME,TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
+ if(!window._insp||window._insp.db!==db||window._insp.name!==name)return;
+ if(q.ok&&q.rows.length){const r=q.rows[0];
+  if(r[0])$('inspSub').innerHTML='<span class="utag">'+esc(String(r[0]))+'</span> table in '+esc(db);
+  const rows=[['Engine',r[0]||'-'],['Rows',r[1]!=null?'about '+fmtCount(+r[1]):'-'],['Data size',fmtBytes(+r[2]||0)],['Index size',fmtBytes(+r[3]||0)],['Collation',r[4]||'-'],['Created',r[5]||'-'],['Last changed',r[6]||'not recorded by this engine']];
+  if(r[7])rows.push(['Comment',r[7]]);
+  $('inspInfo').innerHTML=rows.map(([k,v])=>'<div>'+k+'</div><div>'+esc(String(v))+'</div>').join('');}
+ else $('inspInfo').innerHTML='<div class="unone">'+esc(q.error||'The table was not found.')+'</div>';
+ // SHOW INDEX has a row for each column of each index: put them back together, in order
+ const idx=await api('/api/query',{sql:'SHOW INDEX FROM '+qid(db)+'.'+qid(name)});
+ if(idx.ok&&idx.rows.length){const by=new Map();idx.rows.forEach(r=>{const k=String(r[2]);if(!by.has(k))by.set(k,{unique:String(r[1])==='0',cols:[],type:String(r[10]||'')});by.get(k).cols[(+r[3]||1)-1]=String(r[4]);});
+  $('inspIdx').innerHTML='<table class="utab"><colgroup><col style="width:30%"><col><col style="width:130px"></colgroup><thead><tr><th>Index</th><th>Columns, in order</th><th>Kind</th></tr></thead><tbody>'+
+   [...by.entries()].map(([k,v])=>'<tr><td>'+esc(k)+'</td><td>'+v.cols.filter(Boolean).map(c=>'<span class="upriv">'+esc(c)+'</span>').join('')+'</td><td>'+(k==='PRIMARY'?'<span class="utag urole">primary key</span>':v.unique?'<span class="utag">unique</span>':'<span class="muted">'+esc(v.type.toLowerCase()||'index')+'</span>')+'</td></tr>').join('')+'</tbody></table>';}
+ else $('inspIdx').innerHTML='<div class="unone">'+(idx.ok?'No indexes - every search reads the whole table.':esc(idx.error))+'</div>';
+ const link=(d,t)=>'<a href="#" class="acclink insplink" data-db="'+esc(d)+'" data-t="'+esc(t)+'" title="Inspect '+esc(t)+'">'+esc(d===db?t:d+'.'+t)+'</a>';
+ const fks=await api('/api/query',{sql:"SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_SCHEMA,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME,ORDINAL_POSITION"});
+ if(fks.ok&&fks.rows.length){const by=new Map();fks.rows.forEach(r=>{const k=String(r[0]);if(!by.has(k))by.set(k,{cols:[],rdb:String(r[2]),rt:String(r[3]),rcols:[]});const f=by.get(k);f.cols.push(String(r[1]));f.rcols.push(String(r[4]));});
+  $('inspFk').innerHTML='<table class="utab"><colgroup><col style="width:30%"><col><col></colgroup><thead><tr><th>Key</th><th>Columns</th><th>Points at</th></tr></thead><tbody>'+
+   [...by.entries()].map(([k,f])=>'<tr><td>'+esc(k)+'</td><td>'+f.cols.map(c=>'<span class="upriv">'+esc(c)+'</span>').join('')+'</td><td>'+link(f.rdb,f.rt)+' <span class="muted">('+esc(f.rcols.join(', '))+')</span></td></tr>').join('')+'</tbody></table>';}
+ else $('inspFk').innerHTML='<div class="unone">'+(fks.ok?'None.':esc(fks.error))+'</div>';
+ const ref=await api('/api/query',{sql:"SELECT TABLE_SCHEMA,TABLE_NAME,GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION SEPARATOR ', '),CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA="+lit(db)+" AND REFERENCED_TABLE_NAME="+lit(name)+" GROUP BY TABLE_SCHEMA,TABLE_NAME,CONSTRAINT_NAME ORDER BY TABLE_NAME"});
+ if(ref.ok&&ref.rows.length)$('inspRef').innerHTML='<table class="utab"><colgroup><col style="width:30%"><col><col></colgroup><thead><tr><th>Table</th><th>Its columns</th><th>Key</th></tr></thead><tbody>'+
+   ref.rows.map(r=>'<tr><td>'+link(String(r[0]),String(r[1]))+'</td><td>'+String(r[2]).split(', ').map(c=>'<span class="upriv">'+esc(c)+'</span>').join('')+'</td><td class="muted">'+esc(String(r[3]))+'</td></tr>').join('')+'</tbody></table>';
+ else $('inspRef').innerHTML='<div class="unone">'+(ref.ok?'No other table points at it.':esc(ref.error))+'</div>';
+ $('mInspect').querySelectorAll('.insplink').forEach(a=>a.onclick=e=>{e.preventDefault();inspect(a.dataset.db,a.dataset.t);});}
 function fmtB(n){n=+n||0;return n>1048576?(n/1048576).toFixed(1)+' MB':n>1024?(n/1024).toFixed(1)+' KB':n+' B';}
 
 // ---- DDL ----
