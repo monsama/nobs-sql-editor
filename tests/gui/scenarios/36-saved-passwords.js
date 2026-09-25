@@ -23,8 +23,17 @@
       : (await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, token: TOKEN }) })).json();
     const same = await raw('/api/query', { sql: 'SELECT 1', conn: getConn() });
     G.check('sent straight, the name signs in at its own address', same.ok, same);
-    const r = await raw('/api/query', { sql: 'SELECT 1', conn: { ...getConn(), host: other } });
-    G.check('the name with another host does not bring the password along', !r.ok, r);
+    // Another account with the same password: signing in as it proves the saved password went along.
+    // (Another spelling of the host is not proof - a server may let root in from localhost without
+    // one.)
+    const U = 'nobs_gui_pwother';
+    await G.run(`DROP USER IF EXISTS '${U}'@'%'; CREATE USER '${U}'@'%' IDENTIFIED BY ${strLit(form.pass)}`);
+    try {
+      const r = await raw('/api/query', { sql: 'SELECT 1', conn: { ...getConn(), user: U } });
+      G.check('the name with another user does not bring the password along', !r.ok, r);
+      const typed = await raw('/api/query', { sql: 'SELECT 1', conn: { ...getConn(), user: U, savedName: '', password: form.pass } });
+      G.check('(that account does sign in with the password typed)', typed.ok, typed);
+    } finally { await G.run(`DROP USER IF EXISTS '${U}'@'%'`); }
 
     // Saved again pointing somewhere else, with the password box left empty: it is not carried over.
     await G.A('/api/conn-save', { name: N, conn: { ...conn, host: other, password: '' }, savepw: true, keepFrom: N });
