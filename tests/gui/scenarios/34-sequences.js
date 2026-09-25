@@ -4,12 +4,15 @@
   const DB = 'nobs_gui_seq';
   try {
     await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB}; CREATE TABLE ${DB}.t (id INT PRIMARY KEY);`);
-    const maria = /mariadb/i.test(await G.one('SELECT VERSION()'));
+    // Sequences came with MariaDB 10.3; MySQL and MariaDB 10.2 have none, and there the list is empty.
+    const ver = String(await G.one('SELECT VERSION()'));
+    const [maj, min] = ver.split('.').map(Number);
+    const maria = /mariadb/i.test(ver) && (maj > 10 || (maj === 10 && min >= 3));
     if (maria) await G.run(`CREATE SEQUENCE ${DB}.s START WITH 10`);
     await loadObjects(DB);
     await G.until(() => objData && objData.db === DB, 10000);
     if (!maria) {
-      G.check('MySQL: no sequences, and the list says so', Array.isArray(objData.r.sequences) && objData.r.sequences.length === 0, objData.r.sequences);
+      G.check('no sequences on this server, and the list says so', Array.isArray(objData.r.sequences) && objData.r.sequences.length === 0, objData.r.sequences);
     } else {
       G.eq('the sequence is listed, apart from the tables', [objData.r.sequences, objData.r.tables], [['s'], ['t']]);
       objMenu({ clientX: 40, clientY: 40 }, DB, 'sequence', 's');
