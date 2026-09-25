@@ -31,7 +31,7 @@ the server directly.
 | **Servers** | MySQL 5.7 to 9.4 and MariaDB 10.2 to 12.3, tested - see [Supported servers](#supported-servers) |
 | **Connection** | Direct, over the MySQL protocol; optional SSH tunnel; TLS with CA verification |
 | **Passwords** | Windows Credential Manager, never in a file |
-| **Your data** | `%APPDATA%\NOBSSQL-Desktop` (connections, settings, query library, log) |
+| **Your data** | `%APPDATA%\NOBSSQL-Desktop` (connections, settings, query library, log); downloaded client tools in `%LOCALAPPDATA%\NOBSSQL-Desktop` |
 | **Network** | Only your database servers, plus what is listed under [Network access](#network-access) |
 | **License** | GPL-2.0-or-later |
 
@@ -70,13 +70,14 @@ there is no certificate.
 
 ### Uninstalling
 
-1. To remove saved connections and their passwords as well, first open **Settings -> Clear all
-   app data** in the app.
+1. To remove saved connections and their passwords as well, first open **Settings -> Local data
+   -> Clear all app data** in the app.
 2. Uninstall **NOBS SQL Editor** from Windows **Settings -> Apps -> Installed apps** (or
    "Programs and Features").
 3. Optionally delete what the app keeps for your user account:
-   - `%APPDATA%\NOBSSQL-Desktop` - connections, settings, the query library, the log, and
-     downloaded client tools;
+   - `%APPDATA%\NOBSSQL-Desktop` - connections, settings, the query library and the log;
+   - `%LOCALAPPDATA%\NOBSSQL-Desktop` - downloaded client tools (before 1.5.0 they were kept in
+     the folder above);
    - `%LOCALAPPDATA%\ch.monsama.nobssqleditor` - the app window's browser data (open tabs,
      layout);
    - in Windows **Credential Manager** (Windows Credentials), any entries ending in
@@ -115,11 +116,17 @@ Export files are kept wherever you saved them.
 - Charts: a result as bars or a line.
 - Read the same rows in another character set, to tell text stored wrong from text read wrong.
 
-**Schema**
-- Browse schemas, tables, views, procedures, functions, triggers and events, with quick filtering.
+**Databases**
+- Browse databases, tables, views, procedures, functions, triggers and events, with quick filtering.
 - Table designer and DDL view and edit; routines and triggers edited and recreated in place.
-- ER diagrams, and table maintenance (check, analyze, optimize, repair).
-- Server overview (databases, sizes, row counts, character sets) and the process list, with kill.
+- Inspect a table: its details and sizes, its indexes with their columns in order, its foreign
+  keys, and the tables that point at it.
+- ER diagrams, and table maintenance (check, analyze, optimize; repair where the table's engine
+  supports it).
+- Server overview: the server's figures, with what is worth a look marked, and every database with
+  its size, row count and character set - yours first. The process list, with kill.
+- Right-click menus offer what fits: nothing is created in or dropped from the server's own
+  databases, and several picked cells or rows get the commands for all of them.
 
 **Compare DB**
 - Schema sync between two databases, on the same server or two different ones: columns with
@@ -133,13 +140,17 @@ Export files are kept wherever you saved them.
 - Strict CSV import.
 - Database export and import through the MySQL/MariaDB command-line tools: structure and data,
   structure only or data only, as a file per table, per database or one file.
+- Files and folders are picked with the Windows file dialog.
 
 **Users and privileges**
+- Each account at a glance: how it signs in, its privileges as a table of where they apply, and
+  its roles - each with its own Edit.
 - Privileges as a checklist per server, database or table, with the GRANT and REVOKE shown
   before they run.
-- Roles and default roles; clone an account; sign-in method, SSL, password expiry and limits.
-- Who has access to a database, and a transfer script that recreates accounts and roles on
-  another server.
+- Roles and default roles; create, rename, clone and lock accounts; sign-in method, SSL, password
+  expiry and limits.
+- Who has access to a database, account by account, and a transfer script that recreates
+  accounts and roles on another server.
 
 ## Keeping data exact
 
@@ -224,8 +235,11 @@ so the dump itself is encrypted or does not run.
 
 Export and Import use the official MySQL/MariaDB command-line tools. These are
 **not bundled** with this application. On first use you can either point the app
-at an existing install (Settings) or let it download the official MariaDB client
-tools from mariadb.org on demand. The archive is checked against the SHA-256 that
+at an existing install (**Settings → Client tools** - Save checks that each path is
+the tool its box asks for and that it starts) or let it download the official
+MariaDB client tools from mariadb.org on demand, into
+`%LOCALAPPDATA%\NOBSSQL-Desktop\bin`. **Settings → Local data** shows where the
+settings and the tools are kept, and opens either folder. The archive is checked against the SHA-256 that
 MariaDB's own release API publishes for it before anything is unpacked, and a
 mismatch installs nothing - the checksum comes from the API, not from the mirror
 the bytes came from, so a redirected or altered download fails the check. If the
@@ -256,7 +270,7 @@ A few seconds after it starts, the app asks GitHub (`api.github.com`) for the la
 notice with a link appears in the bottom-left corner. Nothing is downloaded or installed.
 
 Hide the notice with its **×** and it stays hidden until the next version. Switch the check off,
-or run it by hand, under **Settings → Updates**.
+or run it by hand, under **Settings → General**.
 
 ## Network access
 
