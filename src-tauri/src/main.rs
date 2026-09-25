@@ -474,8 +474,26 @@ fn endpoint(connj: &Value) -> Result<(String, u16), String> {
     m.insert(id, t);
     Ok(("127.0.0.1".into(), local))
 }
+// The local port is found free, let go of and handed to ssh, and something else can take it in
+// between. ssh then gives up on the forward (ExitOnForwardFailure), but a program listening on that
+// port answered the check below all the same, and the connection - password and all - would have
+// gone to it. So ssh has to be still running after the port answers, and a port lost that way is
+// tried again with another, up to three times.
 fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, password: &str, host: &str, port: u16) -> Result<Tunnel, String> {
-    let local = std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).map(|a| a.port()).map_err(|e| e.to_string())?;
+    let mut last = String::new();
+    for _ in 0..3 {
+        let local = std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).map(|a| a.port()).map_err(|e| e.to_string())?;
+        match open_tunnel_on(local, ssh_host, ssh_port, ssh_user, key, password, host, port) {
+            Ok(t) => return Ok(t),
+            Err((why, true)) => last = why,
+            Err((why, false)) => return Err(why),
+        }
+    }
+    Err(last)
+}
+// One try on one local port. The error says whether it was the port - worth another try - or not.
+#[allow(clippy::too_many_arguments)]
+fn open_tunnel_on(local: u16, ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, password: &str, host: &str, port: u16) -> Result<Tunnel, (String, bool)> {
     let target = if host.contains(':') { format!("[{}]", host) } else { host.to_string() };
     let mut cmd = Command::new(ssh_exe());
     cmd.args(["-N", "-T", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=accept-new",
@@ -499,7 +517,7 @@ fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, passwor
     cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
     #[cfg(windows)]
     { use std::os::windows::process::CommandExt; cmd.creation_flags(0x0800_0000); }
-    let mut child = cmd.spawn().map_err(|e| format!("Could not start ssh ({}). SSH tunnels use the OpenSSH client; on Windows it is the optional feature \"OpenSSH Client\".", e))?;
+    let mut child = cmd.spawn().map_err(|e| (format!("Could not start ssh ({}). SSH tunnels use the OpenSSH client; on Windows it is the optional feature \"OpenSSH Client\".", e), false))?;
     // What ssh says, read as it comes so a chatty tunnel never fills the pipe and stalls; the last
     // line is the reason when it gives up.
     let said = std::sync::Arc::new(Mutex::new(String::new()));
@@ -513,18 +531,28 @@ fn open_tunnel(ssh_host: &str, ssh_port: u16, ssh_user: &str, key: &str, passwor
             }
         });
     }
-    // ssh listens on the local port once it has signed in, so a connection there means the tunnel is up.
+    // ssh listens on the local port once it has signed in, so a connection there means the tunnel is
+    // up - if ssh is still running a moment later. Had the port been taken, ssh has exited by then.
+    let port_lost = |why: &str| { let w = why.to_ascii_lowercase(); w.contains("address already in use") || w.contains("cannot listen") || w.contains("local forwarding") || w.contains("bind") };
+    let exited = |said: &std::sync::Arc<Mutex<String>>| { std::thread::sleep(std::time::Duration::from_millis(150)); said.lock().unwrap().clone() };
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(25);
     loop {
         if let Ok(Some(_)) = child.try_wait() {
-            std::thread::sleep(std::time::Duration::from_millis(150));
-            let why = said.lock().unwrap().clone();
-            return Err(format!("Could not establish SSH tunnel to {}: {}", ssh_host, if why.is_empty() { "ssh exited.".to_string() } else { why }));
+            let why = exited(&said);
+            let lost = port_lost(&why);
+            return Err((format!("Could not establish SSH tunnel to {}: {}", ssh_host, if why.is_empty() { "ssh exited.".to_string() } else { why }), lost));
         }
-        if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], local)), std::time::Duration::from_millis(200)).is_ok() { break; }
+        if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], local)), std::time::Duration::from_millis(200)).is_ok() {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            if let Ok(Some(_)) = child.try_wait() {
+                let why = exited(&said);
+                return Err((format!("Could not establish SSH tunnel to {}: another program took its local port ({})", ssh_host, if why.is_empty() { "ssh exited" } else { &why }), true));
+            }
+            break;
+        }
         if std::time::Instant::now() > deadline {
             let _ = child.kill(); let _ = child.wait();
-            return Err(format!("SSH tunnel to {} timed out after 25 seconds.", ssh_host));
+            return Err((format!("SSH tunnel to {} timed out after 25 seconds.", ssh_host), false));
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -1610,12 +1638,15 @@ async fn objects(req: Value) -> R {
         let sql = format!(
             "SELECT 'table' t,TABLE_NAME n,ENGINE e FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') \
              UNION ALL SELECT 'view',TABLE_NAME,NULL FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('VIEW','SYSTEM VIEW') \
+             UNION ALL SELECT 'sequence',TABLE_NAME,NULL FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE='SEQUENCE' \
              UNION ALL SELECT IF(ROUTINE_TYPE='PROCEDURE','procedure','function'),ROUTINE_NAME,NULL FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA={d} \
              UNION ALL SELECT 'trigger',TRIGGER_NAME,NULL FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA={d} \
              UNION ALL SELECT 'event',EVENT_NAME,NULL FROM information_schema.EVENTS WHERE EVENT_SCHEMA={d} ORDER BY 1,2", d = db);
         let (_c, rows) = run_select(&mut c, &sql)?;
         let (mut tables, mut views, mut procedures, mut functions, mut triggers, mut events) =
             (vec![], vec![], vec![], vec![], vec![], vec![]);
+        // MariaDB's sequences (10.3 on); MySQL has none, and the list is simply empty there.
+        let mut sequences: Vec<String> = vec![];
         // Each table's storage engine, for what its menu offers: REPAIR TABLE works on MyISAM,
         // Aria, CSV and Archive, and InnoDB only answers that it does not support it.
         let mut table_engines = serde_json::Map::new();
@@ -1628,6 +1659,7 @@ async fn objects(req: Value) -> R {
                     tables.push(n)
                 }
                 "view" => views.push(n),
+                "sequence" => sequences.push(n),
                 "procedure" => procedures.push(n), "function" => functions.push(n),
                 "trigger" => triggers.push(n), "event" => events.push(n), _ => {}
             }
@@ -1646,7 +1678,7 @@ async fn objects(req: Value) -> R {
                 }
             }
         }
-        Ok(json!({"ok":true,"tables":tables,"views":views,"procedures":procedures,"functions":functions,"triggers":triggers,"events":events,"triggerTables":trigger_tables,"tableEngines":table_engines}))
+        Ok(json!({"ok":true,"tables":tables,"views":views,"procedures":procedures,"functions":functions,"triggers":triggers,"events":events,"sequences":sequences,"triggerTables":trigger_tables,"tableEngines":table_engines}))
     }).await.map_err(|e| e.to_string())?
 }
 
