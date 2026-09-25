@@ -29,6 +29,14 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $cache = Join-Path $Root 'cache'
 New-Item -ItemType Directory -Force $cache | Out-Null
+# MariaDB 10.2.7's privilege tables (MyISAM, and Aria after the change below) were found corrupt or
+# "marked as crashed" part way through runs on the CI runner, with no server crash in the log - the
+# pattern of a file scanner holding a table file the server was writing, which that old release
+# does not retry. The runner is disposable, so its scanner is told to leave these files alone. Only
+# in CI: a developer's own machine keeps its settings.
+if ($env:GITHUB_ACTIONS -eq 'true') {
+    try { Add-MpPreference -ExclusionPath $Root -ErrorAction Stop; "Defender: excluded $Root" } catch { "Defender: no exclusion ($($_.Exception.Message))" }
+}
 
 function Get-Archive([string]$Name, [string[]]$Urls) {
     $file = Join-Path $cache $Name

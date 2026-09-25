@@ -2091,7 +2091,32 @@ fn tools_plugin_dir(tool: &str) -> Option<std::path::PathBuf> {
     if p.exists() { Some(p) } else { None }
 }
 
-fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, String), String> {
+// MariaDB's client has no setting that insists on TLS without also checking the certificate. With
+// "ssl" and "skip-ssl-verify-server-cert" - which "required" needs, since the certificate a server
+// generates for itself is self-signed - it carried on in plaintext when the server offered no TLS
+// (MariaDB 12.3's client against 10.2 without TLS: connected, Ssl_cipher empty). Run on
+// connecting, this statement fails such a session with a message that names the reason, and
+// leaves an encrypted one as it was. It checks the server's side of the connection: what it
+// cannot catch is someone in between who speaks TLS to the server - only the verify modes can.
+fn tls_guard_sql(server_maria: bool) -> String {
+    let status = if server_maria { "information_schema.SESSION_STATUS" } else { "performance_schema.session_status" };
+    format!("SET SESSION sql_mode = IF((SELECT COUNT(*) FROM {status} WHERE VARIABLE_NAME = 'Ssl_cipher' AND VARIABLE_VALUE <> '') = 0, \
+'NOT_ENCRYPTED_BUT_SSL_MODE_IS_REQUIRED', @@SESSION.sql_mode)")
+}
+// The guard a client tool needs on this connection: MariaDB's client on an "required" one. Finding
+// out which table to ask goes through the native driver, whose "required" does insist on TLS - so a
+// server without it is refused here, before the tool is started, and mariadb-dump (which has no
+// init-command) is covered by that alone.
+fn tls_guard_for(connj: &Value, tool: &str) -> Result<Option<String>, String> {
+    if connj["ssl"].as_str() != Some("required") || !client_is_mariadb(tool) { return Ok(None); }
+    let mut c = build_conn(connj)?;
+    let v: String = c.query_first("SELECT VERSION()").map_err(|e| e.to_string())?.unwrap_or_default();
+    Ok(Some(tls_guard_sql(v.to_lowercase().contains("mariadb"))))
+}
+
+#[cfg(test)]
+fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, String), String> { cnf_file_with(connj, tool, None) }
+fn cnf_file_with(connj: &Value, tool: &str, guard: Option<&str>) -> Result<(tempfile::NamedTempFile, String), String> {
     let mut f = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
     let mut s = String::from("[client]\n");
     // Through the SSH tunnel when the connection has one, as build_conn does.
@@ -2114,6 +2139,8 @@ fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, Strin
     // server's own utf8mb4 collation, on any server. "loose-" because 5.7's mysqldump has no
     // init-command (and asks for utf8mb4 in a way 5.7 understands).
     if !client_is_mariadb(tool) { s += "loose-init-command=SET NAMES utf8mb4\n"; }
+    // "loose-", as mariadb-dump has no init-command (see tls_guard_for).
+    else if let Some(g) = guard { s += &format!("loose-init-command={}\n", g); }
     // A PAM or LDAP account wants its password as typed. MySQL's client sends it only when told to,
     // and it is told only on a connection that is encrypted, as build_conn does. (MariaDB's sends it
     // when asked, and answers the dialog plugin as well.)
@@ -2589,7 +2616,8 @@ async fn import_run(req: Value, mbin: String) -> R {
         let jid = req["jobId"].as_str().unwrap_or("").to_string();
         let job = job_start(&jid);
         let _guard = JobGuard(jid);
-        let (_f, cnf) = cnf_file(&req["conn"], &mbin)?;
+        let guard = tls_guard_for(&req["conn"], &mbin)?;
+        let (_f, cnf) = cnf_file_with(&req["conn"], &mbin, guard.as_deref())?;
         let files: Vec<String> = req["files"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
         let target = req["targetDb"].as_str().unwrap_or("").to_string();
         let mut log = Vec::new();
@@ -2614,8 +2642,8 @@ async fn import_run(req: Value, mbin: String) -> R {
             if req["force"].as_bool().unwrap_or(false) { args.push("--force".into()); }
             // This replaces the options file's init-command, so it repeats its SET NAMES (cnf_file).
             if req["fkOff"].as_bool().unwrap_or(false) {
-                let names = if client_is_mariadb(&mbin) { "" } else { "SET NAMES utf8mb4; " };
-                args.push(format!("--init-command={}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", names));
+                let first = if client_is_mariadb(&mbin) { guard.as_ref().map(|g| format!("{g}; ")).unwrap_or_default() } else { "SET NAMES utf8mb4; ".to_string() };
+                args.push(format!("--init-command={}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", first));
             }
             // The "binary-mode" checkbox sends this, but nothing ever read it - checking it in
             // the UI silently did nothing, so the exact NUL-byte error its tooltip promises to
@@ -2896,7 +2924,8 @@ async fn export_run(req: Value, dbin: String) -> R {
         let jid = req["jobId"].as_str().unwrap_or("").to_string();
         let job = job_start(&jid);
         let _guard = JobGuard(jid);
-        let (_f, cnf) = cnf_file(&req["conn"], &dbin)?;
+        let guard = tls_guard_for(&req["conn"], &dbin)?;
+        let (_f, cnf) = cnf_file_with(&req["conn"], &dbin, guard.as_deref())?;
         let dbs: Vec<String> = req["dbs"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
         if dbs.is_empty() { return Ok(json!({"ok":false,"error":"No databases selected."})); }
         let folder = req["folder"].as_str().unwrap_or(".").to_string();
@@ -8199,6 +8228,45 @@ mod cnf_tests {
         let (_f, p) = cnf_file(&none, "definitely-not-a-real-binary").unwrap();
         assert!(!std::fs::read_to_string(&p).unwrap().contains("ssl-ca"),
             "an empty CA should be left out entirely, not written as ssl-ca=");
+    }
+
+    // MariaDB's client on "required" carried on in plaintext when the server had no TLS. The guard
+    // goes in the options file as loose- (mariadb-dump has no init-command), and only for that client.
+    #[test]
+    fn a_mariadb_client_on_required_is_given_the_tls_guard() {
+        let conn = json!({"host":"h","port":"3306","user":"u","ssl":"required"});
+        let g = tls_guard_sql(true);
+        let (_f, p) = cnf_file_with(&conn, "definitely-not-a-real-binary", Some(&g)).unwrap();
+        let body = std::fs::read_to_string(&p).unwrap();
+        assert!(body.contains(&format!("\nloose-init-command={g}\n")), "{body}");
+        assert!(g.contains("information_schema.SESSION_STATUS") && tls_guard_sql(false).contains("performance_schema.session_status"));
+        // Not asked for: default, disabled and the verify modes (verifying already insists on TLS).
+        for ssl in ["default", "disabled", "verify"] {
+            assert_eq!(tls_guard_for(&json!({"host":"h","port":"1","ssl":ssl}), "definitely-not-a-real-binary").unwrap(), None, "{ssl}");
+        }
+    }
+
+    // The guard itself, run by the real client: an encrypted session carries on untouched, and one
+    // the server did not encrypt is refused naming the reason. compat.yml's MariaDB 10.2 has no TLS,
+    // so between the servers CI runs, both halves are checked.
+    #[test]
+    #[ignore]
+    fn the_tls_guard_refuses_exactly_the_sessions_that_are_not_encrypted() {
+        let (Ok(dsn), Ok(mbin)) = (std::env::var("NOBS_TEST_DSN"), std::env::var("MYSQL_BIN")) else { eprintln!("NOBS_TEST_DSN or MYSQL_BIN not set - skipping"); return };
+        if !client_is_mariadb(&mbin) { eprintln!("MYSQL_BIN is not MariaDB's client - skipping"); return; }
+        let d: Vec<&str> = dsn.splitn(4, ':').collect();
+        let conn = json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"required"});
+        let cap = caps::of(&json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default"}));
+        let (_f, cnf) = cnf_file_with(&conn, &mbin, Some(&tls_guard_sql(cap.maria))).unwrap();
+        let out = Command::new(&mbin).args([format!("--defaults-extra-file={cnf}"), "-N".into(), "-e".into(), "SHOW SESSION STATUS LIKE 'Ssl_cipher'".into()]).output().unwrap();
+        let (said, err) = (String::from_utf8_lossy(&out.stdout).to_string(), String::from_utf8_lossy(&out.stderr).to_string());
+        if cap.tls {
+            assert!(out.status.success(), "an encrypted session was refused: {err}");
+            assert!(said.split_whitespace().nth(1).is_some(), "it said it was encrypted but reports no cipher: {said}");
+        } else {
+            assert!(!out.status.success(), "a session without TLS went ahead on \"required\": {said}");
+            assert!(err.contains("NOT_ENCRYPTED_BUT_SSL_MODE_IS_REQUIRED"), "{err}");
+        }
     }
 
     // A client from a real MariaDB or MySQL installation has its own lib/plugin next door and
