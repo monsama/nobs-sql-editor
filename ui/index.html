@@ -452,6 +452,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .uchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 11px;margin:0 6px 6px 0;background:var(--panel2);font-size:12px}
  .uchip .utag{margin-left:0}
  .usql summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0}
+ /* Who has access: an account's name opens it in Users; each place it may act on is a line of its own */
+ .acclink{color:var(--fg);text-decoration:none;font-weight:600} .acclink:hover{color:var(--accent);text-decoration:underline}
+ .accplace{padding:2px 0} .accplace+.accplace{border-top:1px dashed var(--bd2);margin-top:3px;padding-top:5px} .accplace .uplace{display:inline-block;min-width:140px;margin-right:8px}
  .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--mono);font-size:12px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0;max-height:260px;overflow:auto}
  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 12px} .psec{font-weight:600;font-size:12px;margin:10px 0 4px}
  .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:var(--r-s);margin:4px 0;white-space:pre-wrap}
@@ -780,6 +783,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <label class="ck" style="flex:none;margin:6px 0"><input type="checkbox" id="privGO" onchange="privPreview()"> With grant option - may give these privileges to others</label>
  <pre id="privSql" class="privsql"></pre>
  <div class="row" style="justify-content:space-between;flex:none"><span><button class="sm" onclick="hide('mPriv');grantUser()">Type a GRANT...</button> <button class="sm" onclick="hide('mPriv');revokeUser()">Type a REVOKE...</button></span><span><button class="go" id="privApply" onclick="privApply()">Apply</button> <button onclick="hide('mPriv')">Close</button></span></div></div></div>
+<div class="modal floating" id="mAccess"><div class="box" style="width:980px;max-width:95vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:140px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mAccess')" title="Drag to move"><h3 style="margin:0 0 10px">Who has access</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mAccess')" title="Maximize" id="maxBtn_mAccess" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mAccess')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="row" style="flex:none;flex-wrap:nowrap;gap:8px"><span class="muted">Database</span><select id="accDb" style="width:260px" onchange="accLoad()"></select><input id="accFilter" type="search" placeholder="Filter accounts" style="width:220px" oninput="accRender()"><span class="muted" id="accCount" style="margin-left:auto;font-size:12px"></span></div>
+ <div id="accList" style="flex:1;min-height:0;overflow:auto;margin-top:8px"></div>
+ <div class="row" style="justify-content:flex-end;flex:none;margin-top:10px"><button onclick="hide('mAccess')">Close</button></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Transfer script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -6679,18 +6686,44 @@ async function acctClone(){const a=window._selAcct;if(!a){toast('Select an accou
 
 // ---- who has access ----
 // Everyone with privileges on a database: on the whole server (its data privileges), on the
-// database, on its tables and on their columns. Privileges that come through a role are listed
-// under the role.
-async function whoHasAccess(){const sr=await api('/api/schemas');const schemas=sr.ok?sr.schemas.map(s=>s.name):[];if(!schemas.length)return;
- const res=await inputBox({title:'Who has access',okText:'Show',fields:[{key:'db',label:'Database',type:'select',options:schemas,value:schemas.includes(curSchema)?curSchema:schemas[0]}]});if(!res)return;
- const db=res.db,sep=" SEPARATOR ', ')";
- const qs=["SELECT GRANTEE,'the whole server',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.USER_PRIVILEGES WHERE PRIVILEGE_TYPE IN ("+PRIV_DB.map(strLit).join(',')+") GROUP BY GRANTEE",
-  "SELECT GRANTEE,'the database',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.SCHEMA_PRIVILEGES WHERE TABLE_SCHEMA IN ("+lit(db)+","+lit(privDbEscape(db))+") GROUP BY GRANTEE",
-  "SELECT GRANTEE,CONCAT('table ',TABLE_NAME),GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME",
-  "SELECT GRANTEE,CONCAT('column ',TABLE_NAME,'.',COLUMN_NAME),GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME,COLUMN_NAME"];
- const by=new Map();for(const q of qs){const r=await api('/api/query',{sql:q});if(r.ok)r.rows.forEach(([g,sc,p])=>{if(!by.has(g))by.set(g,[]);by.get(g).push(sc+': '+p);});}
- const txt=by.size?[...by.keys()].sort().map(g=>g+'\n'+by.get(g).map(x=>'    '+x).join('\n')).join('\n\n'):'Nobody has privileges on '+db+' of their own.';
- viewText('Who has access to '+db,txt+'\n\nPrivileges that come through a role are listed under the role.',{readonly:true});}
+// database, on its tables and on their columns - one row for each account, with where each set of
+// privileges applies. Privileges that come through a role are listed under the role; a click on an
+// account opens it in Users.
+async function whoHasAccess(db){const sr=await api('/api/schemas');const schemas=sr.ok?sr.schemas.map(s=>s.name):[];if(!schemas.length)return;
+ const sel=$('accDb');sel.innerHTML='';schemas.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
+ sel.value=db&&schemas.includes(db)?db:(schemas.includes(curSchema)?curSchema:schemas[0]);$('accFilter').value='';
+ show('mAccess');await accLoad();}
+let _acc=null;
+async function accLoad(){const db=$('accDb').value,sep=" SEPARATOR ', ')";if(!db)return;
+ $('accList').innerHTML='<div class="unone">Reading who has access to '+esc(db)+'...</div>';
+ const qs=["SELECT GRANTEE,'server','',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.USER_PRIVILEGES WHERE PRIVILEGE_TYPE IN ("+PRIV_DB.map(strLit).join(',')+") GROUP BY GRANTEE",
+  "SELECT GRANTEE,'database','',GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.SCHEMA_PRIVILEGES WHERE TABLE_SCHEMA IN ("+lit(db)+","+lit(privDbEscape(db))+") GROUP BY GRANTEE",
+  "SELECT GRANTEE,'table',TABLE_NAME,GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME",
+  "SELECT GRANTEE,'column',CONCAT(TABLE_NAME,'.',COLUMN_NAME),GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY PRIVILEGE_TYPE"+sep+" FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA="+lit(db)+" GROUP BY GRANTEE,TABLE_NAME,COLUMN_NAME"];
+ const by=new Map();
+ for(const q of qs){const r=await api('/api/query',{sql:q});if(r.ok)r.rows.forEach(([g,kind,name,p])=>{if(!by.has(g))by.set(g,[]);by.get(g).push({kind,name:String(name||''),privs:String(p||'').split(', ').filter(Boolean)});});}
+ if($('accDb').value!==db)return;
+ // 'user'@'host' as the server writes it, and the account behind it if the Users list knows it
+ const parse=g=>{const m=String(g).match(/^'((?:[^']|'')*)'(?:@'((?:[^']|'')*)')?$/);return m?{u:m[1].replace(/''/g,"'"),h:m[2]!=null?m[2].replace(/''/g,"'"):null}:{u:String(g),h:null};};
+ if(!_uaccts.length){try{await usersLoad();}catch(e){}}
+ _acc={db,rows:[...by.entries()].map(([g,places])=>{const a=parse(g),acct=_uaccts.find(x=>x.u===a.u&&(a.h==null||x.h===a.h))||null;
+  const order={server:0,database:1,table:2,column:3};places.sort((x,y)=>order[x.kind]-order[y.kind]||x.name.localeCompare(y.name));
+  return {u:a.u,h:a.h,name:a.h!=null?a.u+'@'+a.h:a.u,acct,places};}).sort((x,y)=>x.name.localeCompare(y.name))};
+ accRender();}
+function accRender(){if(!_acc)return;const q=($('accFilter').value||'').trim().toLowerCase(),box=$('accList');
+ const rows=_acc.rows.filter(r=>!q||r.name.toLowerCase().includes(q));
+ $('accCount').textContent=_acc.rows.length?(rows.length===_acc.rows.length?rows.length+' account'+(rows.length===1?'':'s'):rows.length+' of '+_acc.rows.length):'';
+ if(!_acc.rows.length){box.innerHTML='<div class="unone">Nobody has privileges on '+esc(_acc.db)+' of their own - only accounts with privileges on the whole server can use it.</div>';return;}
+ if(!rows.length){box.innerHTML='<div class="unone">No account matches.</div>';return;}
+ const WHERE={server:'Server',database:'Database',table:'Table',column:'Column'};
+ box.innerHTML='<table class="utab"><colgroup><col style="width:30%"><col></colgroup><thead><tr><th>Account</th><th>What it may do, and where</th></tr></thead><tbody>'+rows.map(r=>{
+  const tags=(r.acct&&r.acct.role?'<span class="utag urole">role</span>':'')+(r.acct&&SYSTEM_ACCTS.includes(r.acct.u)?'<span class="utag">system</span>':'')+(r.acct&&r.acct.locked&&!r.acct.role?'<span class="utag uwarn">locked</span>':'');
+  const who='<a href="#" class="acclink" data-u="'+esc(r.u)+'" data-h="'+esc(r.h==null?'':r.h)+'" title="Open it in Users">'+esc(r.u)+(r.h!=null?'<span class="uhost">@'+esc(r.h)+'</span>':'')+'</a>'+(tags?' '+tags:'');
+  const places=r.places.map(p=>'<div class="accplace"><span class="uplace">'+WHERE[p.kind]+(p.name?' '+esc(p.name):'')+'</span>'+p.privs.map(x=>'<span class="upriv'+(/^ALL( PRIVILEGES)?$/i.test(x)?' uall':'')+'">'+esc(x)+'</span>').join('')+'</div>').join('');
+  return '<tr><td>'+who+'</td><td>'+places+'</td></tr>';}).join('')+'</tbody></table><div class="unote">Privileges that come through a role are listed under the role. Click an account to open it in Users.</div>';
+ box.querySelectorAll('.acclink').forEach(a=>a.onclick=async e=>{e.preventDefault();const u=a.dataset.u,h=a.dataset.h;hide('mAccess');
+  if(!$('mUsers').classList.contains('show'))await openUsers();
+  const acct=_uaccts.find(x=>x.u===u&&(h===''||x.h===h));if(acct)usersSelect(acct.u,acct.h);});}
 
 // ---- table designer ----
 const DTYPES=['INT','BIGINT','TINYINT','SMALLINT','MEDIUMINT','DECIMAL','FLOAT','DOUBLE','BIT','BOOLEAN','CHAR','VARCHAR','TEXT','MEDIUMTEXT','LONGTEXT','DATE','DATETIME','TIMESTAMP','TIME','YEAR','JSON','BLOB','LONGBLOB','ENUM','BINARY','VARBINARY'];

@@ -81,10 +81,15 @@
       && /nobs\\_test/.test(await grants("'nobs_ue_moved'@'localhost'")), moved);
     G.check('and shows it under its new name', window._selAcct && uName(window._selAcct) === 'nobs_ue_moved@localhost', window._selAcct && uName(window._selAcct));
 
-    answers.push(() => ({ db: 'nobs_test' }));
-    await whoHasAccess();
-    G.check('Who has access lists the accounts', /nobs_ue_a/.test($('vText').value) && /nobs_ue_moved/.test($('vText').value), $('vText').value.slice(0, 200));
-    hide('mView');
+    await whoHasAccess('nobs_test');
+    await G.until(() => $('accList').querySelector('.utab'), 10000);
+    const acc = $('accList').innerText;
+    G.check('Who has access lists the accounts, with where they may act', /nobs_ue_a/.test(acc) && /nobs_ue_moved/.test(acc) && /Database/.test(acc) && /SELECT/.test(acc), acc.slice(0, 300));
+    $('accFilter').value = 'moved'; accRender();
+    G.check('and the filter narrows them', /nobs_ue_moved/.test($('accList').innerText) && !/nobs_ue_a@/.test($('accList').innerText), $('accList').innerText.slice(0, 200));
+    [...$('accList').querySelectorAll('.acclink')].find(a => a.dataset.u === 'nobs_ue_moved').click();
+    await G.until(() => window._selAcct && window._selAcct.u === 'nobs_ue_moved', 10000);
+    G.check('a click on an account opens it in Users', !$('mAccess').classList.contains('show') && $('mUsers').classList.contains('show') && window._selAcct.u === 'nobs_ue_moved', window._selAcct && uName(window._selAcct));
   } finally {
     inputBox = realInput; ask = realAsk;
     hide('mUsers');
