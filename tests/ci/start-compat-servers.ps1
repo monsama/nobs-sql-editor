@@ -102,20 +102,30 @@ foreach ($spec in $Servers) {
         # 10.2 still names them mysqld / mysql_install_db / mysql.
         $server = First-Exe $bin 'mariadbd.exe', 'mysqld.exe'
         $client = First-Exe $bin 'mariadb.exe', 'mysql.exe'
+        # An old zip ships a data directory with the system tables in it, made when the release was
+        # built. That is used as it is: 10.2.7's mysql_install_db left the account tables damaged on
+        # the CI runner - "marked as crashed" at the first statement on a directory seconds old, index
+        # corruption later, and REPAIR TABLE losing root altogether. Newer zips have no data folder.
+        $fresh = $false
+        $shipped = Join-Path $srvHome 'data'
         if (-not (Test-Path $data)) {
-            $install = First-Exe $bin 'mariadb-install-db.exe', 'mysql_install_db.exe'
-            & $install "--datadir=$data" "--password=$Password" "--port=$port" '--allow-remote-root-access'
-            if ($LASTEXITCODE -ne 0) { throw "$install failed" }
-        }
-        # mysql_install_db runs its own mysqld to create the tables. On the CI runner the server below
-        # was started while that one was still finishing: its very first statement found mysql.user
-        # "marked as crashed", on a data directory seconds old. Start only once it is gone.
-        for ($i = 0; $i -lt 120; $i++) {
-            if (-not (Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $server })) { break }
-            Start-Sleep -Milliseconds 500
+            if (Test-Path (Join-Path $shipped 'mysql\user.frm')) {
+                Copy-Item $shipped $data -Recurse
+                $fwd = { param($p) $p -replace '\\', '/' }
+                Set-Content -Encoding ascii (Join-Path $data 'my.ini') "[mysqld]`ndatadir=$(& $fwd $data)`nport=$port`n[client]`nport=$port`n"
+                $fresh = $true
+            } else {
+                $install = First-Exe $bin 'mariadb-install-db.exe', 'mysql_install_db.exe'
+                & $install "--datadir=$data" "--password=$Password" "--port=$port" '--allow-remote-root-access'
+                if ($LASTEXITCODE -ne 0) { throw "$install failed" }
+            }
         }
         Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $extra)
         Wait-Port $port "$name ($flavor $version)"
+        if ($fresh) {
+            # The shipped tables have root without a password, and anonymous accounts.
+            Invoke-Sql $client $port "DELETE FROM mysql.user WHERE User = ''; UPDATE mysql.user SET Password = PASSWORD('$Password') WHERE User = 'root'; FLUSH PRIVILEGES; GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '$Password' WITH GRANT OPTION;" -NoPassword
+        }
     } else {
         $series = ($version.Split('.')[0..1]) -join '.'
         if (-not (Test-Path (Join-Path $srvHome 'bin\mysqld.exe'))) {
@@ -153,8 +163,6 @@ foreach ($spec in $Servers) {
     }
     if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
         $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
-        # Repaired first, in case the installer left them unclosed after all (see above).
-        Invoke-Sql $client $port ('REPAIR TABLE ' + (($priv | ForEach-Object { "mysql.$_" }) -join ', ') + ';') | Out-Null
         Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
     }
     Invoke-Sql $client $port -File (Resolve-Path $Fixture).Path
