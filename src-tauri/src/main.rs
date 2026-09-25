@@ -2641,9 +2641,12 @@ fn dump_db_names(path: &str) -> std::io::Result<Vec<String>> {
     Ok(seen)
 }
 
-// One line, with the database identifier renamed if it is `from`.
+// One line, with the database identifier renamed if it is `from` - and, on a line that is not row
+// data, every name qualified with it (`from`.`t`) too: mysqldump writes a view's tables that way,
+// and a routine or trigger that names its own database keeps it. Renaming only the CREATE DATABASE
+// and USE lines left those pointing at the old database. Rows are never touched.
 fn dump_rewrite_line(line: &[u8], from: &str, to: &str) -> Vec<u8> {
-    match dump_db_ident(line) {
+    let first = match dump_db_ident(line) {
         Some((s, e, name)) if name == from => {
             let mut out = Vec::with_capacity(line.len() + to.len());
             out.extend_from_slice(&line[..s]);
@@ -2652,6 +2655,32 @@ fn dump_rewrite_line(line: &[u8], from: &str, to: &str) -> Vec<u8> {
             out
         }
         _ => line.to_vec(),
+    };
+    let t = first.iter().position(|b| !b.is_ascii_whitespace()).map(|i| &first[i..]).unwrap_or(&[]);
+    if t.starts_with(b"INSERT ") || t.starts_with(b"REPLACE ") { return first; }
+    let needle = format!("`{}`.", from.replace('`', "``")).into_bytes();
+    if !first.windows(needle.len()).any(|w| w == needle.as_slice()) { return first; }
+    let repl = format!("`{}`.", to.replace('`', "``")).into_bytes();
+    let mut out = Vec::with_capacity(first.len() + 16);
+    let mut i = 0;
+    while i < first.len() {
+        if first[i..].starts_with(&needle) { out.extend_from_slice(&repl); i += needle.len(); } else { out.push(first[i]); i += 1; }
+    }
+    out
+}
+
+#[cfg(test)]
+mod dump_rename_tests {
+    use super::dump_rewrite_line;
+    #[test]
+    fn a_renamed_restore_takes_views_and_routines_along_and_leaves_rows_alone() {
+        let view = dump_rewrite_line(b"/*!50001 VIEW `v` AS select `old`.`t`.`id` AS `id` from `old`.`t` */;\n", "old", "new");
+        let view = String::from_utf8(view).unwrap();
+        assert!(view.contains("`new`.`t`.`id`") && view.contains("from `new`.`t`") && !view.contains("`old`"), "{view}");
+        let row = b"INSERT INTO `t` VALUES (1,'`old`.`t` in a value');\n";
+        assert_eq!(dump_rewrite_line(row, "old", "new"), row.to_vec(), "a row's value was changed");
+        let usel = String::from_utf8(dump_rewrite_line(b"USE `old`;\n", "old", "new")).unwrap();
+        assert_eq!(usel, "USE `new`;\n");
     }
 }
 
@@ -3140,9 +3169,15 @@ async fn export_run(req: Value, dbin: String) -> R {
                 }
             }
         } else if mode == "db" {
+            // One file per database, and never the same file for two: names that differ only in case,
+            // or only in characters a file name cannot hold ("a b" and "a_b"), used to write the same
+            // file, the second over the first. Windows' file names ignore case, so the check does too.
+            let mut used_db: std::collections::HashSet<String> = std::collections::HashSet::new();
             for d in &dbs {
                 if EXPORT_CANCEL.load(Ordering::SeqCst) || job_is_cancelled(&job) { log.push("CANCELLED (remaining databases skipped)".into()); cancelled = true; break; }
-                let file = mkfile(d);
+                let mut file = mkfile(d);
+                let mut n = 2;
+                while !used_db.insert(file.to_lowercase()) { file = mkfile(&format!("{}_{}", d, n)); n += 1; }
                 let positional = match table_filter_args(d, &excl, &req["conn"]) {
                     Ok((_, included)) if !included.is_empty() => Some(included),
                     Ok(_) => None,

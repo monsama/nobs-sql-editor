@@ -595,3 +595,22 @@ test('SHOW GRANTS is read into one row for each place, with its privileges', () 
   assert.deepEqual(read(["GRANT ALL PRIVILEGES ON *.* TO `x`@`%` IDENTIFIED BY PASSWORD 'WITH GRANT OPTION'"])[0][2], false, 'a quoted WITH GRANT OPTION is not one');
   assert.deepEqual(read(["GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION"])[0][0][0], 'Proxy for');
 });
+
+// The query history keeps no statement that carries a password, however the password is quoted.
+test('a statement with a password is not kept in the history', () => {
+  const store = {};
+  const localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
+  const hist = () => JSON.parse(store.history || '[]');
+  const addHistory = new Function('localStorage', 'hist', extractFunction(html, 'addHistory') + '\nreturn addHistory;')(localStorage, hist);
+  for (const secret of [
+    "CREATE USER 'u'@'%' IDENTIFIED BY 'pw'",
+    'CREATE USER "u"@"%" IDENTIFIED BY "pw"',
+    "ALTER USER u IDENTIFIED WITH mysql_native_password AS '*hash'",
+    "SET PASSWORD FOR u = PASSWORD('pw')",
+    'CHANGE MASTER TO MASTER_PASSWORD="pw"',
+    "CHANGE REPLICATION SOURCE TO SOURCE_PASSWORD='pw'",
+    "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u', PASSWORD 'pw')",
+  ]) { addHistory(secret); assert.deepEqual(hist(), [], 'kept: ' + secret); }
+  addHistory('SELECT 1');
+  assert.deepEqual(hist(), ['SELECT 1'], 'an ordinary statement is kept');
+});

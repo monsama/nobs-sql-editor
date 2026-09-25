@@ -219,6 +219,19 @@ test('NOT NULL is not written with DEFAULT NULL', () => {
   assert.match(D.colDef({ ...c, nn: false }), /DEFAULT NULL/);
 });
 
+// Defaults as information_schema gives them where there is no DEFAULT_GENERATED (MySQL 5.7), and a
+// MySQL 8 expression default holding a string, whose quotes information_schema escapes.
+test('a CURRENT_TIMESTAMP default and an expression holding a string are written back as SQL', () => {
+  const row = (name, t, ct, def, extra) => [name, t, ct, 'YES', def, extra, '', '', null, null, ''];
+  const ts57 = D.colDef(D.dColFromInfo(row('ts', 'timestamp', 'timestamp', 'CURRENT_TIMESTAMP', 'on update CURRENT_TIMESTAMP'), false, null));
+  assert.match(ts57, /DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP/i, ts57);
+  assert.doesNotMatch(ts57, /DEFAULT 'CURRENT_TIMESTAMP'/i, 'the MySQL 5.7 default was quoted as text');
+  const text = D.colDef(D.dColFromInfo(row('t', 'varchar', 'varchar(20)', 'CURRENT_TIMESTAMP', ''), false, null));
+  assert.match(text, /DEFAULT 'CURRENT_TIMESTAMP'/, 'in a text column it is the text');
+  const expr = D.colDef(D.dColFromInfo(row('s', 'varchar', 'varchar(20)', "concat(_utf8mb4\\'a\\',_utf8mb4\\'b\\')", 'DEFAULT_GENERATED'), false, null));
+  assert.match(expr, /DEFAULT \(concat\(_utf8mb4'a',_utf8mb4'b'\)\)/, expr);
+});
+
 // With explicit_defaults_for_timestamp OFF, a TIMESTAMP NOT NULL written without a default may get
 // DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, and no column definition can prevent it
 // except a default of its own; the generated SQL says so.

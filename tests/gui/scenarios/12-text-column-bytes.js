@@ -59,6 +59,27 @@ INSERT INTO ${DB}.t VALUES (1, 0xFF, 0xFF), (2, 'plain', 0x00FF);`);
     await applyChanges(t2.id);
     await G.wait(1500);
     G.eq('a declared binary column stores the bytes it was given', await stored('b', 1), 'FE');
+
+    // Bytes that read as text, with CR LF in them, edited in the Text tab: the box shows LF only,
+    // and each 0x0D used to be lost on save.
+    await G.run(`UPDATE ${DB}.t SET b = 0x610D0A62 WHERE id = 2`);
+    const t3 = await G.openTable(DB, 't');
+    const r2 = t3.rows.findIndex(r => String(r[t3.cols.indexOf('id')]) === '2');
+    await editCell(gridCellEl(t3.id, r2, bi), t3.id, r2, bi);
+    const vt = $('vText');
+    G.check('the value opens as text', _vHexState && _vHexState.mode === 'text' && /a\s*\n?b/.test(vt.value), { mode: _vHexState && _vHexState.mode, box: JSON.stringify(vt.value) });
+    vt.value = vt.value + 'c';
+    [...$('mView').querySelectorAll('button')].find(b => b.textContent.trim() === 'Save').click();
+    await G.wait(300);
+    G.eq('saved from the Text tab, it keeps its CR LF', String(t3.pending.upd[r2 + ':' + bi] || '').toUpperCase(), '0X610D0A6263');
+    t3.pending.upd = {}; hide('mView');
+
+    // Text that merely looks like hex is shown as the text it is; bytes are still decoded.
+    await G.run(`CREATE TABLE ${DB}.h (id INT PRIMARY KEY, v VARCHAR(10) CHARACTER SET utf8mb4, b VARBINARY(10)); INSERT INTO ${DB}.h VALUES (1, '0x41', 0x41);`);
+    const th = await G.openTable(DB, 'h');
+    const vi = th.cols.indexOf('v'), hb = th.cols.indexOf('b');
+    G.eq('a text column holding "0x41" shows "0x41", not "A"', gridCellEl(th.id, 0, vi).innerText.trim(), '0x41');
+    G.check('and a binary column holding the byte 0x41 is still decoded', gridCellEl(th.id, 0, hb).innerText.trim() !== '0x41' || !!(th.binCols && th.binCols[hb]), gridCellEl(th.id, 0, hb).innerText);
   } finally {
     await G.A('/api/script', { sql: `DROP DATABASE IF EXISTS ${DB}` });
   }

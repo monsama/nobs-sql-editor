@@ -60,7 +60,8 @@ test('a failure after the DROP puts the previous definition back and says so', a
   const note = await h.F.ddlRestoreIfDropped(D());
   const run = h.calls.find(c => c.path === '/api/script');
   assert.ok(run, 'the previous definition was not re-run');
-  assert.match(run.p.sql, /DELIMITER \$\$\nCREATE PROCEDURE p\(\) SELECT 1\$\$\nDELIMITER ;/);
+  // The delimiter on a line of its own, so a body that ends in a -- comment does not swallow it.
+  assert.match(run.p.sql, /DELIMITER \$\$\nCREATE PROCEDURE p\(\) SELECT 1\n\$\$\nDELIMITER ;/);
   assert.equal(run.p.db, 'd');
   assert.match(note, /previous version has been put back/);
   assert.equal(h.opened.length, 0);
