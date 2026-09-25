@@ -13,7 +13,7 @@
 // left); --only <text> runs those whose file name contains it. Needs Node 22 or later.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, copyFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +29,16 @@ const dsn = (process.env.NOBS_TEST_DSN || '').split(':');
 if (dsn.length !== 4) { console.log('  SKIPPED - NOBS_TEST_DSN is not set, so no GUI test ran.'); process.exit(0); }
 const [dbHost, dbPort, dbUser, dbPass] = dsn;
 
+// Folders an earlier run could not remove (a browser still held them, or the run was killed). Older
+// than an hour, so a run going on at the same time keeps its own.
+(function sweepOld() {
+  const hour = Date.now() - 3600e3;
+  for (const n of readdirSync(tmpdir())) {
+    if (!n.startsWith('nobs-gui-')) continue;
+    const p = join(tmpdir(), n);
+    try { if (statSync(p).mtimeMs < hour) rmSync(p, { recursive: true, force: true }); } catch { /* in use */ }
+  }
+})();
 const tmp = mkdtempSync(join(tmpdir(), 'nobs-gui-'));
 const cdpPort = 9300 + Math.floor(Math.random() * 500);
 const children = [];
@@ -201,8 +211,14 @@ try {
   failed++; console.log(`  FAIL  ${e.message}`);
 } finally {
   children.reverse().forEach(killTree);
-  await sleep(500);
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* a browser may still hold a file */ }
+  // The browser's profile is about 12 MB, and a killed browser lets go of its files a moment after
+  // it is gone - one try half a second later failed nearly every time and left a folder per run.
+  // Tried for up to ten seconds; what still cannot go is swept by the next run (see sweepOld).
+  for (let i = 0; i < 20 && existsSync(tmp); i++) {
+    await sleep(500);
+    try { rmSync(tmp, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }); } catch { /* still held */ }
+  }
+  if (existsSync(tmp)) console.log(`  (could not remove ${tmp} - the next run will)`);
 }
 // Three outcomes, not two. A run that never reached a scenario proves nothing about the app - the
 // window did not open, the browser did not answer, the database did not connect - and saying so in
