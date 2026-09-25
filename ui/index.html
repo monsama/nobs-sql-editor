@@ -540,6 +540,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setrow .setnote{margin-top:3px}
  .setrc{flex:none;margin-left:auto;display:flex;gap:6px;align-items:center}
  .setrc input[type=checkbox]{width:16px;height:16px;margin:0}
+ /* the buttons down the right of a settings card are one width, so they line up */
+ .setcard .setrc>button{width:150px;justify-content:center}
  /* a path that did not pass the check before Save */
  #mSettings input.bad{border-color:#e5534b;box-shadow:0 0 0 1px #e5534b}
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}

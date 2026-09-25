@@ -13,7 +13,7 @@
 // left); --only <text> runs those whose file name contains it. Needs Node 22 or later.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,7 +69,13 @@ async function startApp() {
     return;
   }
   const shell = spawnSync('where', ['pwsh'], { stdio: 'ignore' }).status === 0 ? 'pwsh' : 'powershell';
-  const server = spawn(shell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', target, '-NoBrowser'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  // The app gets an AppData of its own, with a copy of the settings (the client tool paths) and none
+  // of the saved connections: on a machine that has some, the primary one opened at startup and
+  // raced the run's own connection, and scenarios failed with "Access denied (using password: NO)".
+  const appData = join(tmp, 'appdata'), realCfg = join(process.env.APPDATA || '', 'NOBSSQL', 'config.json');
+  mkdirSync(join(appData, 'NOBSSQL'), { recursive: true });
+  if (existsSync(realCfg)) copyFileSync(realCfg, join(appData, 'NOBSSQL', 'config.json'));
+  const server = spawn(shell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', target, '-NoBrowser'], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, APPDATA: appData } });
   children.push(server);
   let said = '';
   server.stdout.on('data', d => { said += d; });
@@ -156,18 +162,38 @@ try {
   for (const f of files) {
     console.log(`\n-- ${f} --`);
     const tabsBefore = await page.evaluate('tabs.map(t=>t.id)');
-    try {
-      const checks = await page.evaluate(readFileSync(join(here, 'scenarios', f), 'utf8'));
-      for (const c of checks || []) {
-        if (c.skipped) { console.log(`  skip  ${c.name} (${c.skipped})`); continue; }
-        if (c.ok) { passed++; console.log(`  ok    ${c.name}`); } else { failed++; console.log(`  FAIL  ${c.name} -> ${c.detail}`); }
+    // A scenario stopped by "Server unavailable" - the page's request to the app's own server did
+    // not get an answer - is run once more, and only once, after that server answers again. It
+    // happened once in CI and not in any number of runs after it; a check that failed is never
+    // run again, and neither is a scenario whose server does not come back.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const checks = await page.evaluate(readFileSync(join(here, 'scenarios', f), 'utf8'));
+        for (const c of checks || []) {
+          if (c.skipped) { console.log(`  skip  ${c.name} (${c.skipped})`); continue; }
+          if (c.ok) { passed++; console.log(`  ok    ${c.name}`); } else { failed++; console.log(`  FAIL  ${c.name} -> ${c.detail}`); }
+        }
+        const shown = await page.evaluate('G.errs().splice(0)');
+        if (shown.length) { failed++; console.log(`  FAIL  errors shown to the user -> ${JSON.stringify(shown)}`); }
+        break;
+      } catch (e) {
+        if (attempt === 0 && /Server unavailable/.test(e.message)) {
+          let back = false;
+          for (let i = 0; i < 30 && !back; i++) {
+            await sleep(1000);
+            back = await page.evaluate(`api('/api/get-config').then(r=>!!(r&&r.ok)).catch(()=>false)`).catch(() => false);
+          }
+          if (back) {
+            console.log(`  RETRY ${f} stopped because the app's server did not answer once; it answers again, so the scenario runs once more`);
+            await page.evaluate(`(()=>{const d=document.getElementById('deadOverlay');if(d)d.style.display='none';G.errs().splice(0);G.take&&G.take();return true;})()`).catch(() => {});
+            continue;
+          }
+        }
+        failed++; console.log(`  FAIL  ${f} stopped: ${e.message}`);
+        break;
+      } finally {
+        await page.evaluate(`(()=>{const keep=new Set(${JSON.stringify(tabsBefore)});[...tabs].forEach(t=>{if(!keep.has(t.id))closeTab(t.id);});G.toasts.length=0;return true;})()`).catch(() => {});
       }
-      const shown = await page.evaluate('G.errs().splice(0)');
-      if (shown.length) { failed++; console.log(`  FAIL  errors shown to the user -> ${JSON.stringify(shown)}`); }
-    } catch (e) {
-      failed++; console.log(`  FAIL  ${f} stopped: ${e.message}`);
-    } finally {
-      await page.evaluate(`(()=>{const keep=new Set(${JSON.stringify(tabsBefore)});[...tabs].forEach(t=>{if(!keep.has(t.id))closeTab(t.id);});G.toasts.length=0;return true;})()`).catch(() => {});
     }
   }
   page.close();
