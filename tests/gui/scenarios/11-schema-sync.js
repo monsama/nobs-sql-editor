@@ -30,7 +30,12 @@ CREATE TABLE ${T}.oldt (id INT PRIMARY KEY);`);
     $('cmpSrcConn').value = PROF; await cmpLoadDbs('src'); await G.wait(400);
     $('cmpTgtConn').value = PROF; await cmpLoadDbs('tgt'); await G.wait(400);
     $('cmpSrcDb').value = S; $('cmpTgtDb').value = T;
+    const boxH = () => Math.round($('mCompare').querySelector('.box').getBoundingClientRect().height);
+    const hBefore = boxH();
     await runCompare(); await G.wait(500);
+    // The dialog grew to at least 640px once results came back, reading its height from the style
+    // text - where "86vh" read as 86, and a large dialog shrank to 640px.
+    G.check('the dialog does not shrink when the results come back', boxH() >= hBefore, { before: hBefore, after: boxH() });
     G.eq('the differences are found, drops left unselected', tables(), {
       newt: 'missing_target:create_table+',
       oldt: 'missing_source:drop_table-',

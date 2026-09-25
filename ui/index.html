@@ -64,19 +64,23 @@
  #connStatus{display:inline-block;position:relative}
  /* Disconnected, the connection form is showing, which says it plainly - a "Not connected" chip
     beside it was only noise. The text stays for whatever reads it. */
- body.disconnected #connX{display:none !important}
  /* The chips in the top bar are as tall as its buttons and boxes, so the row is one height. */
  /* The x that disconnects sits on the pill's right end while connected: its own button, not
     part of the label, so a long name cut short with an ellipsis never takes the x with it. */
- #connX{display:none;height:28px;width:24px;padding:0;border:1px solid var(--bd);border-left:none;border-radius:0 3px 3px 0;background:var(--panel2);color:var(--muted);font-size:15px;line-height:1}
- #connStatus.ok+#connX{display:inline-flex;margin-left:-6px} /* joined to the pill, across connStatusGroup's gap */ #connX:hover{color:#fff;background:#c0504d;border-color:#c0504d}
- #connStatus.ok{border-top-right-radius:0;border-bottom-right-radius:0;padding-right:6px}
+ /* Connected, the pill is the Disconnect button too: it turns red under the pointer, and keeps its size. */
+ #connStatus.ok{cursor:pointer}
+ #connStatus.ok:hover,#connStatus.ok:focus-visible{background:#c0504d;border-color:#c0504d;color:#fff}
+ #connStatus.ok:hover::before,#connStatus.ok:focus-visible::before{background:#fff}
  /* The charset box is as wide as its choice, and never narrower than "charset: server" - it is
     the one thing in the bar that says the text is not read as the server sends it. */
  #bar #browseCs{field-sizing:content;min-width:110px;max-width:none !important;flex:none}
  /* The charset carries an icon like the buttons around it, so that when the bar is tight and it
     reads just "utf8mb4", it still says what the word is about. */
  .csic{display:inline-flex;align-items:center;color:var(--muted);margin-right:-2px}
+ /* Connect to the connection picked in the list, while another is open: always laid out, shown only
+    when there is something to switch to. */
+ #connGo{width:28px;padding:0;margin-left:4px}
+ body.disconnected #connGo{display:none}
  /* The character set: its icon and its choice in one box, as high as the buttons beside it. */
  .cspill{display:inline-flex;align-items:center;gap:2px;height:28px;box-sizing:border-box;padding:0 0 0 8px;border:1px solid var(--bd);border-radius:4px;background:var(--btn)}
  .cspill select{border:none;background:var(--btn);color:var(--fg);height:26px;padding:0 4px;box-shadow:none}
@@ -391,7 +395,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:4px;margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
  .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
- .fit3 #coffeeImg{width:22px;object-fit:cover;object-position:-3px 0} /* at 26px high the cup is centred 14px in, and the "B" starts at 25px */ .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 3px !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
+ .fit3 #coffeeImg{width:24px;object-fit:cover;object-position:-3px 0} /* at 28px high, as tall as the buttons, the cup is centred 15px in, and the "B" starts at 27px */ .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 3px !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
  /* Settings, the coffee and Quit are spaced the same whatever step the bar is on: a window's
     corner is aimed at from memory, and it must not move because a connection came up. */
  #barRight .tbfixed{column-gap:4px !important}
@@ -450,13 +454,35 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .scsec{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 14px} .scsec td:first-child{width:44%;white-space:normal !important}
  .sch{font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted);margin:0 0 4px}
  .toolcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+ /* Compare before its first run: what to do, and what happens, where the results will be. */
+ #cmpResults:empty{display:flex;align-items:center;justify-content:center}
+ #cmpResults:empty::before{content:"Pick the source and the target database above, then Run comparison.\A\AThe structure of their tables is compared first - columns, keys, foreign keys and checks - and\A Check row differences then compares their rows. Nothing changes on the target until you apply it.";white-space:pre-line;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;max-width:680px;border:1px dashed var(--bd);border-radius:10px;padding:26px 30px}
  /* A form of labelled rows, as in Export: the label in a column of its own on the left. */
  .formgrid{display:grid;grid-template-columns:110px 1fr;gap:10px 12px;align-items:start;margin:4px 0}
  .formlbl{color:var(--muted);font-size:12px;padding-top:6px}
  /* Settings: the sections below the client tools, as cards in the same grid, and a footer of their own. */
- .setgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
- @media (max-width:760px){.setgrid{grid-template-columns:1fr}}
- .sethead{font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;margin:4px 0 6px}
+ /* Settings: a list of pages on the left, one page at a time on the right. The window keeps one size
+    from page to page. */
+ .setwrap{display:flex;flex:1;min-height:0;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+ .setnav{flex:none;width:180px;background:var(--panel2);border-right:1px solid var(--bd);padding:8px;display:flex;flex-direction:column;gap:2px}
+ .setnav button{display:flex;align-items:center;gap:9px;justify-content:flex-start;background:transparent;border:0;border-radius:6px;padding:8px 10px;height:auto;color:var(--fg);font-size:13px;text-align:left}
+ .setnav button svg{color:var(--muted);flex:none}
+ .setnav button:hover{background:var(--btn)}
+ .setnav button.on{background:var(--btn);box-shadow:inset 3px 0 0 var(--accent);font-weight:600}
+ .setnav button.on svg{color:var(--accent)}
+ .setbody{flex:1;min-width:0;overflow:auto;padding:16px 20px 20px}
+ .setpage{display:none} .setpage.on{display:block}
+ .setpt{margin:0 0 6px;font-size:17px;font-weight:600}
+ .setpd{color:var(--muted);font-size:12px;margin-bottom:6px}
+ .setgroup{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+ .setcard{border:1px solid var(--bd);border-radius:8px;background:var(--panel2);padding:0 16px;margin-top:10px}
+ .setgroup+.setcard{margin-top:0}
+ .setrow{display:flex;align-items:center;gap:32px;padding:13px 0}
+ .setrow+.setrow{border-top:1px solid var(--bd2)}
+ .setrl{flex:1;min-width:0;max-width:720px} .setrt{font-size:13px;font-weight:600}
+ .setrow .setnote{margin-top:3px}
+ .setrc{flex:none;margin-left:auto;display:flex;gap:6px;align-items:center}
+ .setrc input[type=checkbox]{width:16px;height:16px;margin:0}
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
@@ -480,14 +506,14 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
   <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
-	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><span id="connStatus" class="chip off dotonly" title="Not connected"></span><button id="connX" title="Disconnect" aria-label="Disconnect" onclick="disconnectAsk()">&times;</button>
+	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 3px"></span><img id="coffeeImg" src="data:image/png;base64,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" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:26px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:4px" data-ic="power">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 3px"></span><img id="coffeeImg" src="data:image/png;base64,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" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:28px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:4px" data-ic="power">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
-  <select id="ssl" onchange="sslCaToggle()"><option value="default">default</option><option value="disabled">disabled</option><option value="required">required</option><option value="verify">verify</option><option value="verify-ca">verify-ca</option></select>
+  <select id="ssl" onchange="sslCaToggle()" title="SSL / TLS for this connection&#10;default - Encrypted when the server offers TLS, unencrypted when it does not. The certificate is not checked.&#10;disabled - Never encrypted.&#10;required - Always encrypted - a server without TLS is refused. The certificate is not checked, so it protects against eavesdropping but not against someone posing as the server.&#10;verify - Encrypted, and the certificate is checked against the CA and must name this host.&#10;verify-ca - Encrypted, and the certificate is checked against the CA but not the host name - for the certificate MariaDB or MySQL generated for itself."><option value="default" title="Encrypted when the server offers TLS, unencrypted when it does not. The certificate is not checked.">default</option><option value="disabled" title="Never encrypted.">disabled</option><option value="required" title="Always encrypted - a server without TLS is refused. The certificate is not checked, so it protects against eavesdropping but not against someone posing as the server.">required</option><option value="verify" title="Encrypted, and the certificate is checked against the CA and must name this host.">verify</option><option value="verify-ca" title="Encrypted, and the certificate is checked against the CA but not the host name - for the certificate MariaDB or MySQL generated for itself.">verify-ca</option></select>
   <span class="fld" id="sslcaWrap" style="display:none">CA <input id="sslca" class="s" style="width:150px" placeholder="CA certificate (.pem)" title="The CA certificate that signed this server's certificate. Needed for &quot;verify&quot; against a server using a private or self-signed certificate - which is what MariaDB and MySQL generate by default, and which no system trust store accepts. Leave empty to verify against the system trust store instead." onkeydown="if(event.key==='Enter')connect()"><button class="sm" title="Browse for the CA certificate file" onclick="browse({title:'Select CA certificate',filter:'*.pem',mode:'file',onPick:pp=>$('sslca').value=pp})">...</button></span>
   <span class="fld"><button class="sm" id="sshBtn" onclick="editSsh()" title="Configure SSH tunnel">SSH</button><input type="hidden" id="sshhost"><input type="hidden" id="sshport"><input type="hidden" id="sshuser"><input type="hidden" id="sshkey"><input type="hidden" id="sshpass"></span>
   <button class="primary" title="Connect to the server with the details above" onclick="connect()">Connect</button><button class="sm" title="Disconnect and lock the UI" onclick="disconnectAsk()">Disconnect</button>
@@ -602,7 +628,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div id="impLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 
-<div class="modal floating" id="mCompare"><div class="box" style="width:1120px;max-width:95vw;height:760px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0">Compare Databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mCompare"><div class="box" style="width:1400px;max-width:96vw;height:86vh;max-height:1000px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0">Compare Databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="font-size:11px;margin-bottom:8px;flex:none">Compares two databases through saved connections, each opened on its own with its stored password - so both need "Save password" checked (Manage &gt; Edit).</div>
  <div class="row" style="display:flex;gap:10px;flex:none">
    <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:3px">Source</div>
@@ -631,15 +657,14 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="cmpLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:140px;overflow:auto;margin-top:6px;flex:0 1 auto;min-height:0"></div>
 </div></div>
 
-<div class="modal floating" id="mCompareRows"><div class="box" style="width:900px;max-width:96vw;display:flex;flex-direction:column;overflow:hidden;top:50px;left:110px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompareRows')" title="Drag to move"><h3 id="cmprTitle" style="margin:0 0 10px">Row comparison</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompareRows')" title="Maximize" id="maxBtn_mCompareRows" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompareRows')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mCompareRows"><div class="box" style="width:1300px;max-width:96vw;height:84vh;max-height:960px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:110px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompareRows')" title="Drag to move"><h3 id="cmprTitle" style="margin:0 0 10px">Row comparison</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompareRows')" title="Maximize" id="maxBtn_mCompareRows" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompareRows')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
 
  <div class="muted" style="font-size:12px;font-weight:600;margin-top:4px;flex:none">Missing on target</div>
  <div id="cmprNote" class="muted" style="font-size:11px;margin-bottom:6px;flex:none"></div>
  <div class="row" style="flex:none"><a href="#" onclick="cmprSetAll(true);return false" style="font-size:11px;color:var(--accent)">All</a> / <a href="#" onclick="cmprSetAll(false);return false" style="font-size:11px;color:var(--accent)">None</a> <span id="cmprSummary" class="muted" style="font-size:11px;margin-left:8px"></span></div>
- <!-- flex:1 plus a default max-height:220px (the pre-dynamic-sizing default) below - normal size
-      stays compact like before, but Maximize clears the cap (see floatToggleMaximize's
-      FLOAT_MAX_EXTRA) so the grid actually grows into the extra room instead of empty space. -->
- <div id="cmprGrid" style="overflow:auto;border:1px solid var(--bd2);border-radius:4px;margin-top:4px;flex:1;min-height:60px;max-height:220px"></div>
+ <!-- flex:1 with no cap: the two grids share the window's height between them, and grow with it
+      when it is resized or maximized. -->
+ <div id="cmprGrid" style="overflow:auto;border:1px solid var(--bd2);border-radius:4px;margin-top:4px;flex:1;min-height:80px"></div>
  <div class="row" style="display:flex;align-items:center;gap:10px;flex:none">
    <button class="go write" onclick="cmprApply()">Insert selected rows</button>
    <span id="cmprRoNote" class="muted" style="font-size:11px;display:none;color:var(--del)">Target is read-only / safe mode - blocked.</span>
@@ -649,7 +674,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="muted" style="font-size:12px;font-weight:600;margin-top:14px;flex:none">Column differences (rows matched by id, content compared column-by-column)</div>
  <div id="cmprDiffNote" class="muted" style="font-size:11px;margin-bottom:6px;flex:none"></div>
  <div class="row" style="flex:none"><a href="#" onclick="cmprDiffSetAll(true);return false" style="font-size:11px;color:var(--accent)">All</a> / <a href="#" onclick="cmprDiffSetAll(false);return false" style="font-size:11px;color:var(--accent)">None</a> <span id="cmprDiffSummary" class="muted" style="font-size:11px;margin-left:8px"></span></div>
- <div id="cmprDiffGrid" style="overflow:auto;border:1px solid var(--bd2);border-radius:4px;margin-top:4px;flex:1;min-height:60px;max-height:220px"></div>
+ <div id="cmprDiffGrid" style="overflow:auto;border:1px solid var(--bd2);border-radius:4px;margin-top:4px;flex:1;min-height:80px"></div>
  <div class="row" style="display:flex;align-items:center;gap:10px;flex:none">
    <button class="warn write" onclick="cmprDiffApply()" title="Overwrites the target row's differing columns with the source values shown">Update selected rows (overwrites target)</button>
    <span id="cmprDiffRoNote" class="muted" style="font-size:11px;display:none;color:var(--del)">Target is read-only / safe mode - blocked.</span>
@@ -716,8 +741,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div class="modal floating" id="mRowForm"><div class="box" style="width:560px;max-width:94vw;top:70px;left:160px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mRowForm')" title="Drag to move"><h3 id="rfTitle" style="margin:0 0 10px">Edit row</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mRowForm')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="rfFields" style="max-height:60vh;overflow:auto"></div>
  <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="go" onclick="rfSave()">Save to pending</button><button onclick="hide('mRowForm')">Cancel</button></div></div></div>
-<div class="modal floating" id="mSettings"><div class="box" style="width:1300px;max-width:96vw;top:40px;left:80px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mSettings')" title="Drag to move"><h3 style="margin:0 0 10px">Settings</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mSettings')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
- <div class="sethead">Client tools</div>
+<div class="modal floating" id="mSettings"><div class="box" style="width:1300px;max-width:96vw;height:84vh;max-height:860px;display:flex;flex-direction:column;top:40px;left:80px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mSettings')" title="Drag to move"><h3 style="margin:0 0 10px">Settings</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mSettings')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
+ <div class="setwrap">
+ <nav class="setnav"><button type="button" data-p="tools" class="on" onclick="setPage('tools')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z"/></svg>Client tools</button><button type="button" data-p="general" onclick="setPage('general')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>General</button><button type="button" data-p="data" onclick="setPage('data')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Local data</button></nav>
+ <div class="setbody">
+ <section class="setpage on" data-p="tools">
+ <h4 class="setpt">Client tools</h4>
  <div class="muted" style="font-size:12px">Export and Import use the MySQL/MariaDB command-line tools.<br>They are not bundled - point to an existing install, or download them automatically.<br>Running SQL, including multi-statement scripts with DELIMITER, does not need them.</div>
  <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 4px"><span style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">STATUS</span><span class="cplink" id="cfgRecheckBtn" title="Re-run detection without closing this window - useful right after installing the tools elsewhere" onclick="refreshToolsStatus(true)"><span id="cfgRecheckIcon">&#8635;</span> Recheck</span></div>
  <div id="cfgStatus" class="muted" style="font-size:12px;margin:2px 0 8px"></div>
@@ -746,28 +775,35 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="muted" style="font-size:11px;line-height:1.5;margin-top:8px">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*, WAMP, XAMPP) &rarr; system PATH.</div>
  <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:Consolas,monospace;font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
  <div id="cfgPaths" class="muted" style="font-size:11px;font-family:Consolas,monospace;margin-top:10px;border-top:1px solid var(--bd2);padding-top:8px;line-height:1.6"></div>
- <div class="setgrid">
-  <div class="toolcard">
-   <div class="toolcard-h">Updates</div>
-   <div class="row"><label class="ck" style="font-size:12px"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)"> Check for a new version at startup</label><button class="sm" onclick="checkForUpdate(true)">Check now</button></div>
-   <div class="setnote">Asks GitHub for the latest release and shows a notice in the top bar with a link. Nothing is downloaded or installed.</div>
+ </section>
+ <section class="setpage" data-p="general">
+  <h4 class="setpt">General</h4>
+  <div class="setgroup">Updates</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Check for a new version at startup</div><div class="setnote">Asks GitHub for the latest release and shows a notice in the top bar with a link. Nothing is downloaded or installed.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Check now</div><div class="setnote">The same question, asked right away.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
   </div>
-  <div class="toolcard">
-   <div class="toolcard-h">Notifications</div>
-   <div class="row"><span class="fld" style="font-size:12px">Keep a message on screen for
-    <select id="cfgToastMs" onchange="setToastMs(this.value)" style="margin-left:6px"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></span></div>
-   <div class="setnote">The messages in the bottom right corner. An error stays twice as long as the rest; hovering one holds it, and a click dismisses it.</div>
+  <div class="setgroup">Notifications</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Keep a message on screen for</div><div class="setnote">The messages in the bottom right corner. An error stays twice as long as the rest; hovering one holds it, and a click dismisses it.</div></div><div class="setrc"><select id="cfgToastMs" onchange="setToastMs(this.value)"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></div></div>
   </div>
-  <div class="toolcard">
-   <div class="toolcard-h">Appearance and help</div>
-   <div class="row" style="gap:6px;flex-wrap:wrap"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Keyboard shortcuts</button><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div>
-   <div class="setnote">The theme is remembered on this computer.</div>
+  <div class="setgroup">Appearance and help</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Light or dark, remembered on this computer.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Keyboard shortcuts</div><div class="setnote">Every shortcut in the editor, the grids and the dialogs.</div></div><div class="setrc"><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Show</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">About</div><div class="setnote">Version, license and project information.</div></div><div class="setrc"><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div></div>
   </div>
-  <div class="toolcard">
-   <div class="toolcard-h">Local data</div>
-   <div class="row" style="gap:6px;flex-wrap:wrap"><button class="sm needsconn" title="Clear the database overview cache and reload" onclick="clearOverviewCache()">Refresh overview cache</button><button class="sm" onclick="resetLayout()">Reset the layout</button><button class="sm warn" onclick="clearAllData()">Clear all app data</button></div>
-   <div class="setnote">Reset the layout puts the sidebar, the panels, the folded groups, the theme and the message timing back to how the app starts. Saved connections, the query library, history and pinned tables are left alone.</div>
+ </section>
+ <section class="setpage" data-p="data">
+  <h4 class="setpt">Local data</h4>
+  <div class="setpd">What this app keeps on this computer. Your databases are not touched by anything here.</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Overview cache</div><div class="setnote">The database overview is kept for five minutes, so reopening it is instant. Refresh reads it from the server again.</div></div><div class="setrc"><button class="sm needsconn" title="Clear the database overview cache and reload" onclick="clearOverviewCache()">Refresh</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Layout</div><div class="setnote">Puts the sidebar, the panels, the folded groups, the theme and the message timing back to how the app starts. Saved connections, the query library, history and pinned tables are left alone.</div></div><div class="setrc"><button class="sm" onclick="resetLayout()">Reset the layout</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">All app data</div><div class="setnote">Deletes the saved connections with their passwords, the query library, history, session tabs, caches and settings. This cannot be undone.</div></div><div class="setrc"><button class="sm warn" onclick="clearAllData()">Clear all app data</button></div></div>
   </div>
+ </section>
+ </div>
  </div>
  <div class="row setfoot"><button class="go" onclick="saveSettings()">Save</button><button onclick="hide('mSettings')">Close</button></div></div></div>
 <div class="modal floating" id="mAbout"><div class="box" style="width:560px;max-width:92vw;top:70px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mAbout')" title="Drag to move"><h3 id="aboutTitle" style="margin:0 0 10px">NOBS SQL Editor</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mAbout')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
@@ -1439,6 +1475,7 @@ async function resetLayout(){
  toast('The layout is back to how the app starts.','ok');
 }
 async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis permanently deletes:\n\u2022 saved connections (host / user / password)\n\u2022 the query library\n\u2022 caches, accent colors, environment labels, history and session tabs.\n\nThis cannot be undone.')))return;const n=_clearKeys(true);try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}log('Cleared '+n+' local entr'+(n===1?'y':'ies')+' + saved connections + library. Reloading...');setTimeout(()=>location.reload(),500);}
+function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));}
 async function openSettings(){$('cfgLog').textContent='';try{const r=await api('/api/get-config');const c=(r&&r.config)||{};$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
@@ -1689,7 +1726,7 @@ function findReplaceAll(id){const ta=$('ed_'+id),re=findRe(id);if(!re)return;con
 // connection profiles
 // The box's tooltip: what the picked connection is, one labelled line each - the tags inside
 // the box say the same in a word, and clicks go through them, so they cannot carry their own.
-function connTitle(){const s=$('connlist');if(!s)return;
+function connTitle(){const s=$('connlist');if(!s)return;paintConnGo();
  const pc=$('primChip');if(pc)pc.style.display=(s.value&&s.value===window._primaryConn)?'inline-flex':'none';
  if(!s.value){s.title='Saved connections';return;}
  const m=connMeta()[s.value]||{},pw=$('pwChip');
@@ -1748,10 +1785,20 @@ function wireConnList(){const s=$('connlist');if(!s)return;
   else if(e.key==='Backspace'){e.preventDefault();window._connListTerm=(window._connListTerm||'').slice(0,-1);openConnList();}
   else if(e.key.length===1&&!e.ctrlKey&&!e.altKey&&!e.metaKey){e.preventDefault();window._connListTerm=(window._connListTerm||'')+e.key;openConnList();}});}
 function syncConnTags(){const tags=$('connTags'),s=$('connlist');if(!tags||!s)return;const w=tags.offsetWidth;s.style.paddingRight=w?(w+26)+'px':'';
- // The tags widen the box by what they take, rather than taking it from the name. In the tightest
- // step the box has a fixed width (see .fit2 #connlist), and the tag is cut shorter there instead.
+ // The tags widen the box rather than taking the room from the name - by what the widest tags of
+ // any saved connection take, not the picked one's, so switching connections never changes the
+ // box's width and nothing beside it moves. In the tightest step the box is narrower, and the tag
+ // is cut shorter there instead.
  const narrow=$('barTop')&&$('barTop').classList.contains('fit3');
- s.style.width=s.style.maxWidth=((narrow?150:210)+(w?w+6:0))+'px';connTitle();}
+ const r=connTagReserve(tags,narrow);
+ s.style.width=s.style.maxWidth=((narrow?150:210)+(r?r+6:0))+'px';connTitle();}
+// The room the widest tags take: the widest environment chip of the saved connections, plus the
+// star and the lock, which any of them can show. Measured once for each set of tags.
+function connTagReserve(tags,narrow){const m=connMeta(),key=JSON.stringify(m)+(narrow?'n':'');
+ if(window._connTagKey===key)return window._connTagReserve;
+ let env=0;for(const n in m){const t=envTag(m[n].env||'',!!m[n].readonly,m[n].accent||'');if(!t)continue;
+  t.style.display='inline-block';tags.appendChild(t);env=Math.max(env,t.offsetWidth);t.remove();}
+ const r=(env?env+5:0)+11+5+13;window._connTagKey=key;window._connTagReserve=r;return r;}
 // --- Connections: dropdown, New/Save/pick, and the 'primary' (auto-open) flag.
 function updatePrimeBtn(){const b=$('primeBtn');if(!b)return;const n=$('connlist').value;const isP=(n&&n===window._primaryConn);b.textContent=(isP?'\u2605':'\u2606')+' Primary';b.style.color=isP?'#f5c518':'';b.title=isP?'This is the primary connection (opens on startup). Click to unset.':'Set as primary connection (opens automatically on startup)';}
 // ---- Keeping a bar on one line
@@ -1879,6 +1926,13 @@ async function refreshConns(){const r=await api('/api/conn-list');const sel=$('c
 // Manually forces #connFormRow visible even while connected, overriding the CSS rule that
 // hides it by default at that point - see the CSS comment above body:not(.disconnected) for
 // the reasoning. Purely a visibility toggle; doesn't touch any saved connection data.
+// The button beside the connection box, while connected: Reconnect when the box shows the open
+// connection, and Connect when another one is picked there. It stays in place either way.
+const CONNGO_ICONS={go:'<path d="M5 12h14M13 6l6 6-6 6"/>',again:'<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/>'};
+function paintConnGo(){const go=$('connGo'),s=$('connlist');if(!go||!s)return;
+ const same=(s.value||'')===(window._activeConnName||'');const k=same?'again':'go';if(go.dataset.k===k)return;go.dataset.k=k;
+ go.title=same?'Reconnect':'Connect to the connection picked in the list';go.setAttribute('aria-label',same?'Reconnect':'Connect');
+ go.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+CONNGO_ICONS[k]+'</svg>';}
 function toggleConnForm(){document.body.classList.toggle('show-connform');}
 function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';$('ssl').value='default';$('sslca').value='';sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
 function setPass(pw){const el=$('pass');if(el)el.value=pw;}
@@ -1921,11 +1975,16 @@ async function pickConn() {
         // so it's purely cosmetic here - window.readOnly/curEnv, and therefore actual write
         // blocking, still only flip once connect() itself succeeds.
         renderEnvChip(r.env||'', !!r.readonly, r.accent||accMap()[n]||'');
-        // Force #connFormRow visible: if already connected and switching to a DIFFERENT saved
-        // connection, the Connect button itself lives inside that row - if it stayed collapsed
-        // there'd be no way to actually click it. connect()'s own success path resets this
-        // back to collapsed once it actually succeeds, regardless of how it got shown.
-        document.body.classList.add('show-connform');
+        // While connected, a saved connection with its password is switched to with the button
+        // beside the dropdown, which is always there while connected, so nothing moves. Showing
+        // the form row for it - the other Connect button lives there - pushed the whole window
+        // down a row and back up once connected. The row still opens where a password has to be
+        // typed, and connect()'s success path folds it away again.
+        const _connected = !document.body.classList.contains('disconnected');
+        const _same = _connected && window._activeConnName === n;
+        paintConnGo();
+        if (_connected && _pw) document.body.classList.remove('show-connform');
+        else if (!_same) document.body.classList.add('show-connform');
         log('Loaded connection: ' + n + (_pw ? '' : ' (no saved password - type one and Save)') + ' - click Connect to switch to it.');
     }
 }
@@ -2048,7 +2107,7 @@ async function connect() {window._connFormTouched=true;
   const _cs = $('connStatus'); if (_cs) { const _sel=$('connlist'); const _named=!!(_sel && _sel.value);
    const _who=_named?_sel.options[_sel.selectedIndex].text:($('user').value + '@' + $('host').value);
    _cs.innerHTML = '<span class="vh">Connected: </span>' + (_named?'':esc(_who));
-   _cs.title = 'Connected: ' + _who; _cs.className = _named?'chip ok dotonly':'chip ok'; }
+   _cs.title = 'Connected: ' + _who + '\nClick to disconnect'; _cs.tabIndex = 0; _cs.className = _named?'chip ok dotonly':'chip ok'; }
   applyAccent(window.curAccent || '');
   applyEnv($('connlist').value);
   // IMPORTANT: snapshot the active connection BEFORE restoring any tabs below - restoring a
@@ -2056,6 +2115,8 @@ async function connect() {window._connFormTouched=true;
   // itself) uses this snapshot rather than the live form. Setting it after restore meant
   // restored tabs briefly queried the CONNECTION YOU JUST LEFT instead of the new one.
   window._activeConn = getConn();
+  window._activeConnName = $('connlist').value || '';
+  paintConnGo();
   window._activeReadOnly = window.readOnly;
   // Whether a backslash inside a string is an escape on this server. With NO_BACKSLASH_ESCAPES in
   // its sql_mode it is an ordinary character, and every literal the app wrote - grid edits,
@@ -2083,15 +2144,16 @@ async function connect() {window._connFormTouched=true;
 
 }
 function clearObjectsPanel(){$('objects').innerHTML='';$('objdb').textContent='';if($('objFilter'))$('objFilter').value='';curSchema=null;objData=null;}
-// The pill's x and the Disconnect button. Disconnecting keeps every tab, so it only asks when
+// A click on the connected pill, and the Disconnect button. Disconnecting keeps every tab, so it only asks when
 // something would be cut short - a query still running, or grid edits not applied yet - and stops
 // the running queries rather than leave them going on a connection nobody is looking at.
+function connStatusClick(){const cs=$('connStatus');if(cs&&cs.classList.contains('ok'))disconnectAsk();}
 async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirty=tabs.filter(t=>pendingCount(t)>0),open=tabs.filter(t=>t.txDirty);
  if(running.length||dirty.length||open.length){const what=[];if(running.length)what.push(running.length+(running.length>1?' queries':' query')+' still running');if(dirty.length)what.push(dirty.length+' tab(s) with grid edits not applied yet');if(open.length)what.push(open.length+' tab(s) with a transaction not committed');
   if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped'+(open.length?'; what was not committed is rolled back':'')+'.')))return;
   await Promise.all(running.map(t=>cancelQuery(t.id)));}
  disconnect();}
-function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';}window.curAccent='';window.readOnly=false;window.curEnv='';
+function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeConnName='';window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';_cs.tabIndex=-1;}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
@@ -2791,6 +2853,26 @@ async function openOverview(){
  ov.style.display='block';
  await showOverview();
 }
+// With no tab open, the overview loads by itself - unless the server has so many tables that
+// reading their sizes costs it real work (MySQL 5.7 and MariaDB open every table for that), and
+// then the button stays and says why. Counting the tables opens none of them. An overview still in
+// its cache is shown straight away.
+const AUTO_OVERVIEW_MAX_TABLES = 3000;
+async function autoOverview() {
+    const ov = $('overview');
+    if (!ov) return;
+    const stillEmpty = () => tabs.length === 0 && !document.body.classList.contains('disconnected') && ov.style.display !== 'none';
+    try {
+        const c = localStorage.getItem(overviewCacheKey());
+        if (c) { const p = JSON.parse(c); if (p.timestamp && Date.now() - p.timestamp < 300000) { if (stillEmpty()) await showOverview(); return; } }
+    } catch (e) { /* no cache */ }
+    const r = await api('/api/query', { sql: 'SELECT COUNT(*) FROM information_schema.TABLES' });
+    if (!stillEmpty()) return;
+    const n = r.ok && r.rows && r.rows[0] ? Number(r.rows[0][0]) : NaN;
+    if (n <= AUTO_OVERVIEW_MAX_TABLES) { await showOverview(); return; }
+    const note = ov.querySelector('.muted');
+    if (note && isFinite(n)) note.textContent = 'Database Overview - ' + n.toLocaleString() + ' tables on this server. Reading all their sizes takes the server a while, so it waits for you.';
+}
 function toggleOverview() {
     const ov = $('overview');
     if (!ov) return;
@@ -2809,6 +2891,7 @@ function toggleOverview() {
             </div>
         `;
         ov.style.display = 'block';
+        autoOverview();
     } else {
         ov.style.display = 'none';
     }
@@ -6890,7 +6973,7 @@ async function runCompare(){
  // maximized for the same reason floatToggleMaximize/viewText skip resizing then.
  if(_cmpTables.length&&(!window._floatingMaxState||!window._floatingMaxState.mCompare)){
   const box=$('mCompare').querySelector('.box');
-  if(box&&parseInt(box.style.height,10)<640)box.style.height='640px';
+  if(box&&box.getBoundingClientRect().height<640)box.style.height='640px';
  }
  if(r.cancelled)toast('Comparison cancelled - showing '+_cmpTables.length+' table(s) checked before you stopped it.',true);}
 function cmpSelectedStatements(){const out=[];if(_cmpTables)_cmpTables.forEach(t=>t.sql.forEach(s=>{if(s.checked)out.push(s.stmt);}));return out;}

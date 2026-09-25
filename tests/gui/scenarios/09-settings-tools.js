@@ -2,6 +2,7 @@
 // status and download, and marks the set the connected server uses.
 (async () => {
   await openSettings();
+  setPage('tools');
   const status = $('cfgStatus');
   await G.until(() => /connected server is/.test(status.textContent) || /Could not tell/.test(status.textContent), 30000);
   const maria = $('cfgCardMaria'), mysql = $('cfgCardMysql');
@@ -15,6 +16,24 @@
   G.check('the card the connected server uses is marked, and only that one', inUse.classList.contains('inuse') && !(inUse === maria ? mysql : maria).classList.contains('inuse'),
     { status: status.textContent, maria: maria.className, mysql: mysql.className });
   G.check('and the line above says so', new RegExp('connected server is ' + (serverIsMaria ? 'MariaDB' : 'MySQL')).test(status.textContent), status.textContent);
+
+  // One page at a time, picked on the left, in a window that keeps its size from page to page.
+  const box = $('mSettings').querySelector('.box'), size = () => [Math.round(box.offsetWidth), Math.round(box.offsetHeight)];
+  const shown = () => [...document.querySelectorAll('#mSettings .setpage')].filter(s => s.offsetParent).map(s => s.dataset.p);
+  const save = document.querySelector('#mSettings .setfoot .go');
+  const at = size();
+  G.eq('Client tools shows alone', shown(), ['tools']);
+  G.check('with Save', getComputedStyle(save).visibility === 'visible', save.style.visibility);
+  setPage('general');
+  G.eq('General shows alone', shown(), ['general']);
+  G.check('holding the update check and the message timing', $('cfgUpdateCheck').offsetParent && $('cfgToastMs').offsetParent, 'not on the page');
+  G.check('without Save, which is for the tool paths', getComputedStyle(save).visibility === 'hidden', save.style.visibility);
+  G.eq('the window keeps its size', size(), at);
+  setPage('data');
+  G.eq('Local data shows alone', shown(), ['data']);
+  G.eq('and the window still keeps its size', size(), at);
+  G.check('the menu marks the page shown', document.querySelector('#mSettings .setnav button.on').dataset.p === 'data', document.querySelector('#mSettings .setnav button.on').dataset.p);
+  setPage('tools');
   hide('mSettings');
   return G.report();
 })()

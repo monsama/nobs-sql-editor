@@ -48,5 +48,43 @@
     pane.style.maxWidth = was;
     closeTab(i);
   }
+
+  // The connection box keeps its width from one connection to the next, whatever tags each shows,
+  // so switching moves nothing beside it; and the tags stay inside the box.
+  const meta = window._connMeta, prim = window._primaryConn;
+  const s = $('connlist'), pw = $('pwChip'), pwWas = pw.style.display;
+  const opts = ['nobs gui plain', 'nobs gui tagged'].map(n => { const o = new Option(n, n); s.add(o); return o; });
+  try {
+    window._connMeta = { ...(meta || {}), 'nobs gui plain': { env: '', readonly: false, accent: '' }, 'nobs gui tagged': { env: 'production', readonly: true, accent: '' } };
+    const show = async (n, env, ro, lock) => {
+      s.value = n; window._primaryConn = lock ? n : prim; renderEnvChip(env, ro, ''); pw.style.display = lock ? 'inline' : 'none';
+      connTitle(); syncConnTags(); await G.wait(80);
+      return { w: s.getBoundingClientRect().width, x: $('connStatus').getBoundingClientRect().left };
+    };
+    const a = await show('nobs gui plain', '', false, false);
+    const b = await show('nobs gui tagged', 'production', true, true);
+    G.eq('switching to a connection with tags keeps the box its width', b.w, a.w);
+    G.eq('and moves nothing beside it', b.x, a.x);
+    const box = s.getBoundingClientRect(), tags = $('connTags').getBoundingClientRect();
+    G.check('the tags sit inside the box', tags.left >= box.left && tags.right <= box.right, { box: [box.left, box.right], tags: [tags.left, tags.right] });
+    const c = await show('nobs gui plain', '', false, false);
+    G.eq('and back again', [c.w, c.x], [a.w, a.x]);
+    // Beside the box: Connect for another connection, Reconnect for the open one, in one place.
+    const go = $('connGo'), goX = () => go.getBoundingClientRect().left;
+    G.eq('another connection picked: the button connects to it', go.title, 'Connect to the connection picked in the list');
+    const x1 = goX();
+    s.value = window._activeConnName || ''; connTitle(); await G.wait(30);
+    G.eq('the open one picked: it reconnects', go.title, 'Reconnect');
+    G.check('and it is shown', go.offsetWidth > 0 && getComputedStyle(go).visibility === 'visible', go.className);
+    G.eq('in the same place', goX(), x1);
+    // The connected pill is the Disconnect button; there is no separate x beside it.
+    const cs = $('connStatus');
+    G.check('the connected pill disconnects', cs.getAttribute('role') === 'button' && /Click to disconnect/.test(cs.title) && getComputedStyle(cs).cursor === 'pointer', { role: cs.getAttribute('role'), title: cs.title });
+    G.check('and has no x beside it', !$('connX'), 'connX is still there');
+  } finally {
+    opts.forEach(o => o.remove());
+    window._connMeta = meta; window._primaryConn = prim; pw.style.display = pwWas;
+    s.value = window._activeConnName || ''; applyEnv(s.value); connTitle(); syncConnTags();
+  }
   return G.report();
 })()
