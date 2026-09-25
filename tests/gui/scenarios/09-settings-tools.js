@@ -32,6 +32,11 @@
   setPage('data');
   G.eq('Local data shows alone', shown(), ['data']);
   G.eq('and the window still keeps its size', size(), at);
+  // where things are kept: settings in the roaming AppData, downloaded programs in the local one
+  await G.until(() => $('cfgPathConfig').textContent && $('cfgPathTools').textContent, 20000);
+  G.check('Local data says where the settings and the downloaded tools are', /config\.json$/i.test($('cfgPathConfig').textContent) && /\\Local\\/i.test($('cfgPathTools').textContent) && /\\bin$/i.test($('cfgPathTools').textContent),
+    [$('cfgPathConfig').textContent, $('cfgPathTools').textContent]);
+  G.check('with a way to open each folder', [...document.querySelectorAll('#mSettings .setpage[data-p="data"] button')].filter(b => b.textContent === 'Open folder').length === 2, 'Open folder buttons');
   G.check('the menu marks the page shown', document.querySelector('#mSettings .setnav button.on').dataset.p === 'data', document.querySelector('#mSettings .setnav button.on').dataset.p);
   setPage('tools');
 

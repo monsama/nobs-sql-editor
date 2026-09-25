@@ -547,6 +547,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .box :is(input:not([type=checkbox],[type=radio],[type=file],[type=hidden],[type=range]),select):not(table *){height:28px}
  .box table.dz :is(input:not([type=checkbox]),select){height:26px}
  /* a path that did not pass the check before Save */
+ .setpath{font-family:var(--mono);font-size:11px;color:var(--fg);user-select:text;overflow-wrap:anywhere}
  #mSettings input.bad{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
@@ -849,7 +850,6 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div class="muted" style="font-size:11px;line-height:1.5;margin-top:8px">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*, WAMP, XAMPP) &rarr; system PATH.</div>
  <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
- <div id="cfgPaths" class="muted" style="font-size:11px;font-family:var(--mono);margin-top:10px;border-top:1px solid var(--bd2);padding-top:8px;line-height:1.6"></div>
  </section>
  <section class="setpage" data-p="general">
   <h4 class="setpt">General</h4>
@@ -872,6 +872,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <section class="setpage" data-p="data">
   <h4 class="setpt">Local data</h4>
   <div class="setpd">What this app keeps on this computer. Your databases are not touched by anything here.</div>
+  <div class="setgroup">Where it is kept</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Settings</div><div class="setnote"><span id="cfgPathConfig" class="setpath"></span><br>The client tool paths and the other settings on this page, in config.json.</div></div><div class="setrc"><button class="sm" onclick="openFolder('config')">Open folder</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Downloaded client tools</div><div class="setnote"><span id="cfgPathTools" class="setpath"></span><br>Where Download puts mysql and mysqldump. Tools you point to yourself stay where they are.</div></div><div class="setrc"><button class="sm" onclick="openFolder('tools')">Open folder</button></div></div>
+  </div>
+  <div class="setgroup">Clear and reset</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Overview cache</div><div class="setnote">The database overview is kept for five minutes, so reopening it is instant. Refresh reads it from the server again.</div></div><div class="setrc"><button class="sm needsconn" title="Clear the database overview cache and reload" onclick="clearOverviewCache()">Refresh</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Layout</div><div class="setnote">Puts the sidebar, the panels, the folded groups, the theme and the message timing back to how the app starts. Saved connections, the query library, history and pinned tables are left alone.</div></div><div class="setrc"><button class="sm" onclick="resetLayout()">Reset the layout</button></div></div>
@@ -1620,12 +1626,13 @@ async function refreshToolsStatus(manual,quiet){const el=$('cfgStatus');if(!el)r
  try{const r=await api('/api/tools-status');if(!r||!r.ok){el.textContent='';return;}renderToolsStatus(r);
  if(r.mysql&&r.mysql!=='(not found)'&&!$('cfgMysql').value)$('cfgMysql').value=r.mysql;
  if(r.mysqldump&&r.mysqldump!=='(not found)'&&!$('cfgDump').value)$('cfgDump').value=r.mysqldump;
- const pe=$('cfgPaths');if(pe)pe.innerHTML='Downloads: '+esc(r.download_dir)+'<br>Config: '+esc(r.config_file);
+ const pc=$('cfgPathConfig'),pt=$('cfgPathTools');if(pc)pc.textContent=r.config_file||'';if(pt)pt.textContent=r.download_dir||'';
  if(manual){const bothOk=r.mysql&&r.mysql!=='(not found)'&&r.mysqldump&&r.mysqldump!=='(not found)';toast(bothOk?'Both tools found.':'Still missing one or both tools.',!bothOk);}}catch(e){el.textContent='';}
  finally{if(manual&&icon){icon.classList.remove('spinning');btn.classList.remove('disabled');}}}
 // Save tries each path it was given first: a file that is not there, is the other tool, or does not
 // start is outlined with the reason, and nothing is saved until they all work.
 const CFG_TOOLS=[['cfgMysql','mysql','mysql (MariaDB servers)'],['cfgDump','mysqldump','mysqldump (MariaDB servers)'],['cfgMysqlMy','mysql','mysql (MySQL servers)'],['cfgDumpMy','mysqldump','mysqldump (MySQL servers)']];
+async function openFolder(which){let r=null;try{r=await api('/api/open-folder',{which});}catch(e){}if(!r||!r.ok)toast('Could not open the folder'+(r&&r.error?': '+r.error:'')+'.',true);}
 async function saveSettings(){
  const bad=[],found=[];
  for(const [id,kind,label] of CFG_TOOLS){const el=$(id);if(!el)continue;el.classList.remove('bad');el.removeAttribute('data-err');const p=el.value.trim();if(!p)continue;

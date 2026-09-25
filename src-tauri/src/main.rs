@@ -1358,7 +1358,15 @@ fn log_line(msg: &str) {
 fn load_cfg() -> Value {
     std::fs::read_to_string(config_file()).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| json!({}))
 }
+// Downloaded client tools go to the local AppData: the roaming one is copied to the server at every
+// sign-in and sign-out on a network with roaming profiles, and a hundred megabytes of programs has
+// no business there. Settings stay in the roaming one, where settings belong.
 fn tools_dir() -> std::path::PathBuf {
+    let mut p = dirs::data_local_dir().or_else(dirs::config_dir).unwrap_or(std::env::temp_dir());
+    p.push("NOBSSQL-Desktop"); p.push("bin"); p
+}
+// Where downloads went before - tools already there keep working from the paths saved for them.
+fn tools_dir_old() -> std::path::PathBuf {
     let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
     p.push("NOBSSQL-Desktop"); p.push("bin"); p
 }
@@ -2093,8 +2101,8 @@ fn ssl_mode_verifies(mode: &str) -> bool { mode == "verify" || mode == "verify-c
 // the right ones itself, and pointing it at another product's plugins would break what works.
 fn tools_plugin_dir(tool: &str) -> Option<std::path::PathBuf> {
     let parent = std::path::Path::new(tool).parent()?;
-    if parent != tools_dir().as_path() { return None; }
-    let p = tools_dir().join("plugin");
+    if parent != tools_dir().as_path() && parent != tools_dir_old().as_path() { return None; }
+    let p = parent.join("plugin");
     if p.exists() { Some(p) } else { None }
 }
 
@@ -5005,6 +5013,25 @@ fn get_config(_app: tauri::AppHandle) -> R {
 
 // Whether a path Settings is about to save is the client tool its box asks for, and starts: a
 // mistyped path used to be saved without a word and found out at the next export.
+// Opens one of the app's own folders in Explorer - only these two, never a path from the page.
+#[tauri::command]
+fn open_folder(req: Value) -> R {
+    let dir = match req["which"].as_str().unwrap_or("") {
+        "config" => config_file().parent().map(|p| p.to_path_buf()).unwrap_or_else(std::env::temp_dir),
+        "tools" => tools_dir(),
+        _ => return Ok(json!({"ok":false,"error":"unknown folder"})),
+    };
+    let _ = std::fs::create_dir_all(&dir);
+    #[cfg(windows)]
+    let opener = "explorer";
+    #[cfg(not(windows))]
+    let opener = "xdg-open";
+    match Command::new(opener).arg(&dir).spawn() {
+        Ok(_) => Ok(json!({"ok":true})),
+        Err(e) => Ok(json!({"ok":false,"error":e.to_string()})),
+    }
+}
+
 #[tauri::command]
 fn check_tool(req: Value) -> R {
     let path = req["path"].as_str().unwrap_or("").trim().to_string();
@@ -5480,7 +5507,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
