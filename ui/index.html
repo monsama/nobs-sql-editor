@@ -203,7 +203,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
  .tbsep{width:1px;align-self:stretch;background:var(--bd);margin:2px 8px}
- .result{flex:1;overflow:auto} table.grid{border-collapse:collapse;width:100%;table-layout:fixed} .grid th .rz{position:absolute;left:-5px;top:0;width:9px;height:100%;cursor:col-resize;z-index:3} .grid th .rz:hover,.grid th .rz.drag{background:var(--accent);opacity:.55}
+ .result{flex:1;overflow:auto} table.grid{border-collapse:collapse;width:100%;table-layout:fixed} .grid th .rz{position:absolute;left:-5px;top:0;width:9px;height:100%;cursor:col-resize;z-index:3} .grid th:last-child .rz{left:-9px} /* the last edge's handle stays inside the grid: centred on it, it stuck out past the right side and gave every narrow result a scrollbar for nothing */ .grid th .rz:hover,.grid th .rz.drag{background:var(--accent);opacity:.55}
  table.grid th{position:sticky;top:0;background:var(--gridh);border:none;border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:3px 8px;text-align:left;white-space:nowrap;z-index:1;transform:translateZ(0);will-change:transform}
 table.grid td{border:none;border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:2px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.grid td:first-child{text-align:center;vertical-align:middle;padding:0}
@@ -403,7 +403,13 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .citem-t{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
  .citem-a{display:flex;gap:6px;flex:none}
  .cempty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13px}
- .brpath{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+ /* The file browser: a path to type into, and the folder as a list of name, date and size. */
+ .brpathin{flex:1;min-width:0;font-family:var(--mono);font-size:12px}
+ .brrow{display:grid;grid-template-columns:minmax(0,1fr) 130px 80px;gap:12px;align-items:center;padding:5px 12px;cursor:default;white-space:nowrap}
+ .brrow>span{overflow:hidden;text-overflow:ellipsis} .brrow>span:nth-child(3){text-align:right}
+ .brname{display:flex;align-items:center;gap:8px;min-width:0} .brname .brn{overflow:hidden;text-overflow:ellipsis} .brname input{margin:0;flex:none}
+ .brrow[data-i]:hover{background:var(--hover)} .brrow.sel,.brrow.sel:hover{background:var(--accent);color:#fff} .brrow.sel .muted,.brrow.sel svg{color:inherit}
+ .brhead{position:sticky;top:0;z-index:1;background:var(--panel2);font-size:11px;color:var(--muted);border-bottom:1px solid var(--bd2)}
  /* Users & Privileges: the accounts and roles on the left, the picked one on the right - how it signs
     in, what it may do and the roles it has, each with its own Edit. */
  .ulist{width:290px;flex:none;display:flex;flex-direction:column;gap:6px;min-height:0}
@@ -580,7 +586,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="muted" style="font-size:12px">The mysql and mysqldump client tools are set up in <a href="#" onclick="openSettings();return false">Settings</a>. &middot; <a href="#" onclick="show('mShortcuts');return false">Keyboard shortcuts</a></div>
  </div></div>
  <div id="side">
-  <div class="hdr"><span>DATABASES</span><span style="white-space:nowrap"><button class="sm" title="Create a database" onclick="newSchema()">+ Database</button> <button class="sm" title="Open the table designer" onclick="designTable(null)">+ Table</button> <button class="sm" title="ER diagram of the selected database" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the databases and their tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
+  <div class="hdr"><span>DATABASES</span><span style="white-space:nowrap"><button class="sm" title="Create a database" onclick="newSchema()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Database</button> <button class="sm" title="Open the table designer" onclick="designTable(null)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Table</button> <button class="sm" title="ER diagram of the selected database" onclick="openErdForCurSchema()">ER</button> <button class="sm" title="Refresh the databases and their tables" onclick="refreshSchemasAndTables()">&#8635;</button></span></div>
   <input id="schemaFilter" placeholder="Filter databases..." oninput="loadSchemasFilter()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('schemas'));}" style="margin:4px 6px;font-size:12px;width:calc(100% - 12px)">
   <div id="schemas" tabindex="0"></div>
   <div id="sideSplit" title="Drag to share the height between the lists - double-click to reset" ondblclick="sideSplitReset()">
@@ -612,9 +618,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div id="copyMenu"></div>
 <div id="acx"></div>
 <div class="modal floating" id="mBrowse"><div class="box" style="width:660px;max-width:95vw;height:500px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mBrowse')" title="Drag to move"><h3 id="brTitle" style="margin:0 0 10px">Browse</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mBrowse')" title="Maximize" id="maxBtn_mBrowse" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mBrowse')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <div class="row" style="flex:none"><button class="sm" onclick="brUp()">&#8593; Up</button> <span id="brPath" class="brpath"></span></div>
- <div id="brList" class="clist" style="flex:1;min-height:0;padding:4px 0"></div>
- <div class="row" style="flex:none"><span id="brActions"></span><span style="flex:1"></span><button onclick="brClose()">Cancel</button></div></div></div>
+ <div class="row" style="flex:none;flex-wrap:nowrap;gap:6px" onkeydown="brKeys(event)"><button onclick="brUp()" title="Up one folder (Backspace)" aria-label="Up one folder"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button><input id="brPath" class="brpathin" spellcheck="false" autocomplete="off" placeholder="This computer" title="Type or paste a folder or a file path, and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();brNav(this.value.trim()||'ROOT');}"><input id="brFilter" type="search" placeholder="Filter names" style="width:170px;flex:none" oninput="brState.sel=-1;brRender()"></div>
+ <div id="brList" class="clist" tabindex="0" style="flex:1;min-height:0;outline:none" onkeydown="brKeys(event)"></div>
+ <div class="row" style="flex:none;margin-top:8px"><span id="brNote" class="muted" style="font-size:12px"></span><span style="flex:1"></span><button onclick="brClose()">Cancel</button><span id="brActions"></span></div></div></div>
 
 <div class="modal floating" id="mView"><div class="box" style="width:1000px;max-width:95vw;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mView')" title="Drag to move"><h3 id="vTitle" style="margin:0 0 10px">Value</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mView')" title="Maximize" id="maxBtn_mView" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mView')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <img id="vImg" style="display:none;max-width:100%;max-height:340px;margin-bottom:6px;border:1px solid var(--bd);border-radius:var(--r-s);flex:none">
@@ -908,7 +914,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div class="modal floating" id="mDesign"><div class="box" style="width:960px;max-width:95vw;height:680px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mDesign')" title="Drag to move"><h3 id="dTitle" style="margin:0 0 10px">Table designer</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mDesign')" title="Maximize" id="maxBtn_mDesign" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mDesign')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><span class="muted">Database</span> <input id="dSchema" style="width:280px"> <span class="muted">Table</span> <input id="dName" style="width:320px"> <span id="dMode" class="muted"></span></div>
  <div id="dColsWrap" style="overflow:auto;flex:1;min-height:60px"><table class="dz"><thead><tr><th>Column</th><th>Type</th><th>Length</th><th title="NOT NULL">NN</th><th title="AUTO_INCREMENT">AI</th><th title="PRIMARY KEY">PK</th><th>Default</th><th>Comment</th><th></th></tr></thead><tbody id="dCols"></tbody></table></div>
- <div class="row" style="flex:none"><button onclick="dAddCol()">+ Column</button></div>
+ <div class="row" style="flex:none"><button onclick="dAddCol()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Column</button></div>
  <div class="row" style="flex:none;margin-top:6px"><span class="dsec">Generated SQL</span> <span id="dEditNote" class="muted" style="color:#b26a00"></span></div><textarea id="dSql" oninput="dMark()" style="width:100%;height:120px;font-family:var(--mono);flex:none"></textarea>
  <div class="row" style="justify-content:flex-end;flex:none"><button title="Rebuild the SQL from the column grid (discards manual edits in the box)" onclick="dGen(true)">Regenerate from columns</button><button class="go write" title="Run the SQL shown above against the database - creates the table if it's new, or alters it if it already exists" onclick="dApply()">Apply</button><button onclick="hide('mDesign')">Close</button></div>
  <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
@@ -1900,7 +1906,10 @@ const ICONS={
 // The label stays the element's text, so textContent reads as it did.
 function decorateIcons(root){root.querySelectorAll('[data-ic]:not([data-icd])').forEach(b=>{const p=ICONS[b.dataset.ic];if(!p)return;b.dataset.icd='1';
  const l=document.createElement('span');l.className='lbl';while(b.firstChild)l.appendChild(b.firstChild);
- const i=document.createElement('span');i.className='ic';i.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+ // The plus is drawn as tall as a capital beside it, and as heavy: at the icons' 15px it stood
+ // taller and thinner than the bold label it goes with.
+ const pl=b.dataset.ic==='plus',sz=pl?13:15;
+ const i=document.createElement('span');i.className='ic';i.innerHTML='<svg viewBox="0 0 24 24" width="'+sz+'" height="'+sz+'" fill="none" stroke="currentColor" stroke-width="'+(pl?2.6:2)+'" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
  b.appendChild(i);b.appendChild(l);});}
 // Whether a bar's items sit on more than one line, or run past its end (the run query bar, which
 // does not wrap): their vertical middles, which align-items:center
@@ -7509,31 +7518,77 @@ async function quit(){
  setTimeout(()=>{document.body.innerHTML='<div style="padding:40px;font-size:16px">Server stopped. You can close this tab.<br><span style="color:#888;font-size:13px">(Your browser blocks pages from auto-closing tabs it didn\'t open.)</span></div>';},150);}
 
 // ---- server-side file/folder picker ----
-let brState={filter:'',mode:'file',cb:null,cur:'',parent:'ROOT'};
+let brState={filter:'',mode:'file',cb:null,cur:'',parent:'ROOT',items:[],sel:-1,checked:new Set()};
 // A minimized floating modal still has the .show class on its outer element (only its inner
 // .box is hidden), so it would otherwise get swept into this hide/restore cycle even though it's
 // already out of the way and non-blocking. Excluding it here means hide()'s minimize-cleanup
 // logic never runs on it during this temporary detour, so a deliberately-minimized modal (e.g.
 // Export, left running in the background) stays minimized rather than silently popping back up
 // fully expanded once the file browser closes.
-function browse(opts){const open=[...document.querySelectorAll('.modal.show')].map(m=>m.id).filter(x=>x!=='mBrowse'&&!window._floatingMinimized[x]);brState={filter:opts.filter||'',mode:opts.mode||'file',cb:opts.onPick,cur:'',parent:'ROOT',hidden:open};open.forEach(id=>hide(id));$('brTitle').textContent=opts.title||'Browse';show('mBrowse');brNav(opts.start||'ROOT');}
+function browse(opts){
+ // The desktop edition asks Windows itself: its own dialog, with the recent folders, typing a
+ // path, and sorting by date and size. The browser edition cannot - a web page is never told a
+ // file's path - so it has the one below, which the server lists.
+ const td=window.__TAURI__&&window.__TAURI__.dialog;
+ if(td&&td.open){brNative(opts,td);return;}
+ const open=[...document.querySelectorAll('.modal.show')].map(m=>m.id).filter(x=>x!=='mBrowse'&&!window._floatingMinimized[x]);
+ brState={filter:opts.filter||'',mode:opts.mode||'file',cb:opts.onPick,cur:'',parent:'ROOT',hidden:open,items:[],sel:-1,checked:new Set()};
+ open.forEach(id=>hide(id));$('brTitle').textContent=opts.title||'Browse';$('brFilter').value='';show('mBrowse');
+ // Each kind of pick opens where the last one was made, unless the field already names a place.
+ let start=opts.start||'';if(!start){try{start=localStorage.getItem(brMemKey())||'';}catch(e){}}
+ brNav(start||'ROOT');}
+function brMemKey(){return 'nobs.browseLast.'+brState.mode+'.'+(brState.filter||'*');}
+async function brNative(opts,td){
+ const ext=String(opts.filter||'').replace(/^\*\./,'');
+ const filters=ext&&ext!=='*'?[{name:ext.toUpperCase()+' files',extensions:[ext]},{name:'All files',extensions:['*']}]:[];
+ let r;try{r=await td.open({title:opts.title,directory:opts.mode==='folder',multiple:opts.mode==='files',defaultPath:opts.start||undefined,filters});}
+ catch(e){toast('The Windows dialog could not open: '+e,true);return;}
+ if(r==null||(Array.isArray(r)&&!r.length))return;
+ const paths=(Array.isArray(r)?r:[r]).map(p=>typeof p==='string'?p:(p&&p.path)||String(p));
+ opts.onPick(opts.mode==='files'?paths:paths[0]);}
 async function brNav(path){const r=await api('/api/browse',{path,filter:brState.filter,dirsOnly:brState.mode==='folder'});
- if(!r.ok){if(path!=='ROOT'){brNav('ROOT');}else{toast(r.error,true);}return;}
- brState.cur=r.path;brState.parent=r.parent;$('brPath').textContent=r.path||'This computer';
- const list=$('brList');list.innerHTML='';
- r.dirs.forEach(d=>{const el=document.createElement('div');el.className='item';el.innerHTML='&#128193; '+esc(d.name);el.onclick=()=>brNav(d.path);list.appendChild(el);});
- if(brState.mode!=='folder')r.files.forEach(f=>{const el=document.createElement('div');el.className='item';
-   if(brState.mode==='files'){el.innerHTML='<label><input type="checkbox" class="brf" value="'+esc(f.path)+'"> &#128196; '+esc(f.name)+'</label>';}
-   else{el.innerHTML='&#128196; '+esc(f.name);el.onclick=()=>{const c=brState.cb,pth=f.path;brClose();c(pth);};}
-   list.appendChild(el);});
- const a=$('brActions');
- if(brState.mode==='folder')a.innerHTML='<button class="go" onclick="brPickFolder()">Select this folder</button>';
- else if(brState.mode==='files')a.innerHTML='<button class="go" onclick="brPickFiles()">Add selected</button>';
-else a.innerHTML='<span class="muted">Click a folder to open it, and a file to choose it.</span>';}
-function brUp(){brNav(brState.parent||'ROOT');}
+ // A path typed in that does not exist leaves the list where it was; one remembered from last
+ // time that has gone since starts at the top instead.
+ if(!r.ok){if(brState.cur||path==='ROOT'){toast(r.error||'That folder cannot be opened.',true);}else{brNav('ROOT');}return;}
+ brState.cur=r.path||'';brState.parent=r.parent;$('brPath').value=r.path||'';
+ brState.items=[...r.dirs.map(d=>({...d,dir:true})),...(brState.mode==='folder'?[]:(r.files||[]).map(f=>({...f,dir:false})))];brState.sel=-1;
+ if(r.path){try{localStorage.setItem(brMemKey(),r.path);}catch(e){}}
+ $('brFilter').value='';brRender();
+ const a=$('brActions'),m=brState.mode;
+ a.innerHTML=m==='folder'?'<button class="go" onclick="brPickFolder()"'+(r.path?'':' disabled')+'>Select this folder</button>'
+  :m==='files'?'<button class="go" onclick="brPickFiles()">Add selected</button>'
+  :'<button class="go" id="brOpen" onclick="brChoose()" disabled>Open</button>';
+ $('brNote').textContent=m==='folder'?'Open the folder you want, then Select this folder.':m==='files'?'Tick the files to add, in any folder - or double-click one.':'Double-click a file, or pick it and Open.';
+ $('brList').focus();}
+const BR_FOLDER='<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="color:#d9a93a;flex:none"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.6l2 2h7.4A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>';
+const BR_FILE='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" style="color:var(--muted);flex:none"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>';
+function brRender(){const q=($('brFilter').value||'').trim().toLowerCase(),box=$('brList');
+ const shown=brState.items.map((it,i)=>[it,i]).filter(([it])=>!q||it.name.toLowerCase().includes(q));
+ let h='<div class="brrow brhead"><span>Name</span><span>Modified</span><span>Size</span></div>';
+ shown.forEach(([it,i])=>{h+='<div class="brrow'+(i===brState.sel?' sel':'')+'" data-i="'+i+'" title="'+esc(it.path)+'"><span class="brname">'+
+  (brState.mode==='files'&&!it.dir?'<input type="checkbox" class="brf" value="'+esc(it.path)+'"'+(brState.checked.has(it.path)?' checked':'')+'>':'')+
+  (it.dir?BR_FOLDER:BR_FILE)+'<span class="brn">'+esc(it.name)+'</span></span><span class="muted">'+esc(it.mtime||'')+'</span><span class="muted">'+(it.dir||it.size==null?'':fmtBytes(+it.size))+'</span></div>';});
+ if(!shown.length)h+='<div class="cempty">'+(q?'Nothing matches.':brState.mode==='folder'?'No folders in here.':'Nothing in here'+(brState.filter&&brState.filter!=='*.*'?' that is '+esc(brState.filter):'')+'.')+'</div>';
+ box.innerHTML=h;
+ box.querySelectorAll('.brrow[data-i]').forEach(d=>{const i=+d.dataset.i;d.onclick=e=>{if(e.target.classList.contains('brf'))return;brSelect(i);};d.ondblclick=()=>brActivate(i);});
+ box.querySelectorAll('.brf').forEach(c=>c.onchange=()=>{if(c.checked)brState.checked.add(c.value);else brState.checked.delete(c.value);});}
+function brSelect(i){brState.sel=i;const box=$('brList');box.querySelectorAll('.brrow[data-i]').forEach(d=>d.classList.toggle('sel',+d.dataset.i===i));
+ const it=brState.items[i],o=$('brOpen');if(o)o.disabled=!(it&&!it.dir);
+ const row=box.querySelector('.brrow[data-i="'+i+'"]');if(row)row.scrollIntoView({block:'nearest'});}
+// A folder opens; a file is the pick - in "files" it is added along with any already ticked.
+function brActivate(i){const it=brState.items[i];if(!it)return;if(it.dir){brNav(it.path);return;}
+ if(brState.mode==='file')brFinish(it.path);else if(brState.mode==='files'){brState.checked.add(it.path);brFinish([...brState.checked]);}}
+function brKeys(e){if(e.target.id==='brFilter'&&e.key!=='ArrowDown'&&e.key!=='ArrowUp'&&e.key!=='Enter')return;
+ const rows=[...$('brList').querySelectorAll('.brrow[data-i]')].map(d=>+d.dataset.i);let k=rows.indexOf(brState.sel);
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!rows.length)return;k=k<0?0:Math.max(0,Math.min(rows.length-1,k+(e.key==='ArrowDown'?1:-1)));brSelect(rows[k]);}
+ else if(e.key==='Enter'){e.preventDefault();if(brState.sel>=0)brActivate(brState.sel);else if(rows.length===1)brActivate(rows[0]);}
+ else if(e.key==='Backspace'&&e.target.id!=='brFilter'){e.preventDefault();brUp();}}
+function brUp(){brNav(brState.cur?(brState.parent||'ROOT'):'ROOT');}
 function brClose(){hide('mBrowse');(brState.hidden||[]).forEach(id=>show(id));}
-function brPickFolder(){const c=brState.cb,v=brState.cur;brClose();c(v);}
-function brPickFiles(){const sel=[...document.querySelectorAll('.brf:checked')].map(c=>c.value);const c=brState.cb;brClose();c(sel);}
+function brFinish(v){const c=brState.cb;brClose();c(v);}
+function brChoose(){const it=brState.items[brState.sel];if(it&&!it.dir)brFinish(it.path);}
+function brPickFolder(){if(brState.cur)brFinish(brState.cur);}
+function brPickFiles(){const sel=[...brState.checked];if(!sel.length){toast('Tick the files to add first.',true);return;}brFinish(sel);}
 // Adds the files not listed yet. Sizes come from each file's folder when the caller did not have
 // them; one the folder does not show keeps a blank size, and the import says what is wrong with it.
 async function impAppend(paths,sizes){const have=new Set(_impFiles.map(f=>f.path.toLowerCase()));
