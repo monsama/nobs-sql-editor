@@ -44,7 +44,7 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
     roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, invalidateTableCache: () => {},
-    openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession,
+    openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession, sessFree: async () => {},
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
