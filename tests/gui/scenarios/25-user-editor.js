@@ -52,8 +52,9 @@
       await roleCreate();
       G.check('Create role makes a role', _uaccts.some(a => a.u === 'nobs_ue_role' && a.role), _uaccts.map(a => a.u).join(','));
       usersSelect('nobs_ue_a', '%');
-      answers.push(o => { const r = {}; o.fields.forEach(f => { r[f.key] = f.type === 'checkbox' ? f.label.startsWith('nobs_ue_role') : f.value; }); r.def = o.fields.find(f => f.key === 'def').options.find(x => x.label.startsWith('nobs_ue_role')).value; return r; });
+      answers.push(o => { window._rolesFields = o.fields; const r = {}; o.fields.forEach(f => { r[f.key] = f.type === 'checkbox' ? f.label.startsWith('nobs_ue_role') : f.value; }); r.def = o.fields.find(f => f.key === 'def').options.find(x => x.label.startsWith('nobs_ue_role')).value; return r; });
       await rolesEdit();
+      G.check('each role says what ticking it does', window._rolesFields.filter(f => f.type === 'checkbox').every(f => /^Give .+ to .+SET ROLE/.test(f.title || '')) && /SET ROLE/.test(window._rolesFields.find(f => f.key === 'def').title || ''), window._rolesFields.map(f => f.title));
       G.check('Roles gives the role as the default', /nobs_ue_role(@%)?default/.test($('uRoles').textContent), $('uRoles').textContent);
       usersSelect('nobs_ue_role', maria ? '' : '%');
       G.check('and the role lists who has it', $('uRolesH').textContent === 'Given to' && /nobs_ue_a@%/.test($('uRoles').textContent), $('uRoles').textContent);
