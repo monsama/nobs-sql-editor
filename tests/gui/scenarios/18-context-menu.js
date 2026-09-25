@@ -43,7 +43,7 @@
 
   T(i).selected = new Set([0, 1]);
   m = await open(i, 0, 0);
-  G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, 5);
+  G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 6 : 5); // copy, delete (when it can be edited) and the four exports
   G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export to CSV (2 selected)...'), m);
   // the single overwrite takes one row and one only; several copied rows can go over the same
   // number of ticked ones instead
@@ -97,6 +97,41 @@
   const hm = await open(h, 0, 0), hx = await open(h, 0, 1);
   G.check('a text value is not offered a hex copy', !hm.includes('Copy value as hex'), hm);
   G.check('a value written as hex is', hx.includes('Copy value as hex'), hx);
+  $('ctx').style.display = 'none';
+
+  // Several rows ticked, or several cells picked, and right-clicked among them: the menu is about
+  // all of them - nothing that acts on the one cell or row alone. Outside them it still is.
+  const single = /^(Edit value|View value|Copy value|Copy row$|Paste row here|Copy column|Edit full row|Quick filter|Go to referenced row|Set NULL$|Set empty$)/;
+  window._rowClipboard = null; window._rowsClipboard = null;
+  T(i).selected = new Set([0, 1]);
+  const rm = await open(i, 0, 1);
+  G.check('two rows ticked: only what acts on both', !rm.some(x => single.test(x)) && rm.includes('Copy 2 selected rows') && (!T(i).pending || rm.includes('Delete 2 selected rows')), rm);
+  const om = await open(i, 2, 1);
+  G.check('right-clicked outside them: the single row again', om.includes('Copy row') && om.some(x => /^(Edit|View) value/.test(x)), om);
+  T(i).selected = new Set();
+  T(i).cellSel = new Set(['0:1', '1:1']);
+  const cm = await open(i, 0, 1);
+  G.check('two cells picked: only what acts on both', !cm.some(x => single.test(x)) && cm.includes('Copy 2 picked cells'), cm);
+  T(i).cellSel = new Set();
+  $('ctx').style.display = 'none';
+
+  // A read-only connection is offered a look at the value, and no edits.
+  const wasRo = window.readOnly; window.readOnly = true;
+  const ro = await open(i, 0, 0);
+  window.readOnly = wasRo;
+  G.check('read-only: View value, and nothing that edits', ro.includes('View value...') && !ro.some(x => /^(Edit value|Set NULL|Set empty|Paste)/.test(x)), ro);
+
+  // The database and table menus offer what fits the database: the server's own views of itself
+  // are only read, and its own databases are not added to or dropped.
+  const dbMenu = name => { const row = [...$('schemas').children].find(d => d.dataset && d.dataset.schema === name); if (!row) return null; row.oncontextmenu({ preventDefault() {}, clientX: 40, clientY: 40 }); return items(); };
+  const um = dbMenu(db), im = dbMenu('information_schema'), mm = dbMenu('mysql');
+  G.check('a user database: new, export, import, drop', um && ['New table...', 'Export...', 'Import SQL files into it...', 'Drop database...'].every(x => um.includes(x)), um);
+  G.check('information_schema: nothing made, exported or dropped', im && !im.some(x => /^(New|Export|Import|Drop)/.test(x)) && im.includes('ER diagram...'), im);
+  G.check('mysql: exported, but nothing made or dropped', mm && mm.includes('Export...') && !mm.some(x => /^(New|Import|Drop)/.test(x)), mm);
+  objMenu({ clientX: 40, clientY: 40 }, 'information_schema', 'table', 'TABLES'); const it = items();
+  G.check('a table in information_schema: only what reads it', it.includes('SELECT *') && !it.some(x => /^(Design|Drop|Truncate|Rename|Import|Maintenance|New trigger)/.test(x)), it);
+  objMenu({ clientX: 40, clientY: 40 }, db, 'table', tbl); const ut = items();
+  G.check('a user table: upkeep in one Maintenance submenu, removal last', ut.some(x => x.startsWith('Maintenance')) && !ut.includes('Optimize') && ut[ut.length - 1] === 'Drop table...', ut);
   $('ctx').style.display = 'none';
   return G.report();
 })()

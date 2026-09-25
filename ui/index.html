@@ -1677,9 +1677,9 @@ async function ask(msg){const d=(window.__TAURI__&&window.__TAURI__.dialog);if(d
 function tidyMenu(items){const out=[];(items||[]).forEach(it=>{if(!it)return;
  if(it==='-'){if(out.length&&out[out.length-1]!=='-')out.push('-');return;}out.push(it);});
  while(out.length&&out[out.length-1]==='-')out.pop();return out;}
-function menu(x,y,items){const m=$('ctx');m.innerHTML='';buildMenuItems(m,tidyMenu(items));m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';const w=m.offsetWidth||190,h=m.offsetHeight||0;let nx=Math.min(x,innerWidth-w-6);if(nx<6)nx=6;let ny=y;if(y+h>innerHeight-6)ny=Math.max(6,innerHeight-h-6);m.style.left=nx+'px';m.style.top=ny+'px';m.style.visibility='visible';}
-function buildMenuItems(container,items){items.forEach(it=>{if(it==='-'){const s=document.createElement('div');s.className='sep';container.appendChild(s);return;}const d=document.createElement('div');d.className='item';const isSub=Array.isArray(it[1]);d.textContent=it[0]+(isSub?'  \u25B8':'');const _destr=/^(drop|truncate|delete|rename|create|alter|import|design)/i.test(it[0]||'');if(window.readOnly&&_destr){d.className='item rodis';d.title='Disabled in read-only mode';container.appendChild(d);return;}
- if(isSub){d.style.position='relative';const fly=document.createElement('div');fly.className='ctxsub';buildMenuItems(fly,it[1]);d.appendChild(fly);let ht=null;const showFly=()=>{if(ht){clearTimeout(ht);ht=null;}fly.style.display='block';fly.style.left='';fly.style.right='';fly.style.top='0';const r=fly.getBoundingClientRect(),dr=d.getBoundingClientRect();if(dr.right+r.width>innerWidth-4){fly.style.right='100%';}else{fly.style.left='100%';}if(dr.top+r.height>innerHeight-4){fly.style.top=(innerHeight-4-(dr.top+r.height))+'px';}};const hideFly=()=>{ht=setTimeout(()=>{fly.style.display='none';},200);};d.onmouseenter=showFly;d.onmouseleave=hideFly;fly.onmouseenter=()=>{if(ht){clearTimeout(ht);ht=null;}};fly.onmouseleave=hideFly;
+function menu(x,y,items,opts){const m=$('ctx');m.innerHTML='';buildMenuItems(m,tidyMenu(items),!!(opts&&opts.local));m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';const w=m.offsetWidth||190,h=m.offsetHeight||0;let nx=Math.min(x,innerWidth-w-6);if(nx<6)nx=6;let ny=y;if(y+h>innerHeight-6)ny=Math.max(6,innerHeight-h-6);m.style.left=nx+'px';m.style.top=ny+'px';m.style.visibility='visible';}
+function buildMenuItems(container,items,local){items.forEach(it=>{if(it==='-'){const s=document.createElement('div');s.className='sep';container.appendChild(s);return;}const d=document.createElement('div');d.className='item';const isSub=Array.isArray(it[1]);d.textContent=it[0]+(isSub?'  \u25B8':'');const _destr=!local&&/^(drop|truncate|delete|rename|create|alter|import|design|new |duplicate|optimize|repair|analyze|paste|set null|set empty|edit value)/i.test(it[0]||'');if(window.readOnly&&_destr){d.className='item rodis';d.title='Disabled in read-only mode';container.appendChild(d);return;}
+ if(isSub){d.style.position='relative';const fly=document.createElement('div');fly.className='ctxsub';buildMenuItems(fly,tidyMenu(it[1]),local);d.appendChild(fly);let ht=null;const showFly=()=>{if(ht){clearTimeout(ht);ht=null;}fly.style.display='block';fly.style.left='';fly.style.right='';fly.style.top='0';const r=fly.getBoundingClientRect(),dr=d.getBoundingClientRect();if(dr.right+r.width>innerWidth-4){fly.style.right='100%';}else{fly.style.left='100%';}if(dr.top+r.height>innerHeight-4){fly.style.top=(innerHeight-4-(dr.top+r.height))+'px';}};const hideFly=()=>{ht=setTimeout(()=>{fly.style.display='none';},200);};d.onmouseenter=showFly;d.onmouseleave=hideFly;fly.onmouseenter=()=>{if(ht){clearTimeout(ht);ht=null;}};fly.onmouseleave=hideFly;
  }else{d.onclick=()=>{$('ctx').style.display='none';it[1]();};}
  container.appendChild(d);});}
 document.addEventListener('click',(e)=>{$('ctx').style.display='none';const cp=$('colPicker');if(cp&&cp.style.display==='block'&&!cp.contains(e.target))cp.style.display='none';const cm=$('copyMenu');if(cm&&cm.style.display==='block'&&!cm.contains(e.target))cm.style.display='none';const otp=$('objTypePicker');if(otp&&otp.style.display==='block'&&!otp.contains(e.target)&&e.target.id!=='objTypeBtn')otp.style.display='none';const idp=$('impDbPicker');if(idp&&idp.style.display==='block'&&!idp.contains(e.target)&&e.target.id!=='impDb')idp.style.display='none';});
@@ -1974,7 +1974,7 @@ function watchBar(row){if(!row||row.classList.contains('fitbar'))return;row.clas
 // Connecting and disconnecting show and hide the top bar's action buttons through the body's class.
 function watchTopBar(){watchBar($('barTop'));wireConnList();if(_barRO)new ResizeObserver(syncConnTags).observe($('connTags'));if(_barMO)new MutationObserver(()=>refit($('barTop'),true)).observe(document.body,{attributes:true,attributeFilter:['class']});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchTopBar);else watchTopBar();
-function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],['Clear password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items);}
+function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const n=$('connlist').value,hasPw=!!(window._connPw&&window._connPw[n]);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],hasPw&&['Clear saved password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with other details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items,{local:true});}
 async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n)setPass('');}else toast(r.error||'Failed',true);}
 async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Failed',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
 async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
@@ -2255,13 +2255,21 @@ async function loadSchemas() {
 
         d.oncontextmenu = e => {
             e.preventDefault();
+            // information_schema and performance_schema are the server's views of itself: nothing
+            // is made in them, and they are neither dumped nor dropped. mysql and sys hold the
+            // server's own accounts and helpers - they are exported, but nothing is added to them
+            // or dropped from here.
+            const virt = /^(information_schema|performance_schema)$/i.test(sc.name), sys = virt || /^(mysql|sys)$/i.test(sc.name);
             menu(e.clientX, e.clientY, [
-                ['New table (designer)...', () => designTable(null, sc.name)],
-                ['New procedure...', () => newProcedure(sc.name)],
-                ['New function...', () => newFunction(sc.name)],
-                ['ER Diagram...', () => openErd(sc.name)],
-                ['Export SQL (mysqldump)...', () => openExport({ db: sc.name })],
-                ['Drop database...', () => dropSchema(sc.name)],
+                !sys && ['New table...', () => designTable(null, sc.name)],
+                !sys && ['New procedure...', () => newProcedure(sc.name)],
+                !sys && ['New function...', () => newFunction(sc.name)],
+                '-',
+                ['ER diagram...', () => openErd(sc.name)],
+                !virt && ['Export...', () => openExport({ db: sc.name })],
+                !sys && ['Import SQL files into it...', async () => { await openImport(); const d = $('impDb'); if (d) d.value = sc.name; }],
+                '-',
+                !sys && ['Drop database...', () => dropSchema(sc.name)],
                 '-',
                 ['Refresh', () => loadSchemas()]
             ]);
@@ -2956,16 +2964,26 @@ function toggleOverview() {
     }
 }
 function objOpen(db,type,name){if(type==='table'){const _id=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_id);}else if(type==='view'){openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null);}else{openDdl(db,type,name);}}
-function objMenu(e,db,type,name){const b=[];
- if(type==='table'){const isPinned=pinnedTables(db).includes(name);b.push([isPinned?'\u2605 Unpin':'\u2606 Pin to top',()=>togglePin(db,name)]);b.push(['SELECT *',()=>{const _i=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_i);}]);b.push(['SELECT COUNT(*)',()=>openTab('count '+name,'SELECT COUNT(*) FROM '+qid(db)+'.'+qid(name)+';',db,true,null)]);b.push(['Generate SELECT/INSERT/UPDATE...',()=>genTemplate(db,name)]);
-  b.push(['Design / Alter...',()=>designTable(name,db)]);b.push(['Show CREATE',()=>openDdl(db,type,name)]);
+// A table's menu, in groups: reading it, its structure, its data in and out, its upkeep, and last
+// what changes or removes it. information_schema and performance_schema are the server's views of
+// itself - nothing in them is designed, filled, kept up, renamed or dropped - so their tables and
+// views offer only what reads them.
+function objMenu(e,db,type,name){const b=[],virt=/^(information_schema|performance_schema)$/i.test(db);
+ if(type==='table'){const isPinned=pinnedTables(db).includes(name);
+  b.push([isPinned?'★ Unpin':'☆ Pin to top',()=>togglePin(db,name)],'-');
+  b.push(['SELECT *',()=>{const _i=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_i);}]);
+  b.push(['SELECT COUNT(*)',()=>openTab('count '+name,'SELECT COUNT(*) FROM '+qid(db)+'.'+qid(name)+';',db,true,null)]);
+  b.push(['Generate SELECT/INSERT/UPDATE...',()=>genTemplate(db,name)],'-');
+  b.push(!virt&&['Design / Alter...',()=>designTable(name,db)],['Show CREATE',()=>openDdl(db,type,name)]);
   const _trigMap=(objData&&objData.r&&objData.r.triggerTables)||{};const _existingTriggers=Object.keys(_trigMap).filter(tn=>_trigMap[tn]===name);
   if(_existingTriggers.length){b.push(['Existing triggers ('+_existingTriggers.length+')',_existingTriggers.map(tn=>[tn,()=>openDdl(db,'trigger',tn)])]);}
-  b.push(['New trigger on this table...',()=>newTrigger(db,name)]);b.push(['Inspect...',()=>inspect(db,name)]);b.push(['Import CSV into table...',()=>importCsv(db,name)]);b.push(['Export SQL (mysqldump)...',()=>openExport({db,table:name})]);b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')]);b.push(['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')]);b.push('-');
-  b.push(['Rename...',()=>renameTable(db,name)]);b.push(['Duplicate table...',()=>duplicateTable(db,name)]);b.push(['Truncate...',()=>truncateTable(db,name)]);b.push(['Drop table...',()=>dropObject(db,type,name)]);b.push('-');
-  b.push(['Optimize',()=>maint(db,name,'OPTIMIZE')]);b.push(['Analyze',()=>maint(db,name,'ANALYZE')]);b.push(['Check',()=>maint(db,name,'CHECK')]);b.push(['Repair',()=>maint(db,name,'REPAIR')]);}
- else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)]);b.push(['Show CREATE / edit',()=>openDdl(db,type,name)]);b.push(['Drop view...',()=>dropObject(db,type,name)]);}
- else {b.push(['Show CREATE / edit',()=>openDdl(db,type,name)]);b.push(['Drop '+type+'...',()=>dropObject(db,type,name)]);}
+  b.push(!virt&&['New trigger on this table...',()=>newTrigger(db,name)],['Inspect...',()=>inspect(db,name)],'-');
+  b.push(!virt&&['Import CSV into table...',()=>importCsv(db,name)],!virt&&['Export...',()=>openExport({db,table:name})]);
+  b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')],['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')],'-');
+  b.push(!virt&&['Maintenance',[['Optimize',()=>maint(db,name,'OPTIMIZE')],['Analyze',()=>maint(db,name,'ANALYZE')],['Check',()=>maint(db,name,'CHECK')],['Repair',()=>maint(db,name,'REPAIR')]]],'-');
+  b.push(!virt&&['Rename...',()=>renameTable(db,name)],!virt&&['Duplicate table...',()=>duplicateTable(db,name)],!virt&&['Truncate...',()=>truncateTable(db,name)],!virt&&['Drop table...',()=>dropObject(db,type,name)]);}
+ else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)],[virt?'Show CREATE':'Show CREATE / edit',()=>openDdl(db,type,name)],'-',!virt&&['Drop view...',()=>dropObject(db,type,name)]);}
+ else {b.push(['Show CREATE / edit',()=>openDdl(db,type,name)],'-',['Drop '+type+'...',()=>dropObject(db,type,name)]);}
  menu(e.clientX,e.clientY,b);}
 
 async function exec(sql,note,btn){if(roBlock())return false;
@@ -3087,7 +3105,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  // middle button after the browser has had its say; mousedown only stops the paste-on-click that
  // X11-style middle-click would otherwise start.
  tb.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();closeTabAsk(id);}});
- tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],['Close others',()=>closeOthers(id)],['Close all',()=>closeAll()]]);};
+ tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],tabs.length>1&&['Close others',()=>closeOthers(id)],tabs.length>1&&['Close all',()=>closeAll()]]);};
  tb.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);tb.classList.add('dragging');});
  tb.addEventListener('dragend',()=>{tb.classList.remove('dragging');});
  tb.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';tb.classList.add('dragover');});
@@ -5112,7 +5130,7 @@ function inlineEditIns(td,id,ii,col){const t=T(id);if(isGenCol(id,col)){toast(ge
 async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=ri+':'+ci;
  // What this result allows, and what is ticked: the menu is built from these rather than
  // offering everything and explaining afterwards which of it was not possible.
- const editable=!!(t.pk&&t.pending),nsel=(t.selected&&t.selected.size)||0,sel=nsel>0;
+ const editable=!!(t.pk&&t.pending)&&!window.readOnly,nsel=(t.selected&&t.selected.size)||0,sel=nsel>0;
  // Whether this column takes NULL - a round trip the first time per table, then cached.
  if(editable&&t.table)await colMeta(id);
  // Picked cells still on screen can all be given NULL or an empty value at once - staged like any
@@ -5120,6 +5138,9 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // they are and setUpdMany says so.
  const pickView=new Set(viewIndices(id)),pickKeys=(editable&&t.cellSel)?[...t.cellSel].filter(k=>pickView.has(+k.split(':')[0])):[],npick=pickKeys.length;
  const pickNull=npick>1&&pickKeys.some(k=>canNull(id,t.cols[+k.split(':')[1]]));
+ // Right-clicked inside several picked cells, or on one of several ticked rows: the menu is about
+ // all of them, so what acts on this one cell or row alone is left out. Outside them it is not.
+ const multi=(npick>1&&pickKeys.includes(key))||(nsel>1&&!!t.selected&&t.selected.has(ri));
  // How many, in words the menu can say: "row" for one of them, "3 rows" for more.
  const rows=n=>n===1?'row':n+' rows';
  // A copied row belongs to the table it came from: one with a different number of columns cannot
@@ -5128,16 +5149,16 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // Where the two copies would part company: bytes, or something written as bytes. On anything else
  // 'Copy value as hex' does exactly what 'Copy value' does.
  const asHex=cur!=null&&(/^0x[0-9A-Fa-f]*$/.test(String(cur))||!!(t.binCols&&t.binCols[ci])||!!(t.bitCols&&t.bitCols[ci]));
- const items=[(t.pk&&t.pending)?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)],'-',['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
-  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],['Edit full row (form)...',()=>rowForm(id,ri)],'-'];if(t.table){const col=t.cols[ci];items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+ const items=[!multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),'-',!multi&&['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
+  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,!multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],!multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],!multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],!multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],!multi&&['Edit full row (form)...',()=>rowForm(id,ri)],editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],'-'];if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   // The key is followed into the database it names, on every column it has; a part that is NULL
   // points nowhere.
-  if(fkd&&cur!=null){const refDb=fkd[3]||t.db,parts=fkd[4]!=null?(t.fkDetails||[]).filter(f=>f[4]===fkd[4]&&(f[3]||t.db)===refDb&&f[1]===fkd[1]):[fkd];
+  if(!multi&&fkd&&cur!=null){const refDb=fkd[3]||t.db,parts=fkd[4]!=null?(t.fkDetails||[]).filter(f=>f[4]===fkd[4]&&(f[3]||t.db)===refDb&&f[1]===fkd[1]):[fkd];
    const valOf=c=>{const i=t.cols.indexOf(c),k=ri+':'+i;return i<0?undefined:(t.pending&&(k in t.pending.upd))?t.pending.upd[k]:t.rows[ri][i];};
    const pairs=parts.map(f=>[f[2],valOf(f[0])]);
    if(pairs.every(p=>p[1]!=null))items.push(['Go to referenced row ('+(refDb!==t.db?refDb+'.':'')+fkd[1]+'.'+pairs.map(p=>p[0]).join('+')+')',()=>goToFkRow(refDb,fkd[1],pairs)]);}
-  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],sel&&['Export to Excel ('+nsel+' selected)...',()=>exportRowsAs(id,'xlsx',true)],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],sel&&['Export to JSON ('+nsel+' selected)...',()=>exportRowsAs(id,'json',true)],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],sel&&['Export to Excel ('+nsel+' selected)...',()=>exportRowsAs(id,'xlsx',true)],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],sel&&['Export to JSON ('+nsel+' selected)...',()=>exportRowsAs(id,'json',true)],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
