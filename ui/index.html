@@ -26,18 +26,21 @@
    current theme's panel color is, so they need their OWN theme-appropriate variant to keep
    working WCAG-reasonable contrast in both themes rather than just the one they were originally
    picked to look good on. */
+/* Corners: small for controls, tags and fields; medium for cards, lists, menus and popups; large
+   for dialog windows. Grids, the editor and the bars along the window edges have none. */
+:root{--r-s:4px;--r-m:8px;--r-l:10px}
 :root{--bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--muted:#777;--gridh:#f0f0f0;--even:#fafafa;--dirty:#fff6cc;--hit:#ffe0b2;--del:#ffdede;--btn:#fafafa;--log:#1e1e1e;--logfg:#d4d4d4;--str:#a31515;--kw:#0000c0;--com:#008000;--num:#098658;--in:#fff;--sb:rgba(0,0,0,.28);--sbh:rgba(0,0,0,.48);--erd-pk:#1a7a5e;--erd-fk:#2a5a9e;--erd-line:#2a5a9e;--diff-tgt:#a8442a;--err-line:#d6373a;--log-warn:#d19a1f}
  body.dark{--bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--muted:#999;--gridh:#2d2d2d;--even:#262626;--dirty:#4a4526;--hit:#5c3d12;--del:#4a2626;--btn:#333;--log:#141414;--logfg:#d4d4d4;--str:#ce9178;--kw:#569cd6;--com:#6a9955;--num:#b5cea8;--in:#2a2a2a;--sb:rgba(255,255,255,.24);--sbh:rgba(255,255,255,.42);--erd-pk:#5dcaa5;--erd-fk:#8fb8e8;--erd-line:#7aa8d8;--diff-tgt:#f0997b;--err-line:#e5484d;--log-warn:#e0a828}
  *{box-sizing:border-box}
 *{scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 ::-webkit-scrollbar{width:11px;height:11px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--sb);border-radius:8px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb{background:var(--sb);border-radius:var(--r-m);border:3px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:var(--sbh);border:2px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-corner{background:transparent} html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
  body{display:flex;flex-direction:column}
  #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .brand{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:2px;letter-spacing:.2px} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
- input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:3px;padding:3px 6px;box-sizing:border-box}
+ input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;box-sizing:border-box}
  /* In a dialog's row a box and its button are one thing: a path with Browse..., a name with Save.
     The grid's own editors keep their size - a cell must not change height when it is clicked. */
  .modal .box .row input:not([type=checkbox]):not([type=radio]),.modal .box .row select{height:28px}
@@ -49,8 +52,8 @@
     the fixed 28px height instead of the button just staying its natural single-line width - this
     caps its shrink at that natural width instead, same principle as everywhere else this session
     that a control's own label shouldn't silently break under pressure from a neighbor. */
- button{padding:0 9px;height:28px;box-sizing:border-box;border:1px solid var(--bd);border-radius:4px;background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:middle;font-size:13px;white-space:nowrap}
- button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:3px;font-size:10.5px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
+ button{padding:0 9px;height:28px;box-sizing:border-box;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:middle;font-size:13px;white-space:nowrap}
+ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-s);font-size:10.5px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
  /* A saved connection name or environment label is free text with no length limit at the point
     of use (only a maxlength on the input, as a soft cap) - without this, a long one would either
     stretch the bar past the window or wrap it onto a second line. Ellipsize instead; the title
@@ -82,7 +85,7 @@
  #connGo{width:28px;padding:0;margin-left:4px}
  body.disconnected #connGo{display:none}
  /* The character set: its icon and its choice in one box, as high as the buttons beside it. */
- .cspill{display:inline-flex;align-items:center;gap:2px;height:28px;box-sizing:border-box;padding:0 0 0 8px;border:1px solid var(--bd);border-radius:4px;background:var(--btn)}
+ .cspill{display:inline-flex;align-items:center;gap:2px;height:28px;box-sizing:border-box;padding:0 0 0 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn)}
  .cspill select{border:none;background:var(--btn);color:var(--fg);height:26px;padding:0 4px;box-shadow:none}
  /* The filter and search boxes of the main window, as high as the buttons beside them. */
  #schemaFilter,#objFilter,.gsearch{height:28px;box-sizing:border-box}
@@ -101,7 +104,7 @@
  #connListPop .clp{width:13px;justify-content:center}
  .chip .roeye{display:inline-flex;vertical-align:-1px} .chip .roeye.after{margin-left:5px}
  /* The list the connections box opens - see openConnList. */
- #connListPop{display:none;position:fixed;z-index:9999;background:var(--panel);border:1px solid var(--bd);border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,.35);padding:3px 0;max-height:60vh;overflow:auto;max-width:440px}
+ #connListPop{display:none;position:fixed;z-index:9999;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);padding:3px 0;max-height:60vh;overflow:auto;max-width:440px}
  #connListPop .cli{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;cursor:pointer;white-space:nowrap}
  #connListPop .cli:hover,#connListPop .cli.kb{background:var(--hover)} #connListPop .cli.sel{font-weight:600}
  #connListPop .cln{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -151,7 +154,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .ohdr{padding:3px 8px;font-weight:600;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--bd2);position:sticky;top:0;cursor:pointer;user-select:none} .ohdr:hover{color:var(--fg)} .ohdr .caret{display:inline-block;width:12px}
  #content{flex:1;display:flex;flex-direction:column;min-width:0}
  #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:52px;box-sizing:border-box;align-items:center;border-bottom:1px solid var(--bd)}
- .tab{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:6px;cursor:pointer;white-space:nowrap;box-sizing:border-box}
+ .tab{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;box-sizing:border-box}
  .tab.active{background:var(--bg);font-weight:600} .tab .x{margin-left:0;color:var(--muted);font-size:14px;line-height:1} .tab .x:hover{color:#c00}
  .tab.dragging{opacity:.4}
  .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
@@ -173,7 +176,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 /* One control, whichever divider it sits on: no frame of its own, so a thin line of a divider
    does not turn into a row of buttons; it takes a shape only under the pointer. The line beside
    the caret is the edge the click sends things to - a caret on its own comes back to the middle. */
-.edfold{width:28px;height:11px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:var(--fg);opacity:.68;background:transparent;border:none;border-radius:4px;font-size:9px;line-height:1;user-select:none}
+.edfold{width:28px;height:11px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:var(--fg);opacity:.68;background:transparent;border:none;border-radius:var(--r-s);font-size:9px;line-height:1;user-select:none}
 .edfold.vert{flex-direction:row;width:11px;height:26px}
 .edfold.toedge.up::before,.edfold.toedge.down::after{content:"";display:block;width:11px;height:1px;background:currentColor}
 .edfold.toedge.left::before,.edfold.toedge.right::after{content:"";display:block;width:1px;height:11px;background:currentColor}
@@ -186,8 +189,8 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 .tabpane.edfolded-results [id^="ew_"]{flex:1 1 auto !important;height:auto !important}
  .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:13px;line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
- .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:2px} .fm mark.on{background:var(--accent);opacity:.45}
- .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
+ .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
+ .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
  .txdirty{color:#d9822b;font-weight:600} .tab.txopen{box-shadow:inset 0 -2px 0 #d9822b}
  #sshBtn.on{border-color:var(--accent);color:var(--accent)}
  /* A query bar is fitted to everything it can show, not to what it shows at the moment (fitBar):
@@ -220,7 +223,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.grid tr.insrow td.delcell{color:#7ee0a0}
  table.grid td.kbfocus{outline:2px solid var(--accent);outline-offset:-2px}
  td.dirty{background:var(--dirty)!important} tr.del td{background:var(--del)!important;text-decoration:line-through}
- .logpanel{background:var(--log);color:var(--logfg);border:1px solid var(--bd);border-radius:4px;padding:8px 8px 8px 2px}
+ .logpanel{background:var(--log);color:var(--logfg);border:1px solid var(--bd);border-radius:var(--r-s);padding:8px 8px 8px 2px}
  .logpanel:empty{display:none;border:none;padding:0}
  .logpanel .ln{border-left:3px solid transparent;padding-left:8px}
  .logpanel .ln.ok{border-left-color:var(--erd-pk)}
@@ -258,7 +261,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.grid td .celled>input,table.grid td .celled>textarea{flex:1;min-width:0;width:100%;height:auto;border:none;border-radius:0;background:transparent;color:inherit;font:inherit;line-height:inherit;padding:2px 3px 2px 8px;outline:none}
  /* Centred on the same line as the cell's text, and a hair smaller than the cell all round, so
     the tint it takes under the pointer sits inside the edit frame instead of running into it. */
- table.grid td .celled>button{flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;height:auto;min-height:0;border:none;border-radius:2px;background:transparent;color:var(--muted);padding:0 5px;margin:2px;font-size:12px;line-height:1}
+ table.grid td .celled>button{flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;height:auto;min-height:0;border:none;border-radius:var(--r-s);background:transparent;color:var(--muted);padding:0 5px;margin:2px;font-size:12px;line-height:1}
  table.grid td .celled>button:hover{background:var(--hover);color:var(--fg)}
  table.grid td input,table.grid td textarea{width:100%;height:100%;box-sizing:border-box;border:none;font:inherit;padding:2px 8px;background:transparent;color:var(--fg);vertical-align:middle}
  table.grid td textarea{display:block;resize:vertical;white-space:pre-wrap}
@@ -287,24 +290,24 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .wctl{display:inline-flex;gap:2px;align-items:center}
 .modal:not(.floating) .box{position:relative}
 .box>.wctl{position:absolute;top:8px;right:10px;background:var(--bg);padding-left:6px;z-index:3}
-.wctl>span{cursor:pointer;width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;color:var(--muted);font-size:14px;line-height:1;user-select:none}
+.wctl>span{cursor:pointer;width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-s);color:var(--muted);font-size:14px;line-height:1;user-select:none}
 .wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:#c0504d;color:#fff}
 .modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px}
  /* Their own style attributes say overflow:hidden, so that the panel inside them scrolls rather
     than the whole dialog. That has to give way when the dialog cannot hold its content at all -
     a hidden overflow there means the buttons at the bottom cannot be reached. */
- .modal.floating .box{overflow:auto !important} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
+ .modal.floating .box{overflow:auto !important} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:var(--r-s);background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
  #mInput{z-index:9600} #mRowForm{z-index:9500}
  /* Every floating dialog's header is spaced the same way: the title with no margin of its own,
     one gap under the row, and the paragraph beneath it given the leading to be read. */
  .modal .box>div[onmousedown]{margin-bottom:9px}
  .modal .box>div[onmousedown] h2,.modal .box>div[onmousedown] h3{margin:0 !important}
  .modal .box>div[onmousedown]+.muted,.modal .box>div[onmousedown]+div>.muted:first-child{line-height:1.55}
- .modal.show{display:flex} .box{background:var(--bg);color:var(--fg);border-radius:6px;padding:16px;max-width:900px;width:94%;max-height:92%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+ .modal.show{display:flex} .box{background:var(--bg);color:var(--fg);border-radius:var(--r-l);padding:16px;max-width:900px;width:94%;max-height:92%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
  .box h3{margin:0 0 10px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}
  label.ck{display:block;padding:2px 0} .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap} .muted{color:var(--muted);font-size:12px}
  #vActions{justify-content:flex-end}
- #vHexTabs button{border:1px solid var(--bd);background:var(--btn);color:var(--fg);border-radius:4px;padding:4px 12px;cursor:pointer;font:inherit}
+ #vHexTabs button{border:1px solid var(--bd);background:var(--btn);color:var(--fg);border-radius:var(--r-s);padding:4px 12px;cursor:pointer;font:inherit}
  #vHexTabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
  #ctx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:180px}
  #colPicker,#objTypePicker,#impDbPicker{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
@@ -321,9 +324,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 /* Nothing pending is the normal state, and an accent-coloured badge for it drew the eye to
    a zero all day; it only speaks up once there is something to apply. */
  .pill.quiet{background:var(--panel2);color:var(--muted)}
- .pill{background:var(--accent);color:#fff;border-radius:3px;padding:0 9px;font-size:12px;display:inline-flex;align-items:center;height:28px;box-sizing:border-box;white-space:nowrap} /* as tall as the buttons beside it */
+ .pill{background:var(--accent);color:#fff;border-radius:var(--r-s);padding:0 9px;font-size:12px;display:inline-flex;align-items:center;height:28px;box-sizing:border-box;white-space:nowrap} /* as tall as the buttons beside it */
 #toasts{position:fixed;bottom:16px;right:16px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:min(760px,56vw)}
-.toast{background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:10px 14px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 14px rgba(0,0,0,.3);animation:toastin .2s ease-out}
+.toast{background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:10px 14px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 14px rgba(0,0,0,.3);animation:toastin .2s ease-out}
 .toast.err{border-left-color:#c0504d}
 .toast.ok{border-left-color:#2e8f4f}
 @keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -343,7 +346,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #welcome{display:none}
  body.disconnected #main{position:relative}
  body.disconnected #welcome{display:flex;visibility:visible;position:absolute;inset:0;align-items:center;justify-content:center;padding:24px}
- .welcome-card{max-width:680px;background:var(--panel2);border:1px solid var(--bd);border-radius:10px;padding:24px 28px;line-height:1.55}
+ .welcome-card{max-width:680px;background:var(--panel2);border:1px solid var(--bd);border-radius:var(--r-m);padding:24px 28px;line-height:1.55}
  .welcome-card h2{margin:0 0 4px;font-size:20px}
  .welcome-card ol{margin:14px 0;padding-left:20px}
  .welcome-card li{margin:6px 0}
@@ -377,7 +380,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .plan,.plan ul{list-style:none;margin:0;padding-left:18px} .plan{padding-left:0;margin-top:8px} .plan li{position:relative;padding:3px 0 3px 14px}
  .plan ul li::before{content:'';position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--bd)} .plan ul li:last-child::before{bottom:auto;height:15px}
  .plan ul li::after{content:'';position:absolute;left:0;top:15px;width:11px;border-top:1px solid var(--bd)}
- .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:4px;padding:4px 9px;background:var(--bg);font-size:12px;max-width:100%;box-sizing:border-box}
+ .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:4px 9px;background:var(--bg);font-size:12px;max-width:100%;box-sizing:border-box}
  .pcard.bad,.psum.bad{border-left-color:#d32f2f} .pcard.warn{border-left-color:#ef6c00} .pcard.ok{border-left-color:#f9a825} .pcard.good,.psum.good{border-left-color:#2e7d32}
  .pacc,.pfacts{color:var(--muted);font-weight:400} .pcond{font-family:'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .psum{border-left:4px solid var(--muted);padding:4px 9px;font-size:12px;background:var(--panel)} .pjson{margin-top:10px;font-size:12px} .pjson pre{font-size:11px;max-height:300px;overflow:auto}
@@ -387,13 +390,13 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .chart{display:block} .chart .cgrid{stroke:var(--bd2);stroke-width:1} .chart .cbase{stroke:var(--bd);stroke-width:1} .chart .caxis{fill:var(--muted);font-size:11px}
  .chart .cline{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round} .chart .cdot{stroke:var(--bg);stroke-width:2} .chart .chit{fill:transparent} .chart .cross{stroke:var(--muted);stroke-width:1}
  .cleg{font-size:12px;display:inline-flex;align-items:center} .cleg i,.ctip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
- .ctip{position:absolute;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--bd);border-radius:4px;padding:6px 9px;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:nowrap} .ctip span{color:var(--muted);margin-left:6px}
- .utag{font-size:10px;border:1px solid var(--bd);border-radius:3px;padding:0 4px;margin-left:6px;color:var(--muted)} .uitem.sel .utag{color:#fff;border-color:#fff}
+ .ctip{position:absolute;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:6px 9px;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:nowrap} .ctip span{color:var(--muted);margin-left:6px}
+ .utag{font-size:10px;border:1px solid var(--bd);border-radius:var(--r-s);padding:0 4px;margin-left:6px;color:var(--muted)} .uitem.sel .utag{color:#fff;border-color:#fff}
  .utag.urole{border-color:var(--accent);color:var(--accent)} .utag.uwarn,.uwarn{color:#d9822b;border-color:#d9822b}
  /* One look for every window: a small uppercase heading over each part, and lists as cards - one
     row each, a row's actions at its right, and a note in the middle when there is nothing yet. */
  .dsec{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
- .clist{border:1px solid var(--bd);border-radius:8px;background:var(--panel2);overflow:auto}
+ .clist{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);overflow:auto}
  .clist>.item{padding:6px 12px}
  .citem{padding:10px 14px;border-top:1px solid var(--bd2)} .citem:first-child{border-top:0} .citem:hover{background:var(--hover)}
  .citem-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
@@ -404,12 +407,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  /* Users & Privileges: the accounts and roles on the left, the picked one on the right - how it signs
     in, what it may do and the roles it has, each with its own Edit. */
  .ulist{width:290px;flex:none;display:flex;flex-direction:column;gap:6px;min-height:0}
- #userSel{flex:1;min-height:0;overflow:auto;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);padding:2px 0 6px}
+ #userSel{flex:1;min-height:0;overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:2px 0 6px}
  .ugroup{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:10px 14px 4px}
- #userSel .uitem{padding:5px 10px;margin:0 4px;border-radius:5px;display:flex;align-items:center}
+ #userSel .uitem{padding:5px 10px;margin:0 4px;border-radius:var(--r-s);display:flex;align-items:center}
  #userSel .uitem>span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
  .uitem .uhost{color:var(--muted)} .uitem.sel .uhost{color:inherit;opacity:.8}
- .upanel{flex:1;min-width:0;overflow:auto;border:1px solid var(--bd);border-radius:8px;padding:16px 20px}
+ .upanel{flex:1;min-width:0;overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m);padding:16px 20px}
  .uempty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;padding:0 40px}
  .uhead{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--bd2)}
  .uhead-t{flex:1;min-width:0} .utitle{font-size:18px;font-weight:600;overflow-wrap:anywhere} .utitle .uhost{color:var(--muted);font-weight:400}
@@ -419,26 +422,26 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .usec{margin-top:18px}
  .usec-h{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;min-height:28px}
  .usec-h .sm{text-transform:none;letter-spacing:0;font-weight:400}
- .ukv{display:grid;grid-template-columns:190px 1fr;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);font-size:13px}
+ .ukv{display:grid;grid-template-columns:190px 1fr;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);font-size:13px}
  .ukv>div{padding:7px 14px;border-top:1px solid var(--bd2);min-width:0;overflow-wrap:anywhere} .ukv>div:nth-child(-n+2){border-top:0} .ukv>div:nth-child(odd){color:var(--muted)}
  .uok{color:#3fb950}
- .utab{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);font-size:13px;table-layout:fixed}
+ .utab{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);font-size:13px;table-layout:fixed}
  .utab th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);padding:7px 14px;border-bottom:1px solid var(--bd2)}
  .utab td{padding:8px 14px;vertical-align:top;border-top:1px solid var(--bd2);overflow-wrap:anywhere} .utab tbody tr:first-child td{border-top:0}
  .utab col.c1{width:32%} .utab col.c3{width:100px}
  .uplace{display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
- .upriv{display:inline-block;font-size:11px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;border:1px solid var(--bd);border-radius:4px;padding:1px 6px;margin:1px 4px 3px 0;background:var(--bg)}
+ .upriv{display:inline-block;font-size:11px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;border:1px solid var(--bd);border-radius:var(--r-s);padding:1px 6px;margin:1px 4px 3px 0;background:var(--bg)}
  .upriv.uall{border-color:var(--accent);color:var(--accent)}
  .uprivs:not(.open) .upriv.umore{display:none}
  .umorebtn{font-size:11px;color:var(--accent);cursor:pointer;white-space:nowrap} .uprivs.open .umorebtn{display:none}
- .unone{color:var(--muted);font-size:12px;padding:12px 14px;border:1px dashed var(--bd);border-radius:8px}
+ .unone{color:var(--muted);font-size:12px;padding:12px 14px;border:1px dashed var(--bd);border-radius:var(--r-m)}
  .unote{color:var(--muted);font-size:11px;margin-top:6px}
- .uchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:14px;padding:3px 11px;margin:0 6px 6px 0;background:var(--panel2);font-size:12px}
+ .uchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 11px;margin:0 6px 6px 0;background:var(--panel2);font-size:12px}
  .uchip .utag{margin-left:0}
  .usql summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0}
- .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;font-size:11.5px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:6px;margin:6px 0 0;max-height:260px;overflow:auto}
+ .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;font-size:11.5px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0;max-height:260px;overflow:auto}
  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 12px} .psec{font-weight:600;font-size:12px;margin:10px 0 4px}
- .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:4px;margin:4px 0;white-space:pre-wrap}
+ .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:var(--r-s);margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
  .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
  .fit3 #coffeeImg{width:24px;object-fit:cover;object-position:-3px 0} /* at 28px high, as tall as the buttons, the cup is centred 15px in, and the "B" starts at 27px */ .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 3px !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
@@ -449,7 +452,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .toolbar.tight{gap:4px} .toolbar.tight .tbsep{margin:2px !important} .toolbar.tight [id^="resultActions_"],.toolbar.tight [id^="edit_"]{gap:4px !important} .toolbar.tight>label{margin-left:0 !important}
  .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
- body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
+ body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
     eye loses which column it is in halfway along a wide window. */
  table.ovgrid th+th,table.ovgrid td+td{border-left:1px solid var(--bd2)}
@@ -486,11 +489,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 /* Parts one group of controls from the next inside a single row of options. */
  .optsep{width:1px;align-self:stretch;min-height:18px;background:var(--bd2);margin:0 4px;flex:none}
  .xrow{display:flex;gap:8px;align-items:center;margin:5px 0;flex:none;flex-wrap:wrap} .xlbl{width:96px;flex:none;color:var(--muted);font-size:12px}
- .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:6px;overflow:hidden;flex:none} .seg label{display:inline-flex;align-items:center;padding:4px 12px;cursor:pointer;font-size:12px;border-left:1px solid var(--bd2);user-select:none;white-space:nowrap} .seg label:first-child{border-left:0} .seg label:hover{background:var(--panel2)}
+ .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:var(--r-s);overflow:hidden;flex:none} .seg label{display:inline-flex;align-items:center;padding:4px 12px;cursor:pointer;font-size:12px;border-left:1px solid var(--bd2);user-select:none;white-space:nowrap} .seg label:first-child{border-left:0} .seg label:hover{background:var(--panel2)}
  .seg input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none} .seg label:has(input:checked){background:var(--accent);color:#fff} .seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 16px} label.ck.xoff{opacity:.45}
  .xadv{flex:none;margin:4px 0;border-top:1px solid var(--bd2);padding-top:2px} .xadv summary{cursor:pointer;color:var(--muted);font-size:12px;padding:4px 0;user-select:none} .xadv summary:hover{color:var(--fg)} .xgrp{grid-column:1/-1;font-weight:600;font-size:11px;color:var(--muted);margin-top:6px}
- .implist{flex:1;min-height:80px;overflow:auto;border:1px solid var(--bd);border-radius:8px;background:var(--panel2)} .improw{display:flex;align-items:center;gap:8px;padding:3px 6px 3px 8px;border-bottom:1px solid var(--bd2);font-size:12px} .improw:hover{background:var(--panel2)}
+ .implist{flex:1;min-height:80px;overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2)} .improw{display:flex;align-items:center;gap:8px;padding:3px 6px 3px 8px;border-bottom:1px solid var(--bd2);font-size:12px} .improw:hover{background:var(--panel2)}
  .impn{color:var(--muted);width:22px;text-align:right;flex:none;font-size:11px} .impname{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .impdir{flex:1;min-width:0;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .impsz{color:var(--muted);font-size:11px;flex:none;min-width:64px;text-align:right} .improw button{flex:none;padding:0 6px} .impempty{color:var(--muted);font-size:12px;padding:16px;text-align:center}
  /* The shortcuts in two columns, each section kept whole: a list this long in one column is
@@ -502,16 +505,16 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .toolcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
  /* Compare before its first run: what to do, and what happens, where the results will be. */
  #cmpResults:empty{display:flex;align-items:center;justify-content:center}
- #cmpResults:empty::before{content:"Pick the source and the target database above, then Run comparison.\A\AThe structure of their tables is compared first - columns, keys, foreign keys and checks - and\A Check row differences then compares their rows. Nothing changes on the target until you apply it.";white-space:pre-line;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;max-width:680px;border:1px dashed var(--bd);border-radius:10px;padding:26px 30px}
+ #cmpResults:empty::before{content:"Pick the source and the target database above, then Run comparison.\A\AThe structure of their tables is compared first - columns, keys, foreign keys and checks - and\A Check row differences then compares their rows. Nothing changes on the target until you apply it.";white-space:pre-line;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;max-width:680px;border:1px dashed var(--bd);border-radius:var(--r-m);padding:26px 30px}
  /* A form of labelled rows, as in Export: the label in a column of its own on the left. */
  .formgrid{display:grid;grid-template-columns:110px 1fr;gap:10px 12px;align-items:start;margin:4px 0}
  .formlbl{color:var(--muted);font-size:12px;padding-top:6px}
  /* Settings: the sections below the client tools, as cards in the same grid, and a footer of their own. */
  /* Settings: a list of pages on the left, one page at a time on the right. The window keeps one size
     from page to page. */
- .setwrap{display:flex;flex:1;min-height:0;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+ .setwrap{display:flex;flex:1;min-height:0;border:1px solid var(--bd);border-radius:var(--r-m);overflow:hidden}
  .setnav{flex:none;width:180px;background:var(--panel2);border-right:1px solid var(--bd);padding:8px;display:flex;flex-direction:column;gap:2px}
- .setnav button{display:flex;align-items:center;gap:9px;justify-content:flex-start;background:transparent;border:0;border-radius:6px;padding:8px 10px;height:auto;color:var(--fg);font-size:13px;text-align:left}
+ .setnav button{display:flex;align-items:center;gap:9px;justify-content:flex-start;background:transparent;border:0;border-radius:var(--r-s);padding:8px 10px;height:auto;color:var(--fg);font-size:13px;text-align:left}
  .setnav button svg{color:var(--muted);flex:none}
  .setnav button:hover{background:var(--btn)}
  .setnav button.on{background:var(--accent);color:#fff;font-weight:600}
@@ -521,7 +524,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setpt{margin:0 0 6px;font-size:17px;font-weight:600}
  .setpd{color:var(--muted);font-size:12px;margin-bottom:6px}
  .setgroup{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
- .setcard{border:1px solid var(--bd);border-radius:8px;background:var(--panel2);padding:0 16px;margin-top:10px}
+ .setcard{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:0 16px;margin-top:10px}
  .setgroup+.setcard{margin-top:0}
  .setrow{display:flex;align-items:center;gap:32px;padding:13px 0}
  .setrow+.setrow{border-top:1px solid var(--bd2)}
@@ -532,7 +535,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
-.toolcard{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:var(--panel2);min-width:0}
+.toolcard{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--panel2);min-width:0}
 .toolcard.inuse{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .toolcard-h{font-size:13px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
 .tooldot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
@@ -542,7 +545,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .toolcard .row>span:first-child{flex:none}
 </style></head><body>
 <div id="deadOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.78);align-items:center;justify-content:center;flex-direction:column">
- <div style="background:var(--panel,#1e1e1e);border:1px solid var(--bd,#444);border-radius:10px;padding:24px 28px;max-width:440px;text-align:center;color:var(--fg,#eee)">
+ <div style="background:var(--panel,#1e1e1e);border:1px solid var(--bd,#444);border-radius:var(--r-l);padding:24px 28px;max-width:440px;text-align:center;color:var(--fg,#eee)">
   <div style="font-size:16px;font-weight:600;margin-bottom:8px">Local server not responding</div>
   <div style="font-size:13px;line-height:1.6;margin-bottom:16px;opacity:.85">The NOBS SQL Editor background server has stopped or is unreachable.<br>Re-run <b>NOBSSQL.ps1</b> if needed, then click Retry.</div>
   <button class="primary" onclick="location.reload()">Retry</button>
@@ -551,11 +554,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div id="bar">
  <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
-  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
+  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 3px"></span><img id="coffeeImg" src="data:image/png;base64,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" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:28px;vertical-align:middle;opacity:.85;border-radius:4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:4px" data-ic="power">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 3px"></span><img id="coffeeImg" src="data:image/png;base64,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" alt="Buy me a coffee" onclick="openSupportLink()" title="Buy me a coffee, if NOBS SQL Editor saved you some time" style="cursor:pointer;height:28px;vertical-align:middle;opacity:.85;border-radius:var(--r-s)" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85"><button class="sm warn" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" style="margin-left:4px" data-ic="power">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -614,11 +617,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none"><span id="brActions"></span><span style="flex:1"></span><button onclick="brClose()">Cancel</button></div></div></div>
 
 <div class="modal floating" id="mView"><div class="box" style="width:1000px;max-width:95vw;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mView')" title="Drag to move"><h3 id="vTitle" style="margin:0 0 10px">Value</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mView')" title="Maximize" id="maxBtn_mView" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mView')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <img id="vImg" style="display:none;max-width:100%;max-height:340px;margin-bottom:6px;border:1px solid var(--bd);border-radius:3px;flex:none">
+ <img id="vImg" style="display:none;max-width:100%;max-height:340px;margin-bottom:6px;border:1px solid var(--bd);border-radius:var(--r-s);flex:none">
  <div id="vNote" style="display:none;font-size:11px;color:var(--log-warn);margin-bottom:4px;flex:none"></div>
  <textarea id="vText" spellcheck="false" style="width:100%;height:520px;flex:1;min-height:0;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px"></textarea>
  <select id="vSelect" style="width:100%;display:none;padding:8px;font-size:13px;flex:none"></select>
- <div id="vMulti" style="width:100%;display:none;max-height:520px;overflow:auto;padding:8px;border:1px solid var(--bd);border-radius:3px;background:var(--in);box-sizing:border-box;font-size:13px;flex:1;min-height:0"></div>
+ <div id="vMulti" style="width:100%;display:none;max-height:520px;overflow:auto;padding:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--in);box-sizing:border-box;font-size:13px;flex:1;min-height:0"></div>
  <input id="vDate" style="width:100%;display:none;padding:8px;font-size:13px;box-sizing:border-box;flex:none">
  <div class="row" style="justify-content:flex-end;align-items:center;flex:none">
   <div id="vHexTabs" style="display:none;gap:6px;margin-right:auto"><button id="vTabText" onclick="switchHexTab('text')">Text</button><button id="vTabHex" onclick="switchHexTab('hex')">Hex</button></div>
@@ -773,7 +776,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="margin-bottom:6px"><input id="erdFind" placeholder="Find table..." style="width:240px" oninput="erdFindTable()"><label style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="erdOnlyRelated" checked onchange="erdRender()"> Only show tables with a relationship</label><button class="sm" onclick="erdExportPng()" title="Save the diagram as a PNG image, at its full size regardless of current zoom" style="margin-left:14px">Export PNG</button></div>
  <div style="position:relative;flex:1;min-height:0">
   <div id="erdBox" style="position:absolute;inset:0;overflow:auto;border:1px solid var(--bd2);background:var(--bg);cursor:grab" onmousedown="erdPanStart(event)" ondblclick="erdDblClickZoom(event)" title="Drag to pan the diagram - Double-click to zoom in - Shift+double-click to zoom out"></div>
-  <div style="position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--bd2);border-radius:6px;padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <div style="position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--bd2);border-radius:var(--r-m);padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
    <button class="sm" onclick="erdZoomOut()" title="Zoom out">&minus;</button>
    <span id="erdZoomLabel" class="muted" style="font-size:11px;min-width:36px;text-align:center;display:inline-block">100%</span>
    <button class="sm" onclick="erdZoomIn()" title="Zoom in">+</button>
@@ -3975,7 +3978,7 @@ function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
 // that hex form is what makes round-tripping a value with a real embedded NUL byte safe (a raw
 // NUL in the actual SQL text risks truncation when passed as a command-line argument).
 const CTRL_NAMES={0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',8:'BS',11:'VT',12:'FF',14:'SO',15:'SI',16:'DLE',17:'DC1',18:'DC2',19:'DC3',20:'DC4',21:'NAK',22:'SYN',23:'ETB',24:'CAN',25:'EM',26:'SUB',27:'ESC',28:'FS',29:'GS',30:'RS',31:'US'};
-function ctrlBadge(b){return '<span class="cellmark" style="background:#4a3a1f;color:#e8c589;border-radius:3px;padding:0 3px;font-size:10px;font-weight:600;margin:0 1px" title="Control character (0x'+b.toString(16).padStart(2,'0').toUpperCase()+') - not printable text">'+CTRL_NAMES[b]+'</span>';}
+function ctrlBadge(b){return '<span class="cellmark" style="background:#4a3a1f;color:#e8c589;border-radius:var(--r-s);padding:0 3px;font-size:10px;font-weight:600;margin:0 1px" title="Control character (0x'+b.toString(16).padStart(2,'0').toUpperCase()+') - not printable text">'+CTRL_NAMES[b]+'</span>';}
 // Text holding a control character (a NUL, say) showed it as nothing at all, so 'a<NUL>b' looked
 // like 'ab'. Marked the same way as above.
 const CTRL_RE=/[\x00-\x08\x0B\x0C\x0E-\x1F]/g;
@@ -5647,7 +5650,7 @@ function codeBlockStartHeight(text){const lines=String(text||'').split('\n').len
 // window's own edge), and max-height clamps to the viewport itself so dragging can never grow the
 // block past the visible window - without both, an unbounded resize:both could be dragged to an
 // enormous size and made the whole window unresponsive while it repainted.
-function codeBlockStyle(text){return "display:block;background:var(--log);color:var(--logfg);font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:4px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:auto;resize:both;max-width:100%;max-height:calc(100vh - 40px);height:"+codeBlockStartHeight(text);}
+function codeBlockStyle(text){return "display:block;background:var(--log);color:var(--logfg);font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:auto;resize:both;max-width:100%;max-height:calc(100vh - 40px);height:"+codeBlockStartHeight(text);}
 function openHistory(){const box=$('histList');const h=hist();box.innerHTML=h.length?'':'<div class="cempty">No history yet - the queries you run show here.</div>';h.forEach(sql=>{const d=document.createElement('div');d.className='citem';const code=document.createElement('code');code.style.cssText=codeBlockStyle(sql);code.textContent=sql;const bar=document.createElement('div');bar.className='citem-h';const kw=document.createElement('span');kw.className='citem-t muted';kw.textContent=(sql.trim().match(/^\w+/)||[''])[0].toUpperCase();bar.appendChild(kw);const sv=document.createElement('button');sv.className='sm';sv.textContent='Save to library';sv.title='Keep this query in the library under a name';sv.onclick=e=>{e.stopPropagation();histSaveToLib(sql);};bar.appendChild(sv);const op=document.createElement('button');op.className='sm';op.textContent='Open';op.title='Open this query in a new tab';op.style.marginLeft='6px';const open=()=>{hide('mHist');openTab('history',sql,curSchema,false,null);};op.onclick=e=>{e.stopPropagation();open();};bar.appendChild(op);code.ondblclick=open;code.title='Double-click to open in a new tab';d.appendChild(bar);d.appendChild(code);box.appendChild(d);});show('mHist');}
 // A query from the history, kept in the library: asked for a name, with the SQL there to trim
 // before it is saved. The history keeps no schema, so it is saved against the current one.
@@ -6997,7 +7000,7 @@ async function openCompare(){$('cmpResults').innerHTML='';$('cmpLog').textConten
  if(window._primaryConn){$('cmpSrcConn').value=window._primaryConn;}
  await cmpLoadDbs('src');await cmpLoadDbs('tgt');
  show('mCompare');}
-function cmpBadge(status){const map={missing_target:['missing on target','#4a2626','#f0997b'],missing_source:['missing on source','#4a2626','#f0997b'],diff:['differs','#4a4526','#facb75'],same:['structure identical','#1d3a2a','#5dcaa5']};const m=map[status]||['?','#333','#ccc'];return '<span style="background:'+m[1]+';color:'+m[2]+';border-radius:10px;padding:2px 8px;font-size:11px;white-space:nowrap">'+m[0]+'</span>';}
+function cmpBadge(status){const map={missing_target:['missing on target','#4a2626','#f0997b'],missing_source:['missing on source','#4a2626','#f0997b'],diff:['differs','#4a4526','#facb75'],same:['structure identical','#1d3a2a','#5dcaa5']};const m=map[status]||['?','#333','#ccc'];return '<span style="background:'+m[1]+';color:'+m[2]+';border-radius:var(--r-s);padding:2px 8px;font-size:11px;white-space:nowrap">'+m[0]+'</span>';}
 // Row-level result of cmpScanRowDiffs(), separate from cmpBadge()'s structure-only status -
 // a table can be "structure identical" and still have missing or changed rows, which is exactly
 // what this column exists to surface instead of making you click "rows…" on every single one.
@@ -7006,10 +7009,10 @@ function cmpRowBadge(t){const rs=t.rowStatus;
  if(rs==='checking')return '<span class="muted" style="font-size:11px">checking…</span>';
  if(rs==='no_pk')return '<span class="muted" style="font-size:11px" title="No primary key - row comparison needs one to match rows up.">no primary key</span>';
  if(rs==='error')return '<span style="color:var(--del);font-size:11px" title="'+esc(t.rowError||'')+'">error</span>';
- if(rs==='match')return '<span style="background:#1d3a2a;color:#5dcaa5;border-radius:10px;padding:2px 8px;font-size:11px;white-space:nowrap">rows match</span>';
+ if(rs==='match')return '<span style="background:#1d3a2a;color:#5dcaa5;border-radius:var(--r-s);padding:2px 8px;font-size:11px;white-space:nowrap">rows match</span>';
  const bits=[];if(t.rowMissing)bits.push(t.rowMissing+' missing');if(t.rowDiffer)bits.push(t.rowDiffer+' differ'+(t.rowDiffer===1?'s':''));
  const title=t.rowTruncated?'Content check only covered the first 500 matching rows - more may differ beyond that.':'';
- return '<span style="background:#4a4526;color:#facb75;border-radius:10px;padding:2px 8px;font-size:11px;white-space:nowrap" title="'+esc(title)+'">'+esc(bits.join(', ')||'differs')+'</span>';}
+ return '<span style="background:#4a4526;color:#facb75;border-radius:var(--r-s);padding:2px 8px;font-size:11px;white-space:nowrap" title="'+esc(title)+'">'+esc(bits.join(', ')||'differs')+'</span>';}
 // Results (structure diff, tally, row-scan badges) describe whichever source/target pair was
 // selected when "Run comparison" was last clicked - switching either connection or database
 // afterward, without re-running, previously left all of that fully visible and clickable even
@@ -7054,7 +7057,7 @@ function cmpRenderResults(){const box=$('cmpResults');const sr=$('cmpResultsSear
   // Each statement gets the same dark "console" look as the app's query log (var(--log)/--logfg,
   // always dark regardless of light/dark theme) instead of sitting as plain wrapped text - reads
   // like a small code block rather than a run-on sentence, especially for long CREATE/ALTER DDL.
-  t.sql.forEach((st,si)=>{h+='<label style="display:flex;align-items:flex-start;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" style="margin-top:7px;flex:none" '+(st.checked?'checked':'')+' onclick="_cmpTables['+ti+'].sql['+si+'].checked=this.checked;cmpUpdateSummary()"><code style="flex:1;display:block;background:var(--log);color:var(--logfg);font-family:\'Cascadia Code\',Consolas,\'SF Mono\',Menlo,\'DejaVu Sans Mono\',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:4px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere">'+esc(st.stmt)+'</code></label>';});
+  t.sql.forEach((st,si)=>{h+='<label style="display:flex;align-items:flex-start;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" style="margin-top:7px;flex:none" '+(st.checked?'checked':'')+' onclick="_cmpTables['+ti+'].sql['+si+'].checked=this.checked;cmpUpdateSummary()"><code style="flex:1;display:block;background:var(--log);color:var(--logfg);font-family:\'Cascadia Code\',Consolas,\'SF Mono\',Menlo,\'DejaVu Sans Mono\',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere">'+esc(st.stmt)+'</code></label>';});
   h+='</td></tr>';});
  h+='</table>';box.innerHTML=h;cmpUpdateSummary();cmpFilterResults();}
 function cmpFilterResults(){const q=($('cmpResultSearch').value||'').toLowerCase();
