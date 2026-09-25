@@ -571,3 +571,27 @@ test('a password change keeps the other ways a MariaDB account signs in', () => 
     "IDENTIFIED VIA gssapi USING 'u OR x' OR ed25519 USING PASSWORD('p')", 'an OR inside a quoted value is not a separator');
   assert.equal(fns.mariaAuthChain("CREATE USER `a`@`%` IDENTIFIED BY PASSWORD '*AB'", 'x'), null, 'a single method is changed the ordinary way');
 });
+
+// The Users dialog reads SHOW GRANTS into where each privilege applies. These are lines as MySQL 8
+// and MariaDB print them.
+test('SHOW GRANTS is read into one row for each place, with its privileges', () => {
+  const { grantRows, grantPlace } = new Function(extractFunction(html, 'grantRows') + '\n' + extractFunction(html, 'grantPlace') + '\nreturn {grantRows,grantPlace};')();
+  const read = lines => grantRows(lines).map(r => [grantPlace(r).slice(0, 3), r.privs, r.wgo]);
+  assert.deepEqual(read([
+    'GRANT SELECT, INSERT ON *.* TO `root`@`%` WITH GRANT OPTION',
+    'GRANT APPLICATION_PASSWORD_ADMIN,AUDIT_ADMIN ON *.* TO `root`@`%` WITH GRANT OPTION',
+  ]), [[['Server', 'every database', false], ['SELECT', 'INSERT', 'APPLICATION_PASSWORD_ADMIN', 'AUDIT_ADMIN'], true]],
+  'the static and dynamic privileges on the server are one row');
+  assert.deepEqual(read(['GRANT USAGE ON *.* TO `u`@`%`']), [], 'USAGE is no privilege');
+  assert.deepEqual(read(['GRANT `r`@`%` TO `u`@`%`', 'GRANT `r2` TO `u`@`%`']), [], 'a role given is left to Roles');
+  assert.deepEqual(read(['GRANT SELECT ON `nobs\\_test`.* TO `u`@`%`']), [[['Database', 'nobs_test', false], ['SELECT'], false]], 'an escaped _ is the name');
+  assert.deepEqual(read(['GRANT SELECT ON `my_db`.* TO `u`@`%`'])[0][0], ['Database', 'my_db', true], 'an unescaped _ is a pattern');
+  assert.deepEqual(read(['GRANT SELECT (`a`, `b`), UPDATE (`a`) ON `db`.`t` TO `u`@`%`']),
+    [[['Columns of table', 'db.t', false], ['SELECT (`a`, `b`)', 'UPDATE (`a`)'], false]], 'column privileges keep their columns');
+  assert.deepEqual(read(['GRANT EXECUTE ON PROCEDURE `db`.`p` TO `u`@`%`'])[0][0], ['Procedure', 'db.p', false]);
+  assert.deepEqual(read(['GRANT SELECT ON `a ON b`.`t``x` TO `u`@`%`'])[0][0], ['Table', 'a ON b.t`x', false], 'ON and a backtick inside a name');
+  assert.deepEqual(read(["GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` IDENTIFIED VIA unix_socket OR mysql_native_password USING 'WITH GRANT OPTION' WITH GRANT OPTION"]),
+    [[['Server', 'every database', false], ['ALL PRIVILEGES'], true]], 'MariaDB: the sign-in clause is not the grant option');
+  assert.deepEqual(read(["GRANT ALL PRIVILEGES ON *.* TO `x`@`%` IDENTIFIED BY PASSWORD 'WITH GRANT OPTION'"])[0][2], false, 'a quoted WITH GRANT OPTION is not one');
+  assert.deepEqual(read(["GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION"])[0][0][0], 'Proxy for');
+});

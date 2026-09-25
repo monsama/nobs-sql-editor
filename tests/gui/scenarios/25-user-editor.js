@@ -11,7 +11,7 @@
   const cu = async a => String((await G.q('SHOW CREATE USER ' + a))[0][0]);
   const grants = async a => (await G.q('SHOW GRANTS FOR ' + a)).map(r => r[0]).join('\n');
   const cleanup = async () => {
-    for (const a of ["'nobs_ue_a'@'%'", "'nobs_ue_clone'@'%'"]) await G.A('/api/script', { sql: 'DROP USER IF EXISTS ' + a });
+    for (const a of ["'nobs_ue_a'@'%'", "'nobs_ue_clone'@'%'", "'nobs_ue_moved'@'localhost'"]) await G.A('/api/script', { sql: 'DROP USER IF EXISTS ' + a });
     await G.A('/api/script', { sql: 'DROP ROLE IF EXISTS ' + role });
   };
   // MySQL 5.7 has no roles, and MariaDB before 10.4 neither password expiry per account nor locking:
@@ -35,6 +35,17 @@
     const g = await grants("'nobs_ue_a'@'%'");
     G.check('and applying them grants and revokes', /GRANT SELECT ON `nobs\\_test`\.\*/.test(g) && !/INSERT/.test(g), g);
     hide('mPriv');
+    await G.until(() => $('uPrivs').querySelector('.utab'), 5000);
+    const pr = [...$('uPrivs').querySelectorAll('.utab tbody tr')].map(tr => tr.innerText.replace(/\s+/g, ' ').trim());
+    G.eq('the account shows the privileges as a table: where, what, and whether it may pass them on', pr, ['Database nobs_test SELECT no']);
+
+    // A click in the list - not only a selection made in code - makes every action available.
+    const item = [...$('userSel').querySelectorAll('.uitem')].find(d => d.title === 'nobs_ue_a@%');
+    usersSelect('nobs_ue_clone_none', '%');
+    item.click(); await G.wait(300);
+    const acts = ['uRenameBtn', 'uDropBtn', 'uPrivBtn', 'uLockBtn'].map(id => $(id)).filter(b => b.offsetParent);
+    G.check('a clicked account can be edited', window._selAcct && window._selAcct.u === 'nobs_ue_a' && acts.length >= 3 && acts.every(b => !b.disabled), acts.map(b => b.id + ':' + b.disabled));
+    G.check('and its settings show', /Sign-in method/.test($('userInfo').textContent), $('userInfo').textContent);
 
     if (C.roles) {
       answers.push(() => ({ n: 'nobs_ue_role' }));
@@ -43,7 +54,10 @@
       usersSelect('nobs_ue_a', '%');
       answers.push(o => { const r = {}; o.fields.forEach(f => { r[f.key] = f.type === 'checkbox' ? f.label.startsWith('nobs_ue_role') : f.value; }); r.def = o.fields.find(f => f.key === 'def').options.find(x => x.label.startsWith('nobs_ue_role')).value; return r; });
       await rolesEdit();
-      G.check('Roles gives the role as the default', /nobs_ue_role(@%)? \(default\)/.test($('userInfo').textContent), $('userInfo').textContent);
+      G.check('Roles gives the role as the default', /nobs_ue_role(@%)?default/.test($('uRoles').textContent), $('uRoles').textContent);
+      usersSelect('nobs_ue_role', maria ? '' : '%');
+      G.check('and the role lists who has it', $('uRolesH').textContent === 'Given to' && /nobs_ue_a@%/.test($('uRoles').textContent), $('uRoles').textContent);
+      usersSelect('nobs_ue_a', '%');
     } else {
       G.check('a server without roles is not offered Create role', !_uRoleSupport, 'roles were found on ' + C.version);
     }
@@ -60,9 +74,16 @@
     const signIn = await G.A('/api/connect', { conn: { ...getConn(), user: 'nobs_ue_clone', password: 'Clone-pw-2', ssl: 'required' } });
     G.check('and the clone signs in with its own password', signIn.ok, signIn.error);
 
+    answers.push(() => ({ user: 'nobs_ue_moved', host: 'localhost' }));
+    usersSelect('nobs_ue_clone', '%'); await acctRename();
+    const moved = await G.q("SELECT User, Host FROM mysql.user WHERE User LIKE 'nobs\\_ue\\_%' ORDER BY User");
+    G.check('Rename moves the account, its grants with it', moved.some(r => r[0] === 'nobs_ue_moved' && r[1] === 'localhost') && !moved.some(r => r[0] === 'nobs_ue_clone')
+      && /nobs\\_test/.test(await grants("'nobs_ue_moved'@'localhost'")), moved);
+    G.check('and shows it under its new name', window._selAcct && uName(window._selAcct) === 'nobs_ue_moved@localhost', window._selAcct && uName(window._selAcct));
+
     answers.push(() => ({ db: 'nobs_test' }));
     await whoHasAccess();
-    G.check('Who has access lists the accounts', /nobs_ue_a/.test($('vText').value) && /nobs_ue_clone/.test($('vText').value), $('vText').value.slice(0, 200));
+    G.check('Who has access lists the accounts', /nobs_ue_a/.test($('vText').value) && /nobs_ue_moved/.test($('vText').value), $('vText').value.slice(0, 200));
     hide('mView');
   } finally {
     inputBox = realInput; ask = realAsk;

@@ -390,7 +390,42 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ctip{position:absolute;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--bd);border-radius:4px;padding:6px 9px;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:nowrap} .ctip span{color:var(--muted);margin-left:6px}
  .utag{font-size:10px;border:1px solid var(--bd);border-radius:3px;padding:0 4px;margin-left:6px;color:var(--muted)} .uitem.sel .utag{color:#fff;border-color:#fff}
  .utag.urole{border-color:var(--accent);color:var(--accent)} .utag.uwarn,.uwarn{color:#d9822b;border-color:#d9822b}
- .uinfo{font-size:12px;border:1px solid var(--bd2);border-radius:4px;padding:6px 8px;flex:none;line-height:1.6}
+ /* Users & Privileges: the accounts and roles on the left, the picked one on the right - how it signs
+    in, what it may do and the roles it has, each with its own Edit. */
+ .ulist{width:290px;flex:none;display:flex;flex-direction:column;gap:6px;min-height:0}
+ #userSel{flex:1;min-height:0;overflow:auto;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);padding:2px 0 6px}
+ .ugroup{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:10px 14px 4px}
+ #userSel .uitem{padding:5px 10px;margin:0 4px;border-radius:5px;display:flex;align-items:center}
+ #userSel .uitem>span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
+ .uitem .uhost{color:var(--muted)} .uitem.sel .uhost{color:inherit;opacity:.8}
+ .upanel{flex:1;min-width:0;overflow:auto;border:1px solid var(--bd);border-radius:8px;padding:16px 20px}
+ .uempty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;padding:0 40px}
+ .uhead{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--bd2)}
+ .uhead-t{flex:1;min-width:0} .utitle{font-size:18px;font-weight:600;overflow-wrap:anywhere} .utitle .uhost{color:var(--muted);font-weight:400}
+ .usub{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+ .usub .utag{margin-left:0}
+ .uhead-a,.usec-a{display:flex;gap:6px;flex:none}
+ .usec{margin-top:18px}
+ .usec-h{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;min-height:28px}
+ .usec-h .sm{text-transform:none;letter-spacing:0;font-weight:400}
+ .ukv{display:grid;grid-template-columns:190px 1fr;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);font-size:13px}
+ .ukv>div{padding:7px 14px;border-top:1px solid var(--bd2);min-width:0;overflow-wrap:anywhere} .ukv>div:nth-child(-n+2){border-top:0} .ukv>div:nth-child(odd){color:var(--muted)}
+ .uok{color:#3fb950}
+ .utab{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--bd);border-radius:8px;background:var(--panel2);font-size:13px;table-layout:fixed}
+ .utab th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);padding:7px 14px;border-bottom:1px solid var(--bd2)}
+ .utab td{padding:8px 14px;vertical-align:top;border-top:1px solid var(--bd2);overflow-wrap:anywhere} .utab tbody tr:first-child td{border-top:0}
+ .utab col.c1{width:32%} .utab col.c3{width:100px}
+ .uplace{display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
+ .upriv{display:inline-block;font-size:11px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;border:1px solid var(--bd);border-radius:4px;padding:1px 6px;margin:1px 4px 3px 0;background:var(--bg)}
+ .upriv.uall{border-color:var(--accent);color:var(--accent)}
+ .uprivs:not(.open) .upriv.umore{display:none}
+ .umorebtn{font-size:11px;color:var(--accent);cursor:pointer;white-space:nowrap} .uprivs.open .umorebtn{display:none}
+ .unone{color:var(--muted);font-size:12px;padding:12px 14px;border:1px dashed var(--bd);border-radius:8px}
+ .unote{color:var(--muted);font-size:11px;margin-top:6px}
+ .uchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:14px;padding:3px 11px;margin:0 6px 6px 0;background:var(--panel2);font-size:12px}
+ .uchip .utag{margin-left:0}
+ .usql summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0}
+ .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;font-size:11.5px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:6px;margin:6px 0 0;max-height:260px;overflow:auto}
  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 12px} .psec{font-weight:600;font-size:12px;margin:10px 0 4px}
  .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:4px;margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
@@ -684,12 +719,22 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="cmprLog" class="muted" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:120px;overflow:auto;margin-top:6px;flex:none"></div>
 </div></div>
 
-<div class="modal floating" id="mUsers"><div class="box" style="width:1150px;max-width:96vw;height:620px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:70px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUsers')" title="Drag to move"><h3 style="margin:0 0 10px">Users &amp; Privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUsers')" title="Maximize" id="maxBtn_mUsers" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUsers')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <div class="row" style="align-items:stretch;flex:1;min-height:0">
-  <div style="min-width:260px;max-width:320px;display:flex;flex-direction:column;gap:6px"><input type="search" id="userFilter" placeholder="Filter accounts" oninput="usersRender()"><div id="userSel" style="flex:1;min-height:0;overflow:auto;border:1px solid var(--bd2);border-radius:4px"></div></div>
-  <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0"><div id="userInfo" class="uinfo"></div><div id="grantsBox" class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;flex:1;overflow:auto;border:1px solid var(--bd2);padding:6px"></div></div>
+<div class="modal floating" id="mUsers"><div class="box" style="width:1250px;max-width:96vw;height:82vh;max-height:880px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:70px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUsers')" title="Drag to move"><h3 style="margin:0 0 10px">Users &amp; Privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUsers')" title="Maximize" id="maxBtn_mUsers" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUsers')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="row" style="align-items:stretch;flex:1;min-height:0;gap:12px;flex-wrap:nowrap">
+  <div class="ulist"><input type="search" id="userFilter" placeholder="Filter accounts and roles" oninput="usersRender()"><div id="userSel"></div></div>
+  <div id="uPanel" class="upanel">
+   <div id="uEmpty" class="uempty">Pick an account or a role on the left to see how it signs in, what it may do and the roles it has.</div>
+   <div id="uBody" style="display:none">
+    <div class="uhead"><div class="uhead-t"><div id="uTitle" class="utitle"></div><div id="uKind" class="usub"></div></div>
+     <div class="uhead-a"><button class="sm" id="uRenameBtn" onclick="acctRename()">Rename...</button><button class="sm" id="uCloneBtn" onclick="acctClone()" title="A new account like this one: its sign-in method, settings, privileges and roles">Clone...</button><button class="sm warn" id="uDropBtn" onclick="dropUser()">Drop</button></div></div>
+    <section class="usec" id="uAcctSec"><div class="usec-h"><span>Account</span><span class="usec-a"><button class="sm" onclick="acctEdit()" title="Sign-in method, connection security, password expiry and limits">Edit...</button><button class="sm" onclick="changePassword()">Change password...</button><button class="sm" id="uLockBtn" onclick="lockUser(!(window._selAcct&&window._selAcct.locked))"></button></span></div><div id="userInfo" class="ukv"></div></section>
+    <section class="usec"><div class="usec-h"><span>Privileges</span><span class="usec-a"><button class="sm" id="uPrivBtn" onclick="privOpen()" title="Tick what it may do - on the server, a database or a table">Edit...</button></span></div><div id="uPrivs"></div></section>
+    <section class="usec"><div class="usec-h"><span id="uRolesH">Roles</span><span class="usec-a"><button class="sm" id="uRolesBtn" onclick="rolesEdit()" title="Give it roles, and pick the one active when it signs in">Edit...</button></span></div><div id="uRoles"></div></section>
+    <details class="usec usql"><summary>SQL - the grants as the server lists them</summary><pre id="grantsBox" class="ugrants"></pre></details>
+   </div>
+  </div>
  </div>
- <div class="row" style="flex:none"><button onclick="usersNewMenu(event)" title="Create a user or a role, or clone the selected account">New &#9662;</button><span class="tbsep"></span><button id="uPrivBtn" onclick="privOpen()" title="Tick what the account may do - on the server, a database or a table">Privileges...</button><button id="uRolesBtn" onclick="rolesEdit()" title="Give the account roles, and pick the one active when it signs in">Roles...</button><button id="uAcctBtn" onclick="usersAcctMenu(event)" title="Sign-in method, SSL, expiry and limits; password; lock">Account &#9662;</button><span class="tbsep"></span><button id="uDropBtn" class="warn" onclick="dropUser()" title="Drop the selected account or role">Drop</button><span style="flex:1"></span><button onclick="whoHasAccess()" title="Everyone with privileges on a database">Who has access...</button><button onclick="openUserTransfer()" title="Build CREATE USER + GRANT statements to move accounts to another server">Transfer script...</button><span class="tbsep"></span><button onclick="hide('mUsers')">Close</button></div></div></div>
+ <div class="row" style="flex:none;margin-top:10px"><button onclick="usersNewMenu(event)" title="Create a user or a role, or clone the selected account">New &#9662;</button><span style="flex:1"></span><button onclick="whoHasAccess()" title="Everyone with privileges on a database">Who has access...</button><button onclick="openUserTransfer()" title="Build CREATE USER + GRANT statements to move accounts to another server">Transfer script...</button><span class="tbsep"></span><button onclick="hide('mUsers')">Close</button></div></div></div>
 
 <div class="modal floating" id="mPriv"><div class="box" style="width:760px;max-width:95vw;height:620px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPriv')" title="Drag to move"><h3 id="privTitle" style="margin:0 0 10px">Privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPriv')" title="Maximize" id="maxBtn_mPriv" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPriv')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><span class="muted">On</span><select id="privScope" onchange="privScopeChanged()"><option value="global">the whole server</option><option value="db" selected>one database</option><option value="table">one table</option></select><select id="privDb" onchange="privScopeChanged()"></select><select id="privTable" onchange="privLoad()"></select></div>
@@ -6251,39 +6296,119 @@ async function usersLoad(){
    acc.forEach(a=>{if(isRole.has(uKey(a.u,a.h))||(a.locked&&a.nopw&&!SYSTEM_ACCTS.includes(a.u)))a.role=true;});}
  }
  _uaccts=acc;return true;}
-async function openUsers(){if(!(await usersLoad()))return;$('userFilter').value='';window._selUser='';window._selAcct=null;usersRender();$('grantsBox').textContent='';$('userInfo').innerHTML='<span class="muted">Select an account or a role.</span>';show('mUsers');}
-// The list: roles first, then accounts, each with what is unusual about it beside its name.
-// The Users dialog's row: New and Account open menus, and what acts on the selection waits for one.
-// A role does not sign in, so its Account button stays grey and New offers no clone of it.
-function usersButtons(){const a=window._selAcct;['uPrivBtn','uRolesBtn','uDropBtn','uAcctBtn'].forEach(id=>{const b=$(id);if(b)b.disabled=!a||(id==='uAcctBtn'&&a.role);});
- const ab=$('uAcctBtn');if(ab)ab.title=a&&a.role?'A role does not sign in, so it has no account settings':'Sign-in method, SSL, expiry and limits; password; lock';}
+async function openUsers(){if(!(await usersLoad()))return;$('userFilter').value='';window._selUser='';window._selAcct=null;usersRender();usersPanel();show('mUsers');}
 function usersNewMenu(e){e.stopPropagation();const b=e.currentTarget.getBoundingClientRect();const a=window._selAcct;
  menu(b.left,b.bottom+2,[['Create user...',()=>newUser()],_uRoleSupport&&['Create role...',()=>roleCreate()],a&&!a.role&&'-',a&&!a.role&&['Clone '+uName(a)+'...',()=>acctClone()]]);}
-function usersAcctMenu(e){e.stopPropagation();const b=e.currentTarget.getBoundingClientRect();const a=window._selAcct;if(!a||a.role)return;
- menu(b.left,b.bottom+2,[['Settings...',()=>acctEdit()],['Change password...',()=>changePassword()],'-',a.locked?['Unlock - allow sign-in again',()=>lockUser(false)]:['Lock - stop it signing in',()=>lockUser(true)]]);}
-function usersRender(){usersButtons();const box=$('userSel'),q=($('userFilter').value||'').trim().toLowerCase();box.innerHTML='';
+// The list: roles, then accounts, each under its heading with what is unusual about it beside its
+// name. A click shows it on the right; a double click opens what is edited most - an account's
+// settings, a role's privileges.
+function usersRender(){const box=$('userSel'),q=($('userFilter').value||'').trim().toLowerCase(),top=box.scrollTop;box.innerHTML='';
  const list=_uaccts.filter(a=>!q||uName(a).toLowerCase().includes(q));
- [...list.filter(a=>a.role),...list.filter(a=>!a.role)].forEach(a=>{const d=document.createElement('div');d.className='uitem'+(window._selAcct===a?' sel':'');
-  const n=document.createElement('span');n.textContent=uName(a);d.appendChild(n);
-  const tags=[];if(a.role)tags.push(['role','urole']);if(SYSTEM_ACCTS.includes(a.u))tags.push(['system','']);if(a.locked&&!a.role)tags.push(['locked','uwarn']);if(a.expired&&!a.role)tags.push(['expired','uwarn']);
-  tags.forEach(([t,c])=>{const s=document.createElement('span');s.className='utag '+c;s.textContent=t;d.appendChild(s);});
-  d.onclick=()=>{window._selAcct=a;window._selUser=uKey(a.u,a.h);[...box.children].forEach(c=>c.classList.remove('sel'));d.classList.add('sel');showGrants();};box.appendChild(d);});
- if(!list.length)box.innerHTML='<div class="muted" style="padding:8px">No account matches.</div>';}
-async function showGrants(){const a=window._selAcct;if(!a)return;$('userInfo').innerHTML=acctInfoHtml(a);
- const r=await api('/api/query',{sql:'SHOW GRANTS FOR '+uRef(a)});$('grantsBox').textContent=r.ok?r.rows.map(x=>x[0]).join('\n'):r.error;}
+ [['Roles',list.filter(a=>a.role)],['Accounts',list.filter(a=>!a.role)]].forEach(([title,items])=>{if(!items.length)return;
+  const g=document.createElement('div');g.className='ugroup';g.textContent=title+' ('+items.length+')';box.appendChild(g);
+  items.forEach(a=>{const d=document.createElement('div');d.className='uitem'+(window._selAcct===a?' sel':'');d.title=uName(a);
+   const n=document.createElement('span');n.textContent=a.u;
+   if(!(a.role&&window.mariadb)){const h=document.createElement('span');h.className='uhost';h.textContent='@'+a.h;n.appendChild(h);}
+   d.appendChild(n);
+   const tags=[];if(SYSTEM_ACCTS.includes(a.u))tags.push(['system','']);if(a.locked&&!a.role)tags.push(['locked','uwarn']);if(a.expired&&!a.role)tags.push(['expired','uwarn']);
+   tags.forEach(([t,c])=>{const s=document.createElement('span');s.className='utag '+c;s.textContent=t;d.appendChild(s);});
+   d.onclick=()=>usersPick(a);d.ondblclick=()=>a.role?privOpen():acctEdit();box.appendChild(d);});});
+ if(!list.length)box.innerHTML='<div class="muted" style="padding:10px 14px">Nothing matches.</div>';
+ box.scrollTop=top;}
+function usersPick(a){window._selAcct=a;window._selUser=uKey(a.u,a.h);$('userSel').querySelectorAll('.uitem').forEach(d=>d.classList.toggle('sel',d.title===uName(a)));showGrants();}
 const SSL_SAYS={ANY:'SSL required',X509:'SSL with a client certificate required',SPECIFIED:'a specific client certificate required'};
-function acctInfoHtml(a){const p=[];
- if(a.role)p.push('<b>'+esc(uName(a))+'</b> - a role: its privileges go to whoever it is granted to');
- else{p.push('<b>'+esc(uName(a))+'</b>');if(a.plugin)p.push('signs in with '+esc(a.plugin));
-  p.push(SSL_SAYS[a.ssl]||'SSL not required');
-  p.push(a.lifetime==null?'password expiry: server default':(a.lifetime===0?'password never expires':'password expires every '+a.lifetime+' days'));
-  if(a.locked)p.push('<span class="uwarn">locked - cannot sign in</span>');if(a.expired)p.push('<span class="uwarn">password expired</span>');}
+// The right side, for the picked account or role - or a note saying what to do when there is none.
+function usersPanel(){const a=window._selAcct;$('uEmpty').style.display=a?'none':'';$('uBody').style.display=a?'':'none';if(!a)return;
+ const sys=SYSTEM_ACCTS.includes(a.u);
+ $('uTitle').innerHTML=esc(a.u)+(a.role&&window.mariadb?'':'<span class="uhost">@'+esc(a.h)+'</span>');
+ const kind=[a.role?'<span class="utag urole">role</span> Its privileges go to the accounts it is given to.':'<span class="utag">account</span>'+(a.h==='%'?' Signs in from anywhere.':a.h==='localhost'?' Signs in from this server only.':' Signs in from '+esc(a.h)+'.')];
+ if(sys)kind.push('<span class="utag">system</span> The server\'s own - best left as it is.');
+ $('uKind').innerHTML=kind.join(' ');
+ const ren=$('uRenameBtn');ren.disabled=!!(a.role&&window.mariadb);ren.title=ren.disabled?'MariaDB cannot rename a role - create one with the new name and give it instead':'Change the name or the host it signs in from - its privileges and roles go with it';
+ $('uCloneBtn').style.display=a.role?'none':'';
+ $('uDropBtn').title=a.role?'Drop this role - the accounts that have it lose its privileges':'Drop this account';
+ $('uAcctSec').style.display=a.role?'none':'';
+ if(!a.role){$('userInfo').innerHTML=acctInfoHtml(a);const lb=$('uLockBtn');lb.style.display=acctHasLock()?'':'none';lb.textContent=a.locked?'Unlock':'Lock';
+  lb.title=a.locked?'Let it sign in again':'Stop it signing in - it keeps its privileges';}
+ $('uRolesH').textContent=a.role?'Given to':'Roles';$('uRolesBtn').style.display=a.role||!_uRoleSupport?'none':'';
+ $('uRoles').innerHTML=rolesHtml(a);
+ $('uPrivs').innerHTML='<div class="unone">Reading its privileges...</div>';$('grantsBox').textContent='';}
+function acctInfoHtml(a){const rows=[];
+ rows.push(['Sign-in method',esc(a.plugin||'server default')]);
+ rows.push(['Password',a.expired?'<span class="uwarn">expired - to be changed at the next sign-in</span>':a.nopw?'none':'set']);
+ if(acctHasExpiry())rows.push(['Password expiry',a.lifetime==null?'server default':a.lifetime===0?'never expires':'every '+a.lifetime+' days']);
+ rows.push(['Connection security',SSL_SAYS[a.ssl]||'SSL not required']);
  const lim=[['queries an hour',a.mq],['updates an hour',a.mu],['connections an hour',a.mc],['connections at once',a.muc]].filter(x=>x[1]>0).map(x=>x[1]+' '+x[0]);
- if(lim.length)p.push('at most '+lim.join(', '));
- if(a.roles.length)p.push('roles: '+a.roles.map(r=>esc(uName(r))+(a.defaults.includes(r)?' (default)':'')).join(', '));
- return p.join(' &middot; ');}
-async function usersReloadKeep(){const k=window._selUser;await usersLoad();window._selAcct=_uaccts.find(a=>uKey(a.u,a.h)===k)||null;usersRender();if(window._selAcct)showGrants();}
-function usersSelect(u,h){window._selAcct=_uaccts.find(a=>a.u===u&&a.h===h)||null;window._selUser=window._selAcct?uKey(u,h):'';usersRender();if(window._selAcct)showGrants();}
+ rows.push(['Limits',lim.length?'at most '+lim.join(', '):'none']);
+ if(acctHasLock())rows.push(['Status',a.locked?'<span class="uwarn">locked - cannot sign in</span>':'<span class="uok">&#9679;</span> can sign in']);
+ return rows.map(([k,v])=>'<div>'+k+'</div><div>'+v+'</div>').join('');}
+function rolesHtml(a){if(!_uRoleSupport)return '<div class="unone">This server has no roles - they came with MySQL 8.0 and MariaDB 10.0.5.</div>';
+ const chip=(r,tag)=>'<span class="uchip">'+esc(uName(r))+(tag?'<span class="utag urole">'+tag+'</span>':'')+'</span>';
+ if(a.role){const to=_uaccts.filter(x=>x.roles.includes(a));return to.length?'<div>'+to.map(x=>chip(x,x.defaults.includes(a)?'default':'')).join('')+'</div>':'<div class="unone">No account has it yet - give it from an account\'s Roles.</div>';}
+ return a.roles.length?'<div>'+a.roles.map(r=>chip(r,a.defaults.includes(r)?'default':'')).join('')+'</div>':'<div class="unone">None.</div>';}
+// SHOW GRANTS, read into where each privilege applies: one row for each place, with the privileges
+// there and whether they may be passed on. A role given to the account ("GRANT r TO ...") is left
+// to Roles, and USAGE - no privilege at all - is left out.
+function grantRows(lines){const rows=new Map();
+ for(const line of lines){const s=String(line);if(!/^GRANT\s/i.test(s))continue;
+  let q='',d=0,on=-1;
+  for(let i=6;i<s.length;i++){const c=s[i];
+   if(q){if(c===q){if(s[i+1]===q)i++;else q='';}continue;}
+   if(c==='`'||c==="'"||c==='"'){q=c;continue;}
+   if(c==='(')d++;else if(c===')')d--;else if(d===0&&/\s/.test(c)&&/^\sON\s/i.test(s.slice(i,i+4))){on=i;break;}}
+  if(on<0)continue;
+  const privs=[];let cur='';q='';d=0;
+  for(const c of s.slice(6,on)){if(q){cur+=c;if(c===q)q='';continue;}if(c==='`'||c==="'"){q=c;cur+=c;continue;}
+   if(c==='(')d++;else if(c===')')d--;if(c===','&&d===0){privs.push(cur.trim());cur='';}else cur+=c;}
+  if(cur.trim())privs.push(cur.trim());
+  let rest=s.slice(on+4).trimStart(),kind='';
+  const km=rest.match(/^(PROCEDURE|FUNCTION|TABLE)\s+/i);if(km){kind=km[1].toUpperCase();rest=rest.slice(km[0].length);}
+  const parts=[];let i=0;
+  while(i<rest.length){
+   if(rest[i]==='`'){let j=i+1,n='';while(j<rest.length){if(rest[j]==='`'){if(rest[j+1]==='`'){n+='`';j+=2;continue;}break;}n+=rest[j++];}parts.push(n);i=j+1;}
+   else{const m=rest.slice(i).match(/^[^\s.]+/);if(!m)break;parts.push(m[0]);i+=m[0].length;}
+   if(rest[i]==='.'){i++;continue;}break;}
+  const tail=rest.slice(i).replace(/'(?:[^'\\]|\\.|'')*'/g,"''").replace(/`(?:[^`]|``)*`/g,'``');
+  const wgo=/\bWITH\s+GRANT\s+OPTION\b/i.test(tail);
+  const p=privs.filter(x=>!/^USAGE$/i.test(x));if(!p.length)continue;
+  const key=kind+'\x01'+parts.join('\x01')+'\x01'+wgo;
+  if(!rows.has(key))rows.set(key,{kind,parts,privs:[],wgo});
+  const r=rows.get(key);p.forEach(x=>{if(!r.privs.includes(x))r.privs.push(x);});}
+ return [...rows.values()];}
+// Where a row applies, as [what, name, is a pattern, sort order]. In a database grant _ and % match
+// any character, so a name holding one unescaped covers every database whose name fits.
+function grantPlace(r){const P=r.parts,un=n=>n.replace(/\\([_%\\])/g,'$1');
+ if(r.privs.length===1&&/^PROXY$/i.test(r.privs[0]))return ['Proxy for',P.join('.'),false,4];
+ if(P.length===2&&P[0]==='*'&&P[1]==='*')return ['Server','every database',false,0];
+ if(P.length===2&&P[1]==='*')return ['Database',un(P[0]),/(^|[^\\])[_%]/.test(P[0]),1];
+ if(r.kind==='PROCEDURE'||r.kind==='FUNCTION')return [r.kind==='PROCEDURE'?'Procedure':'Function',P.join('.'),false,3];
+ return [r.privs.some(x=>/\(/.test(x))?'Columns of table':'Table',P.join('.'),false,2];}
+const UPRIV_SHOWN=12;
+function privRowsHtml(a,lines){const rows=grantRows(lines).map(r=>({r,pl:grantPlace(r)})).sort((x,y)=>x.pl[3]-y.pl[3]||x.pl[1].localeCompare(y.pl[1]));
+ const fromRoles=!a.role&&a.roles.length?'<div class="unote">Privileges that come with its roles are not listed here - they are the roles\' own.</div>':'';
+ if(!rows.length)return '<div class="unone">'+(a.role?'No privileges yet.':'No privileges - it can sign in and nothing more.')+'</div>'+fromRoles;
+ return '<table class="utab"><colgroup><col class="c1"><col><col class="c3"></colgroup><thead><tr><th>Applies to</th><th>Privileges</th><th>Can grant</th></tr></thead><tbody>'+
+  rows.map(({r,pl})=>{const chips=r.privs.map((x,i)=>'<span class="upriv'+(/^ALL( PRIVILEGES)?$/i.test(x)?' uall':'')+(i>=UPRIV_SHOWN?' umore':'')+'">'+esc(x)+'</span>').join('');
+   const more=r.privs.length>UPRIV_SHOWN?'<span class="umorebtn" onclick="this.parentNode.classList.add(\'open\')">+'+(r.privs.length-UPRIV_SHOWN)+' more</span>':'';
+   return '<tr><td><span class="uplace">'+pl[0]+'</span>'+esc(pl[1])+(pl[2]?' <span class="utag uwarn" title="_ and % in a database grant match any character, so this also covers other databases whose names fit">name pattern</span>':'')+'</td><td class="uprivs">'+chips+more+'</td><td>'+(r.wgo?'yes':'<span class="muted">no</span>')+'</td></tr>';}).join('')+
+  '</tbody></table>'+fromRoles;}
+async function showGrants(){const a=window._selAcct;usersPanel();if(!a)return;
+ const r=await api('/api/query',{sql:'SHOW GRANTS FOR '+uRef(a)});if(window._selAcct!==a)return;
+ const lines=r.ok?r.rows.map(x=>String(x[0])):[];
+ $('grantsBox').textContent=r.ok?lines.join('\n'):r.error;
+ $('uPrivs').innerHTML=r.ok?privRowsHtml(a,lines):'<div class="unone">'+esc(r.error)+'</div>';}
+async function usersReloadKeep(){const k=window._selUser;await usersLoad();window._selAcct=_uaccts.find(a=>uKey(a.u,a.h)===k)||null;usersRender();showGrants();}
+function usersSelect(u,h){window._selAcct=_uaccts.find(a=>a.u===u&&a.h===h)||null;window._selUser=window._selAcct?uKey(u,h):'';usersRender();showGrants();}
+// A new name or host for the account. RENAME USER keeps its privileges, roles and settings; a
+// MariaDB role cannot be renamed.
+async function acctRename(){const a=window._selAcct;if(!a)return;
+ if(a.role&&window.mariadb){toast('MariaDB cannot rename a role - create one with the new name and give it instead.',true);return;}
+ const res=await inputBox({title:'Rename '+uName(a),okText:'Rename',width:'460px',fields:[{key:'user',label:a.role?'Role name':'User name',value:a.u},{key:'host',label:'Host - % for anywhere',value:a.h}]});
+ if(!res)return;const u=String(res.user||'').trim(),h=String(res.host||'').trim()||'%';
+ if(!u){toast('The name cannot be empty.',true);return;}if(u===a.u&&h===a.h){toast('Nothing to change.');return;}
+ const sql='RENAME USER '+uRef(a)+' TO '+strLit(u)+'@'+strLit(h)+';';
+ const r=await api('/api/script',{sql});if(!r.ok){toast(r.error,true);return;}
+ log(sql);toast('Renamed to '+u+'@'+h+'.','ok');await usersLoad();usersSelect(u,h);}
 
 // ---- privileges as a checklist ----
 // The privileges at one level - the whole server, a database, a table - as boxes, ticked for what
