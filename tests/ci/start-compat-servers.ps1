@@ -120,7 +120,17 @@ foreach ($spec in $Servers) {
                 if ($LASTEXITCODE -ne 0) { throw "$install failed" }
             }
         }
-        Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $extra)
+        # Even the shipped tables were, now and then, "marked as crashed" at the first statement on the
+        # CI runner - never on a developer's machine. The MyISAM system tables are checked, and fixed
+        # if need be, before the server opens them; and whatever is still marked when opened is
+        # repaired then rather than refused.
+        $chk = Join-Path $bin 'myisamchk.exe'
+        if (Test-Path $chk) {
+            & $chk --silent --force --update-state @((Get-ChildItem (Join-Path $data 'mysql\*.MYI')).FullName)
+            if ($LASTEXITCODE -ne 0) { throw "myisamchk found the system tables of $name beyond repair" }
+        }
+        $recover = @('--myisam-recover-options=FORCE,BACKUP', '--aria-recover-options=FORCE,BACKUP')
+        Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $recover + $extra)
         Wait-Port $port "$name ($flavor $version)"
         if ($fresh) {
             # The shipped tables have root without a password, and anonymous accounts.
