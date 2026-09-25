@@ -138,6 +138,12 @@ foreach ($spec in $Servers) {
     # index of mysql.user in the middle of a run - locally and in CI, on a fresh data directory -
     # which then shows as doubled SHOW GRANTS lines and "Index for table 'user' is corrupt". Aria
     # (crash-safe, what 10.4 on uses for them) does not; that is the server's bug, not the app's.
+    # A listening port is not yet a server that signs anyone in: MariaDB 10.2 once refused root with
+    # "Host 'localhost' is not allowed to connect" in the second after it opened the port. Wait until
+    # a query goes through.
+    for ($i = 0; $i -lt 60; $i++) {
+        try { Invoke-Sql $client $port 'SELECT 1' | Out-Null; break } catch { if ($i -eq 59) { throw }; Start-Sleep -Milliseconds 500 }
+    }
     if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
         $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
         Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
