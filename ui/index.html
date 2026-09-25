@@ -797,6 +797,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <section class="usec"><div class="usec-h"><span>Referenced by</span></div><div id="inspRef"></div></section>
  </div>
  <div class="row" style="flex:none;margin-top:10px"><button onclick="hide('mInspect');window._insp&&openDdl(window._insp.db,'table',window._insp.name)">Show CREATE</button><button class="write" onclick="hide('mInspect');window._insp&&designTable(window._insp.name,window._insp.db)">Design / Alter...</button><span style="flex:1"></span><button onclick="hide('mInspect')">Close</button></div></div></div>
+<div class="modal floating" id="mTxLog"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:140px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mTxLog')" title="Drag to move"><h3 style="margin:0 0 10px">Not committed yet</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mTxLog')" title="Maximize" id="maxBtn_mTxLog" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mTxLog')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div id="txLogSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
+ <div id="txLogList" class="clist" style="flex:1;min-height:0"></div>
+ <div class="row" style="flex:none;margin-top:10px"><span class="muted" style="font-size:12px">Nothing here is permanent until Commit; Rollback undoes all of it.</span><span style="flex:1"></span><button class="warn" id="txLogRollback" onclick="txLogEnd('rollback')" title="Undo everything in this transaction">Rollback</button><button class="go" id="txLogCommit" onclick="txLogEnd('commit')" title="Make everything in this transaction permanent">Commit</button><button onclick="hide('mTxLog')">Close</button></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Transfer script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -2442,12 +2446,25 @@ function txReadsOnly(sql){return !String(sql||'').replace(/\/\*[\s\S]*?\*\/|--[^
 // the transaction's log, shown from the count beside Commit.
 function txWatch(path,p){if(!/^\/api\/(query|script|script-results)$/.test(path)||txReadsOnly(p.sql))return null;
  const t=tabs.find(x=>x.txSession===p.session);if(!t)return null;
- const e={at:new Date(),sql:String(p.sql),grid:!!p.transaction};(t.txLog=t.txLog||[]).push(e);t.txDirty=true;txPaint(t.id);return e;}
+ const e={at:new Date(),sql:String(p.sql),grid:!!p.transaction};(t.txLog=t.txLog||[]).push(e);t.txDirty=true;txPaint(t.id);if(window._txLogTab===t.id&&$('mTxLog').classList.contains('show'))txLogRender();return e;}
 function txLost(session){const t=tabs.find(x=>x.txSession===session);if(t){t.txDirty=false;t.txLog=[];txPaint(t.id);}}
-function txShowLog(id){const t=T(id);const log=(t&&t.txLog)||[];
+// What a tab's open transaction holds, as a window: each run a card - when, what kind, and what came
+// of it - with its SQL below, and Commit and Rollback there to act on it. It opened as plain text in
+// the value viewer.
+function txShowLog(id){const t=T(id);if(!t)return;window._txLogTab=id;txLogRender();show('mTxLog');}
+function txLogRender(){const id=window._txLogTab,t=T(id),box=$('txLogList');if(!box)return;
+ const log=(t&&t.txLog)||[];
  const pad=n=>String(n).padStart(2,'0'),hm=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
- const txt=log.map(e=>'-- '+hm(e.at)+(e.grid?'  grid edits':'')+(e.affected!=null&&e.ok?'  '+e.affected+' row'+(e.affected===1?'':'s')+' changed':'')+(e.ok===undefined?'  running':e.ok?'':'  FAILED: '+String(e.error).split('\n')[0])+'\n'+e.sql.trim()).join('\n\n');
- viewText('Not committed yet - '+log.length+' run'+(log.length===1?'':'s')+' in this transaction',txt||'Nothing has changed anything in this transaction yet.',{readonly:true});}
+ const changed=log.reduce((a,e)=>a+(e.ok&&e.affected!=null?+e.affected:0),0),failed=log.filter(e=>e.ok===false).length;
+ $('txLogSub').textContent=t?(t.title+' - '+log.length+' run'+(log.length===1?'':'s')+(changed?', '+fmtCount(changed)+' row'+(changed===1?'':'s')+' changed':'')+(failed?', '+failed+' failed':'')):'';
+ if(!log.length){box.innerHTML='<div class="cempty">Nothing has changed anything in this transaction yet.</div>';}
+ else box.innerHTML=log.map(e=>{
+  const kind=e.grid?'<span class="utag urole">grid edits</span>':'<span class="utag">query</span>';
+  const res=e.ok===undefined?'<span class="muted">running...</span>':e.ok?(e.affected!=null?'<span class="'+(+e.affected?'uok':'muted')+'">'+fmtCount(+e.affected)+' row'+(+e.affected===1?'':'s')+' changed</span>':'<span class="uok">done</span>'):'<span class="uwarn">failed: '+esc(String(e.error||'').split('\n')[0])+'</span>';
+  return '<div class="citem"><div class="citem-h"><span class="muted" style="font-family:var(--mono);font-size:12px">'+hm(e.at)+'</span>'+kind+'<span class="citem-t">'+res+'</span></div><pre class="ugrants" style="margin:0;max-height:180px">'+esc(e.sql.trim())+'</pre></div>';}).join('');
+ const on=!!(t&&t.txOn),dirty=!!(t&&t.txDirty);
+ $('txLogCommit').disabled=!on||!dirty;$('txLogRollback').disabled=!on||!dirty;}
+async function txLogEnd(action){const id=window._txLogTab;hide('mTxLog');if(id!=null)await txEnd(id,action);}
 function txToggle(id,manual){const t=T(id);if(!t)return;
  if(manual){t.txOn=true;t.txSession=t.txSession||('tx_'+id+'_'+Date.now().toString(36));}
  else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}t.txOn=false;txClose(t);}
