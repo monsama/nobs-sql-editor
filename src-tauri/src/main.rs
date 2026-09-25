@@ -1600,19 +1600,26 @@ async fn objects(req: Value) -> R {
         let db = sql_str_lit(req["db"].as_str().unwrap_or(""));
         let mut c = build_conn(&req["conn"])?;
         let sql = format!(
-            "SELECT 'table' t,TABLE_NAME n FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') \
-             UNION ALL SELECT 'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('VIEW','SYSTEM VIEW') \
-             UNION ALL SELECT IF(ROUTINE_TYPE='PROCEDURE','procedure','function'),ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA={d} \
-             UNION ALL SELECT 'trigger',TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA={d} \
-             UNION ALL SELECT 'event',EVENT_NAME FROM information_schema.EVENTS WHERE EVENT_SCHEMA={d} ORDER BY 1,2", d = db);
+            "SELECT 'table' t,TABLE_NAME n,ENGINE e FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') \
+             UNION ALL SELECT 'view',TABLE_NAME,NULL FROM information_schema.TABLES WHERE TABLE_SCHEMA={d} AND TABLE_TYPE IN ('VIEW','SYSTEM VIEW') \
+             UNION ALL SELECT IF(ROUTINE_TYPE='PROCEDURE','procedure','function'),ROUTINE_NAME,NULL FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA={d} \
+             UNION ALL SELECT 'trigger',TRIGGER_NAME,NULL FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA={d} \
+             UNION ALL SELECT 'event',EVENT_NAME,NULL FROM information_schema.EVENTS WHERE EVENT_SCHEMA={d} ORDER BY 1,2", d = db);
         let (_c, rows) = run_select(&mut c, &sql)?;
         let (mut tables, mut views, mut procedures, mut functions, mut triggers, mut events) =
             (vec![], vec![], vec![], vec![], vec![], vec![]);
+        // Each table's storage engine, for what its menu offers: REPAIR TABLE works on MyISAM,
+        // Aria, CSV and Archive, and InnoDB only answers that it does not support it.
+        let mut table_engines = serde_json::Map::new();
         for r in rows {
             let t = r.first().cloned().flatten().unwrap_or_default();
             let n = r.get(1).cloned().flatten().unwrap_or_default();
             match t.as_str() {
-                "table" => tables.push(n), "view" => views.push(n),
+                "table" => {
+                    if let Some(e) = r.get(2).cloned().flatten() { table_engines.insert(n.clone(), json!(e)); }
+                    tables.push(n)
+                }
+                "view" => views.push(n),
                 "procedure" => procedures.push(n), "function" => functions.push(n),
                 "trigger" => triggers.push(n), "event" => events.push(n), _ => {}
             }
@@ -1631,7 +1638,7 @@ async fn objects(req: Value) -> R {
                 }
             }
         }
-        Ok(json!({"ok":true,"tables":tables,"views":views,"procedures":procedures,"functions":functions,"triggers":triggers,"events":events,"triggerTables":trigger_tables}))
+        Ok(json!({"ok":true,"tables":tables,"views":views,"procedures":procedures,"functions":functions,"triggers":triggers,"events":events,"triggerTables":trigger_tables,"tableEngines":table_engines}))
     }).await.map_err(|e| e.to_string())?
 }
 

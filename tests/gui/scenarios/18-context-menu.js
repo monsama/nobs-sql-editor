@@ -132,6 +132,20 @@
   G.check('a table in information_schema: only what reads it', it.includes('SELECT *') && !it.some(x => /^(Design|Drop|Truncate|Rename|Import|Maintenance|New trigger)/.test(x)), it);
   objMenu({ clientX: 40, clientY: 40 }, db, 'table', tbl); const ut = items();
   G.check('a user table: upkeep in one Maintenance submenu, removal last', ut.some(x => x.startsWith('Maintenance')) && !ut.includes('Optimize') && ut[ut.length - 1] === 'Drop table...', ut);
-  $('ctx').style.display = 'none';
+
+  // Repair is offered where the engine can do it: MyISAM, not InnoDB.
+  const EDB = 'nobs_gui_engines';
+  try {
+    await G.run(`DROP DATABASE IF EXISTS ${EDB}; CREATE DATABASE ${EDB}; CREATE TABLE ${EDB}.inno (id INT PRIMARY KEY) ENGINE=InnoDB; CREATE TABLE ${EDB}.mya (id INT PRIMARY KEY) ENGINE=MyISAM;`);
+    await loadObjects(EDB);
+    const upkeep = name => { objMenu({ clientX: 40, clientY: 40 }, EDB, 'table', name); const m = [...document.querySelectorAll('#ctx > .item')].find(d => d.textContent.startsWith('Maintenance')); return m ? [...m.querySelectorAll('.ctxsub > .item')].map(d => d.textContent) : null; };
+    const ui = upkeep('inno'), um2 = upkeep('mya');
+    G.check('the list knows each table\'s engine', objData && objData.r.tableEngines && /innodb/i.test(objData.r.tableEngines.inno) && /myisam/i.test(objData.r.tableEngines.mya), objData && objData.r.tableEngines);
+    G.check('an InnoDB table is not offered Repair', ui && ui.includes('Check') && !ui.includes('Repair'), ui);
+    G.check('a MyISAM table is', um2 && um2.includes('Repair'), um2);
+  } finally {
+    $('ctx').style.display = 'none';
+    await G.run(`DROP DATABASE IF EXISTS ${EDB}`);
+  }
   return G.report();
 })()

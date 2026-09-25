@@ -380,10 +380,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .plan,.plan ul{list-style:none;margin:0;padding-left:18px} .plan{padding-left:0;margin-top:8px} .plan li{position:relative;padding:3px 0 3px 14px}
  .plan ul li::before{content:'';position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--bd)} .plan ul li:last-child::before{bottom:auto;height:15px}
  .plan ul li::after{content:'';position:absolute;left:0;top:15px;width:11px;border-top:1px solid var(--bd)}
- .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:4px 9px;background:var(--bg);font-size:12px;max-width:100%;box-sizing:border-box}
+ .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:5px 10px;background:var(--panel2);font-size:12px;max-width:100%;box-sizing:border-box}
  .pcard.bad,.psum.bad{border-left-color:#d32f2f} .pcard.warn{border-left-color:#ef6c00} .pcard.ok{border-left-color:#f9a825} .pcard.good,.psum.good{border-left-color:#2e7d32}
  .pacc,.pfacts{color:var(--muted);font-weight:400} .pcond{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .psum{border-left:4px solid var(--muted);padding:4px 9px;font-size:12px;background:var(--panel)} .pjson{margin-top:10px;font-size:12px} .pjson pre{font-size:11px;max-height:300px;overflow:auto}
+ .psum{border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:8px 12px;font-size:12px;background:var(--panel2);margin-bottom:6px} .pjson{margin-top:14px;font-size:12px} .pjson summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0} .pjson pre{font-family:var(--mono);font-size:11px;max-height:300px;overflow:auto;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0}
  /* Chart colours: eight in a fixed order, checked for colour vision and contrast on both themes. */
  .viz-root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;--s8:#e34948} body.dark .viz-root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767}
  .chart .s1.cmark,.chart .s1.cdot,.cleg i.s1,.ctip i.s1{fill:var(--s1);background:var(--s1)} .chart .cline.s1{stroke:var(--s1)} .chart .s2.cmark,.chart .s2.cdot,.cleg i.s2,.ctip i.s2{fill:var(--s2);background:var(--s2)} .chart .cline.s2{stroke:var(--s2)} .chart .s3.cmark,.chart .s3.cdot,.cleg i.s3,.ctip i.s3{fill:var(--s3);background:var(--s3)} .chart .cline.s3{stroke:var(--s3)} .chart .s4.cmark,.chart .s4.cdot,.cleg i.s4,.ctip i.s4{fill:var(--s4);background:var(--s4)} .chart .cline.s4{stroke:var(--s4)} .chart .s5.cmark,.chart .s5.cdot,.cleg i.s5,.ctip i.s5{fill:var(--s5);background:var(--s5)} .chart .cline.s5{stroke:var(--s5)} .chart .s6.cmark,.chart .s6.cdot,.cleg i.s6,.ctip i.s6{fill:var(--s6);background:var(--s6)} .chart .cline.s6{stroke:var(--s6)} .chart .s7.cmark,.chart .s7.cdot,.cleg i.s7,.ctip i.s7{fill:var(--s7);background:var(--s7)} .chart .cline.s7{stroke:var(--s7)} .chart .s8.cmark,.chart .s8.cdot,.cleg i.s8,.ctip i.s8{fill:var(--s8);background:var(--s8)} .chart .cline.s8{stroke:var(--s8)}
@@ -509,7 +509,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .sccols{columns:2;column-gap:28px}
  @media (max-width:820px){.sccols{columns:1}}
  .scsec{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 14px} .scsec td:first-child{width:44%;white-space:normal !important}
- .sch{font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted);margin:0 0 4px}
+ .sch{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
  .toolcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
  /* Compare before its first run: what to do, and what happens, where the results will be. */
  #cmpResults:empty{display:flex;align-items:center;justify-content:center}
@@ -879,7 +879,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <i>No BS, just SQL.</i><br>
   Copyright &copy; 2026 Viktor Ljuca
  </div>
- <div style="margin:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">LICENSE</div>
+ <div class="dsec" style="margin:14px 0 4px">LICENSE</div>
  <div class="muted" style="font-size:12px;line-height:1.6">
   This program is free software: you may redistribute and/or modify it under the terms of the
   <b>GNU General Public License version 2</b>, or (at your option) any later version.<br>
@@ -887,13 +887,13 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   even the implied warranty of merchantability or fitness for a particular purpose. See the
   GNU General Public License for details.
  </div>
- <div style="margin:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">LINKS</div>
- <div class="muted" style="font-size:12px;line-height:1.8;font-family:var(--mono);user-select:text">
-  Website&nbsp;&nbsp;&nbsp;https://monsama.ch<br>
-  Source&nbsp;&nbsp;&nbsp;&nbsp;https://github.com/monsama/nobs-sql-editor<br>
-  License&nbsp;&nbsp;&nbsp;https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ <div class="dsec" style="margin:14px 0 4px">LINKS</div>
+ <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:12px;line-height:1.7;user-select:text;overflow-wrap:anywhere">
+  <span class="muted">Website</span><span>https://monsama.ch</span>
+  <span class="muted">Source</span><span>https://github.com/monsama/nobs-sql-editor</span>
+  <span class="muted">License</span><span>https://www.gnu.org/licenses/old-licenses/gpl-2.0.html</span>
  </div>
- <div style="margin:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">THIRD PARTY</div>
+ <div class="dsec" style="margin:14px 0 4px">THIRD PARTY</div>
  <div class="muted" style="font-size:11px;line-height:1.6">
   Built with Tauri and the Rust crates mysql, reqwest, zip, keyring, tokio, serde, serde_json,
   regex, dirs, csv, hex, tempfile and chrono (and their dependencies), each under its own license
@@ -2996,7 +2996,10 @@ function objMenu(e,db,type,name){const b=[],virt=/^(information_schema|performan
   b.push(!virt&&['New trigger on this table...',()=>newTrigger(db,name)],['Inspect...',()=>inspect(db,name)],'-');
   b.push(!virt&&['Import CSV into table...',()=>importCsv(db,name)],!virt&&['Export...',()=>openExport({db,table:name})]);
   b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')],['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')],'-');
-  b.push(!virt&&['Maintenance',[['Optimize',()=>maint(db,name,'OPTIMIZE')],['Analyze',()=>maint(db,name,'ANALYZE')],['Check',()=>maint(db,name,'CHECK')],['Repair',()=>maint(db,name,'REPAIR')]]],'-');
+  // REPAIR TABLE works on MyISAM, Aria, CSV and Archive; InnoDB only says it does not support it.
+  // An engine the list does not know - another database's table in the all-databases search - keeps it.
+  const _eng=(objData&&objData.db===db&&objData.r&&objData.r.tableEngines)||null,repairable=!_eng||!(name in _eng)||/^(myisam|aria|csv|archive)$/i.test(String(_eng[name]));
+  b.push(!virt&&['Maintenance',[['Optimize',()=>maint(db,name,'OPTIMIZE')],['Analyze',()=>maint(db,name,'ANALYZE')],['Check',()=>maint(db,name,'CHECK')],repairable&&['Repair',()=>maint(db,name,'REPAIR')]]],'-');
   b.push(!virt&&['Rename...',()=>renameTable(db,name)],!virt&&['Duplicate table...',()=>duplicateTable(db,name)],!virt&&['Truncate...',()=>truncateTable(db,name)],!virt&&['Drop table...',()=>dropObject(db,type,name)]);}
  else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)],[virt?'Show CREATE':'Show CREATE / edit',()=>openDdl(db,type,name)],'-',!virt&&['Drop view...',()=>dropObject(db,type,name)]);}
  else {b.push(['Show CREATE / edit',()=>openDdl(db,type,name)],'-',['Drop '+type+'...',()=>dropObject(db,type,name)]);}
@@ -3477,7 +3480,7 @@ function planHtml(json){let plan;try{plan=typeof json==='string'?JSON.parse(json
 async function planShow(id,stmt){const t=T(id);if(!t)return;
  const r=await api('/api/query',{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t),session:sessOf(t)});
  $('planTitle').textContent='Query plan - '+t.title;
- $('planBody').innerHTML=r.ok&&r.rows&&r.rows.length?planHtml(r.rows[0][0]):'<div class="muted">'+esc(r.error||'The server gave no plan for this statement.')+'</div>';
+ $('planBody').innerHTML=r.ok&&r.rows&&r.rows.length?planHtml(r.rows[0][0]):'<div class="unone">'+esc(r.error||'The server gave no plan for this statement.')+'</div>';
  show('mPlan');}
 // ---- a chart of the result ----
 // Bars or a line from the rows the grid shows, in its order and with its filters - so sorting or
@@ -6154,7 +6157,7 @@ async function openErd(db){
  window._erdPos={};
  const r=await api('/api/schema-erd',{db});
  if(!r.ok){toast(r.error||'Could not load the database.',true);return;}
- $('erdTitle').textContent='ER Diagram - '+db;
+ $('erdTitle').textContent='ER diagram - '+db;
  window._erdRawData={db,r};
  erdRender();
 }

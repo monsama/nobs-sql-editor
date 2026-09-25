@@ -1,9 +1,12 @@
 // Picking things out of a result: whole rows in the checkbox column, single cells in the grid
 // itself, and Ctrl+C takes whichever of the two is holding something.
 (async () => {
-  const sys = ['information_schema', 'performance_schema', 'mysql', 'sys'];
-  const db = (await G.q('SELECT DATABASE()'))[0][0] || (await G.q("SELECT DISTINCT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY 1")).map(r => r[0]).filter(d => !sys.includes(d))[0];
-  const tbl = (await G.q('SHOW TABLES FROM ' + '`' + db + '`'))[0][0];
+  // Its own table - three columns, eight rows - rather than whichever table another scenario left:
+  // run on its own against a server where that was a one-column table, it stopped at the first click.
+  const db = 'nobs_gui_pick', tbl = 'p';
+  await G.run(`DROP DATABASE IF EXISTS ${db}; CREATE DATABASE ${db};
+CREATE TABLE ${db}.p (id INT PRIMARY KEY, a VARCHAR(10), b VARCHAR(10));
+INSERT INTO ${db}.p VALUES (1,'a1','b1'),(2,'a2','b2'),(3,'a3','b3'),(4,'a4','b4'),(5,'a5','b5'),(6,'a6','b6'),(7,'a7','b7'),(8,'a8','b8');`);
   const i = openTab(tbl, 'SELECT * FROM `' + db + '`.`' + tbl + '` LIMIT 8;', db, false, tbl);
   await openRun(i);
   await G.until(() => T(i).rows && T(i).rows.length >= 4, 20000);
@@ -131,5 +134,7 @@
   click(cell(2, 0), {});
   G.eq('a plain click clears the picked cells', cellsPicked(), []);
   key('Escape', {});
+  closeTab(i);
+  await G.run(`DROP DATABASE IF EXISTS ${db}`);
   return G.report();
 })()
