@@ -22,7 +22,8 @@ against a server older or newer than the one they were built with.
 param(
     [string]$Root = 'C:\nobs-compat',
     [string]$Password = 'CiTest.123',
-    [string[]]$Servers = @('mysql57:mysql:5.7.44:3357', 'maria102:mariadb:10.2.7:3102', 'mysql94:mysql:9.4.0:3394:lctn2'),
+    [string[]]$Servers = @('mysql57:mysql:5.7.44:3357', 'maria102:mariadb:10.2.7:3102', 'mysql94:mysql:9.4.0:3394:lctn2',
+                          'maria106:mariadb:10.6.28:3106', 'maria1011:mariadb:10.11.19:3111', 'mysql80:mysql:8.0.46:3380'),
     [string]$Fixture = (Join-Path $PSScriptRoot '..\fixtures\seed.sql')
 )
 $ErrorActionPreference = 'Stop'
@@ -57,6 +58,10 @@ function Expand-Flat([string]$Zip, [string]$Dest) {
     New-Item -ItemType Directory -Force $Dest | Out-Null
     Get-ChildItem -LiteralPath $inner.FullName | Move-Item -Destination $Dest -Force
     Remove-Item $tmp -Recurse -Force
+    # Debug symbols and the servers' own test suites are most of an unpacked archive (2.6 GB of
+    # MariaDB 10.2's) and nothing here uses them; a full disk stopped a download once.
+    Get-ChildItem -LiteralPath $Dest -Recurse -Filter *.pdb -File | Remove-Item -Force
+    foreach ($x in 'mysql-test', 'sql-bench') { $p = Join-Path $Dest $x; if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
 }
 function Wait-Port([int]$Port, [string]$What) {
     for ($i = 0; $i -lt 180; $i++) {
@@ -91,97 +96,117 @@ foreach ($spec in $Servers) {
     $log = Join-Path $Root "$name.err"
     $extra = @(); if ($opts -contains 'lctn2') { $extra += '--lower-case-table-names=2' }
 
-    if ($flavor -eq 'mariadb') {
-        if (-not (Test-Path (Join-Path $srvHome 'bin'))) {
-            $z = Get-Archive "mariadb-$version-winx64.zip" @(
-                "https://archive.mariadb.org/mariadb-$version/winx64-packages/mariadb-$version-winx64.zip",
-                "https://mirror.mariadb.org/mariadb-$version/winx64-packages/mariadb-$version-winx64.zip")
-            Expand-Flat $z $srvHome
-        }
-        $bin = Join-Path $srvHome 'bin'
-        # 10.2 still names them mysqld / mysql_install_db / mysql.
-        $server = First-Exe $bin 'mariadbd.exe', 'mysqld.exe'
-        $client = First-Exe $bin 'mariadb.exe', 'mysql.exe'
-        # An old zip ships a data directory with the system tables in it, made when the release was
-        # built. That is used as it is: 10.2.7's mysql_install_db left the account tables damaged on
-        # the CI runner - "marked as crashed" at the first statement on a directory seconds old, index
-        # corruption later, and REPAIR TABLE losing root altogether. Newer zips have no data folder.
-        $fresh = $false
-        $shipped = Join-Path $srvHome 'data'
-        if (-not (Test-Path $data)) {
-            if (Test-Path (Join-Path $shipped 'mysql\user.frm')) {
-                Copy-Item $shipped $data -Recurse
-                $fwd = { param($p) $p -replace '\\', '/' }
-                Set-Content -Encoding ascii (Join-Path $data 'my.ini') "[mysqld]`ndatadir=$(& $fwd $data)`nport=$port`n[client]`nport=$port`n"
+    # MariaDB 10.2.7 on GitHub's Windows runners - never on a developer's machine - now and then
+    # could not read its own account tables right after starting: "marked as crashed", "Host
+    # 'localhost' is not allowed to connect", with the same files that work the next time. Once it
+    # has started cleanly it stays well for the whole run, so a start that fails is thrown away -
+    # its server stopped, its data directory removed - and made again, up to three times.
+    for ($attempt = 1; ; $attempt++) {
+      try {
+        if ($flavor -eq 'mariadb') {
+            if (-not (Test-Path (Join-Path $srvHome 'bin'))) {
+                $z = Get-Archive "mariadb-$version-winx64.zip" @(
+                    "https://archive.mariadb.org/mariadb-$version/winx64-packages/mariadb-$version-winx64.zip",
+                    "https://mirror.mariadb.org/mariadb-$version/winx64-packages/mariadb-$version-winx64.zip")
+                Expand-Flat $z $srvHome
+            }
+            $bin = Join-Path $srvHome 'bin'
+            # 10.2 still names them mysqld / mysql_install_db / mysql.
+            $server = First-Exe $bin 'mariadbd.exe', 'mysqld.exe'
+            $client = First-Exe $bin 'mariadb.exe', 'mysql.exe'
+            # An old zip ships a data directory with the system tables in it, made when the release was
+            # built. That is used as it is: 10.2.7's mysql_install_db left the account tables damaged on
+            # the CI runner - "marked as crashed" at the first statement on a directory seconds old, index
+            # corruption later, and REPAIR TABLE losing root altogether. Newer zips have no data folder.
+            $fresh = $false
+            $shipped = Join-Path $srvHome 'data'
+            if (-not (Test-Path $data)) {
+                if (Test-Path (Join-Path $shipped 'mysql\user.frm')) {
+                    Copy-Item $shipped $data -Recurse
+                    $fwd = { param($p) $p -replace '\\', '/' }
+                    Set-Content -Encoding ascii (Join-Path $data 'my.ini') "[mysqld]`ndatadir=$(& $fwd $data)`nport=$port`n[client]`nport=$port`n"
+                    $fresh = $true
+                } else {
+                    $install = First-Exe $bin 'mariadb-install-db.exe', 'mysql_install_db.exe'
+                    & $install "--datadir=$data" "--password=$Password" "--port=$port" '--allow-remote-root-access'
+                    if ($LASTEXITCODE -ne 0) { throw "$install failed" }
+                }
+            }
+            # Even the shipped tables were, now and then, "marked as crashed" at the first statement on the
+            # CI runner - never on a developer's machine. The MyISAM system tables are checked, and fixed
+            # if need be, before the server opens them; and whatever is still marked when opened is
+            # repaired then rather than refused.
+            $chk = Join-Path $bin 'myisamchk.exe'
+            # (From 10.4 on the system tables are Aria, and there is nothing here for myisamchk.)
+            $myi = @(Get-ChildItem (Join-Path $data 'mysql\*.MYI') -ErrorAction SilentlyContinue)
+            if ((Test-Path $chk) -and $myi.Count) {
+                & $chk --silent --force --update-state @($myi.FullName)
+                if ($LASTEXITCODE -ne 0) { throw "myisamchk found the system tables of $name beyond repair" }
+            }
+            $recover = @('--myisam-recover-options=FORCE,BACKUP', '--aria-recover-options=FORCE,BACKUP')
+            Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $recover + $extra)
+            Wait-Port $port "$name ($flavor $version)"
+            if ($fresh) {
+                # The shipped tables have root without a password, and anonymous accounts.
+                Invoke-Sql $client $port "DELETE FROM mysql.user WHERE User = ''; UPDATE mysql.user SET Password = PASSWORD('$Password') WHERE User = 'root'; FLUSH PRIVILEGES; GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '$Password' WITH GRANT OPTION;" -NoPassword
+            }
+        } else {
+            $series = ($version.Split('.')[0..1]) -join '.'
+            if (-not (Test-Path (Join-Path $srvHome 'bin\mysqld.exe'))) {
+                $file = "mysql-$version-winx64.zip"
+                $z = Get-Archive $file @(
+                    "https://cdn.mysql.com/Downloads/MySQL-$series/$file",
+                    "https://downloads.mysql.com/archives/get/p/23/file/$file")
+                Expand-Flat $z $srvHome
+            }
+            $bin = Join-Path $srvHome 'bin'
+            $server = Join-Path $bin 'mysqld.exe'; $client = Join-Path $bin 'mysql.exe'
+            $fresh = $false
+            if (-not (Test-Path $data)) {
+                & $server '--initialize-insecure' "--basedir=$srvHome" "--datadir=$data" '--console' @extra
+                if ($LASTEXITCODE -ne 0) { throw "mysqld --initialize failed for $name" }
                 $fresh = $true
-            } else {
-                $install = First-Exe $bin 'mariadb-install-db.exe', 'mysql_install_db.exe'
-                & $install "--datadir=$data" "--password=$Password" "--port=$port" '--allow-remote-root-access'
-                if ($LASTEXITCODE -ne 0) { throw "$install failed" }
+            }
+            $sargs = @("--basedir=`"$srvHome`"", "--datadir=`"$data`"", "--port=$port", "--log-error=`"$log`"") + $extra
+            if ([version]$version -ge [version]'8.0') { $sargs += '--mysqlx=OFF' }
+            Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList $sargs
+            Wait-Port $port "$name ($flavor $version)"
+            if ($fresh) {
+                Invoke-Sql $client $port "ALTER USER 'root'@'localhost' IDENTIFIED BY '$Password'; CREATE USER 'root'@'%' IDENTIFIED BY '$Password'; GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;" -NoPassword
             }
         }
-        # Even the shipped tables were, now and then, "marked as crashed" at the first statement on the
-        # CI runner - never on a developer's machine. The MyISAM system tables are checked, and fixed
-        # if need be, before the server opens them; and whatever is still marked when opened is
-        # repaired then rather than refused.
-        $chk = Join-Path $bin 'myisamchk.exe'
-        if (Test-Path $chk) {
-            & $chk --silent --force --update-state @((Get-ChildItem (Join-Path $data 'mysql\*.MYI')).FullName)
-            if ($LASTEXITCODE -ne 0) { throw "myisamchk found the system tables of $name beyond repair" }
+        # A listening port is not yet a server that signs anyone in: MariaDB 10.2 once refused root with
+        # "Host 'localhost' is not allowed to connect" in the second after it opened the port. Wait until
+        # a query goes through.
+        for ($i = 0; $i -lt 60; $i++) {
+            try { Invoke-Sql $client $port 'SELECT 1' | Out-Null; break } catch { if ($i -eq 59) { throw }; Start-Sleep -Milliseconds 500 }
         }
-        $recover = @('--myisam-recover-options=FORCE,BACKUP', '--aria-recover-options=FORCE,BACKUP')
-        Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $recover + $extra)
-        Wait-Port $port "$name ($flavor $version)"
-        if ($fresh) {
-            # The shipped tables have root without a password, and anonymous accounts.
-            Invoke-Sql $client $port "DELETE FROM mysql.user WHERE User = ''; UPDATE mysql.user SET Password = PASSWORD('$Password') WHERE User = 'root'; FLUSH PRIVILEGES; GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '$Password' WITH GRANT OPTION;" -NoPassword
+        # MariaDB before 10.4 keeps its accounts in MyISAM tables, and 10.2.7 on Windows corrupted the
+        # index of mysql.user in the middle of a run - locally and in CI, on a fresh data directory -
+        # which then shows as doubled SHOW GRANTS lines and "Index for table 'user' is corrupt". Aria
+        # (crash-safe, what 10.4 on uses for them) does not; that is the server's bug, not the app's.
+        if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
+            $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
+            Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
         }
-    } else {
-        $series = ($version.Split('.')[0..1]) -join '.'
-        if (-not (Test-Path (Join-Path $srvHome 'bin\mysqld.exe'))) {
-            $file = "mysql-$version-winx64.zip"
-            $z = Get-Archive $file @(
-                "https://cdn.mysql.com/Downloads/MySQL-$series/$file",
-                "https://downloads.mysql.com/archives/get/p/23/file/$file")
-            Expand-Flat $z $srvHome
-        }
-        $bin = Join-Path $srvHome 'bin'
-        $server = Join-Path $bin 'mysqld.exe'; $client = Join-Path $bin 'mysql.exe'
-        $fresh = $false
-        if (-not (Test-Path $data)) {
-            & $server '--initialize-insecure' "--basedir=$srvHome" "--datadir=$data" '--console' @extra
-            if ($LASTEXITCODE -ne 0) { throw "mysqld --initialize failed for $name" }
-            $fresh = $true
-        }
-        $sargs = @("--basedir=`"$srvHome`"", "--datadir=`"$data`"", "--port=$port", "--log-error=`"$log`"") + $extra
-        if ([version]$version -ge [version]'8.0') { $sargs += '--mysqlx=OFF' }
-        Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList $sargs
-        Wait-Port $port "$name ($flavor $version)"
-        if ($fresh) {
-            Invoke-Sql $client $port "ALTER USER 'root'@'localhost' IDENTIFIED BY '$Password'; CREATE USER 'root'@'%' IDENTIFIED BY '$Password'; GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;" -NoPassword
-        }
+        Invoke-Sql $client $port -File (Resolve-Path $Fixture).Path
+        Invoke-Sql $client $port 'SELECT VERSION(), @@lower_case_table_names, (SELECT COUNT(*) FROM nobs_test.ro_canary)'
+        $key = $name.ToUpper()
+        $out["NOBS_COMPAT_$($key)_DSN"] = "127.0.0.1:$($port):root:$Password"
+        $out["NOBS_COMPAT_$($key)_BIN"] = $bin
+        # One server - a matrix job's - is also named without its key, so the steps need not know it.
+        if ($Servers.Count -eq 1) { $out['NOBS_COMPAT_DSN'] = "127.0.0.1:$($port):root:$Password"; $out['NOBS_COMPAT_BIN'] = $bin }
+
+        break
+      } catch {
+        if ($attempt -ge 3) { throw }
+        "$name did not start cleanly (attempt $attempt): $($_.Exception.Message) - starting it again"
+        Get-CimInstance Win32_Process -Filter "name='mysqld.exe' or name='mariadbd.exe'" |
+            Where-Object { $_.CommandLine -like "*$name-data*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Seconds 3
+        Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue
+      }
     }
-    # MariaDB before 10.4 keeps its accounts in MyISAM tables, and 10.2.7 on Windows corrupted the
-    # index of mysql.user in the middle of a run - locally and in CI, on a fresh data directory -
-    # which then shows as doubled SHOW GRANTS lines and "Index for table 'user' is corrupt". Aria
-    # (crash-safe, what 10.4 on uses for them) does not; that is the server's bug, not the app's.
-    # A listening port is not yet a server that signs anyone in: MariaDB 10.2 once refused root with
-    # "Host 'localhost' is not allowed to connect" in the second after it opened the port. Wait until
-    # a query goes through.
-    for ($i = 0; $i -lt 60; $i++) {
-        try { Invoke-Sql $client $port 'SELECT 1' | Out-Null; break } catch { if ($i -eq 59) { throw }; Start-Sleep -Milliseconds 500 }
-    }
-    if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
-        $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
-        Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
-    }
-    Invoke-Sql $client $port -File (Resolve-Path $Fixture).Path
-    Invoke-Sql $client $port 'SELECT VERSION(), @@lower_case_table_names, (SELECT COUNT(*) FROM nobs_test.ro_canary)'
-    $key = $name.ToUpper()
-    $out["NOBS_COMPAT_$($key)_DSN"] = "127.0.0.1:$($port):root:$Password"
-    $out["NOBS_COMPAT_$($key)_BIN"] = $bin
-    # One server - a matrix job's - is also named without its key, so the steps need not know it.
-    if ($Servers.Count -eq 1) { $out['NOBS_COMPAT_DSN'] = "127.0.0.1:$($port):root:$Password"; $out['NOBS_COMPAT_BIN'] = $bin }
 }
 foreach ($k in $out.Keys) {
     "$k=$($out[$k])"

@@ -1,7 +1,7 @@
 name: compat
 
 # The live suite and the GUI scenarios against servers the main suite (test.yml: current MariaDB
-# and MySQL) does not cover, and PAM sign-in. What these have found so far, each fixed and now
+# and MySQL) does not cover - MySQL 5.7, 8.0 and 9.4, MariaDB 10.2, 10.6 and 10.11 - and PAM sign-in. What these have found so far, each fixed and now
 # checked here:
 #   - MySQL 5.7: the app's MySQL 8.4 client tools asked for utf8mb4 with a collation 5.7 does not
 #     know, 5.7 fell back to latin1, and a data-only export turned every character latin1 cannot
@@ -39,6 +39,13 @@ jobs:
             spec: 'mysql57:mysql:5.7.44:3357'
           - name: maria102
             spec: 'maria102:mariadb:10.2.7:3102'
+          # The long-term releases most servers in use actually run.
+          - name: maria106
+            spec: 'maria106:mariadb:10.6.28:3106'
+          - name: maria1011
+            spec: 'maria1011:mariadb:10.11.19:3111'
+          - name: mysql80
+            spec: 'mysql80:mysql:8.0.46:3380'
           # lower_case_table_names=2 keeps the case a name was given and compares ignoring it. It
           # is only accepted on a file system that ignores case, which is why this runs on Windows.
           - name: mysql94-lctn2
