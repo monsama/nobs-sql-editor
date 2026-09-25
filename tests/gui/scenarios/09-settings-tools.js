@@ -9,9 +9,12 @@
   G.check('two cards, one for each kind of server', maria && mysql && /For MariaDB servers/.test(maria.innerText) && /For MySQL servers/.test(mysql.innerText), [maria && maria.innerText.slice(0, 40), mysql && mysql.innerText.slice(0, 40)]);
   G.check('each card has its own paths and download', maria.contains($('cfgMysql')) && maria.contains($('cfgDump')) && /Download MariaDB client tools/.test(maria.innerText)
     && mysql.contains($('cfgMysqlMy')) && mysql.contains($('cfgDumpMy')) && /Download MySQL client tools/.test(mysql.innerText), 'fields or buttons in the wrong card');
-  G.check('the MariaDB card shows its tools', /mysql:/.test($('cfgStatusMaria').innerText) && /mysqldump:/.test($('cfgStatusMaria').innerText), $('cfgStatusMaria').innerText);
+  // each path row says what it comes to, in a chip beside the box - the paths are not listed twice
+  const chip = id => $('stc_' + id);
+  G.check('the MariaDB card shows its tools, beside their boxes', ['cfgMysql', 'cfgDump'].every(id => chip(id) && chip(id).textContent && /(^| )(ok|bad)( |$)/.test(chip(id).className)), ['cfgMysql', 'cfgDump'].map(id => chip(id) && chip(id).className + ' ' + chip(id).textContent));
+  G.check('and there is no second list of them', !$('cfgStatusMaria') && !$('cfgStatusMysql'), 'a status panel is still there');
   const serverIsMaria = /MariaDB/i.test(await G.one('SELECT VERSION()'));
-  const mysqlTools = !/none - the tools for MariaDB servers are used/.test($('cfgStatusMysql').innerText);
+  const mysqlTools = !chip('cfgMysqlMy').classList.contains('none') && !chip('cfgDumpMy').classList.contains('none');
   const inUse = (!serverIsMaria && mysqlTools) ? mysql : maria;
   G.check('the card the connected server uses is marked, and only that one', inUse.classList.contains('inuse') && !(inUse === maria ? mysql : maria).classList.contains('inuse'),
     { status: status.textContent, maria: maria.className, mysql: mysql.className });
