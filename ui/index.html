@@ -458,10 +458,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .toolbar.tight{gap:4px} .toolbar.tight .tbsep{margin:2px !important} .toolbar.tight [id^="resultActions_"],.toolbar.tight [id^="edit_"]{gap:4px !important} .toolbar.tight>label{margin-left:0 !important}
  .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
- body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:16px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
+ body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:16px;font-weight:600} table.ovgrid{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2)}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
     eye loses which column it is in halfway along a wide window. */
- table.ovgrid th+th,table.ovgrid td+td{border-left:1px solid var(--bd2)}
+ table.ovgrid th+th,table.ovgrid td+td{border-left:0}
  /* The server as columns of plain lines, not tiles: tiles gave every fact the same weight and a
     card's worth of padding, and pushed the database table off the page. Columns wrap when the
     window is too narrow to hold them all. */
@@ -473,21 +473,23 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ovupd{color:var(--muted);font-size:11px}
  .ovwhere{color:var(--muted);font-size:12px}
  .ovgap{flex:1}
- .ovsrv{display:flex;flex-wrap:wrap;gap:0 30px;margin-bottom:12px}
- .ovsg{flex:1 1 210px;min-width:0;max-width:340px;margin-bottom:8px}
- .ovsh{font-size:10px;font-weight:700;letter-spacing:.7px;color:var(--muted);padding-bottom:3px;margin-bottom:3px;border-bottom:1px solid var(--bd)}
- .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:17px}
+ .ovsrv{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:20px}
+ .ovsg{min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:10px 14px 8px}
+ .ovsh{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+ .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:21px}
  .ovr .l{color:var(--muted);white-space:nowrap}
  .ovr .v{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  /* Only the few lines worth noticing are coloured; the rest stay out of the way. */
  .ovr.note .v{color:var(--accent)}
- .ovr.warn .v{color:#e06c6c}
+ .ovr.warn .v{color:#d9822b}
  /* Parts the server from what is on it, so the page reads as two things rather than one long one. */
- .ovsep{border-top:1px solid var(--bd);margin:0 0 14px}
+ .ovsep{display:none}
  /* How big a database is compared with the biggest one here - the numbers alone make that a
     reading exercise, and which ones are worth attention is the point of the list. */
  .szbar{height:3px;border-radius:2px;background:var(--bd2);margin-top:3px}
- .szbar>i{display:block;height:3px;border-radius:2px;background:var(--accent);opacity:.75} table.ovgrid th{border:none;border-bottom:2px solid var(--bd);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-bottom:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} table.ovgrid th{background:var(--gridh);font-weight:600} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
+ .szbar>i{display:block;height:3px;border-radius:2px;background:var(--accent);opacity:.75} table.ovgrid th{border:none;border-bottom:1px solid var(--bd2);padding:7px 14px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-top:1px solid var(--bd2);padding:7px 14px;text-align:left;white-space:nowrap} .ovgrid tbody tr:first-child td{border-top:0} .ovgrid th.num{text-align:right}
+ .ovgrid tr.ovsys td{color:var(--muted)} .ovgrid tr.ovsys .utag{margin-left:6px}
+ .ovgrid tr.ovtot td{font-weight:600;border-top:1px solid var(--bd)} .ovgrid tbody tr.ovtot{cursor:default} .ovgrid tbody tr.ovtot:hover{background:none} table.ovgrid th{background:transparent;font-weight:600;font-size:11px;color:var(--muted)} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
 .expdbrow{margin:1px 0}
 .exptoggle{display:inline-block;width:14px;cursor:pointer;color:var(--muted);user-select:none;font-size:10px;text-align:center}
 .exptoggle:hover{color:var(--accent)}
@@ -2782,7 +2784,7 @@ function serverInfoHtml(raw){
   const writes=(+st.Com_insert||0)+(+st.Com_update||0)+(+st.Com_delete||0),selects=+st.Com_select||0;
   const q=+st.Questions||0,slow=+st.Slow_queries||0;
   const ab=(+st.Aborted_connects||0)+(+st.Aborted_clients||0);
-  cols.push(ovCol('WHAT IT IS',[
+  cols.push(ovCol('What it is',[
    ovRow('Version',flavour+' '+ver,'',String(s.vc||'')),
    ovRow('Host',String(s.hn||'')+':'+String(s.pt||'')),
    ovRow('Signed in as',String(s.cu||'')),
@@ -2790,7 +2792,7 @@ function serverInfoHtml(raw){
    ovRow('Server time',String(s.nw||''),'','Time zone '+String(s.tz||'')),
    ovRow('Data directory',String(s.dd||''),'',String(s.dd||'')),
   ]));
-  cols.push(ovCol('RIGHT NOW',[
+  cols.push(ovCol('Right now',[
    ovRow('Uptime',fmtUptime(up),up<600?'note':'',up<600?'The server was restarted a few minutes ago':''),
    ovRow('Connections',conn+' of '+maxc,busy>=0.8?'warn':(busy>=0.6?'note':''),'Threads connected against max_connections'),
    ovRow('Peak',peak?peak+' of '+maxc:'',maxc&&peak/maxc>=0.9?'note':'','The most that were ever connected at once'),
@@ -2798,7 +2800,7 @@ function serverInfoHtml(raw){
    ovRow('Queries',fmtRate(q,up),'','Average since the server started'),
    ovRow('Total',fmtCount(q)+' queries'),
   ]));
-  cols.push(ovCol('HOW IT IS DOING',[
+  cols.push(ovCol('How it is doing',[
    ovRow('Buffer pool hits',reqs?fmtPct(reqs-reads,reqs):'',reqs&&(reqs-reads)/reqs<0.95?'warn':'',
     'Reads answered from memory - '+fmtCount(reads)+' had to go to disk.\nUnder 95%: give innodb_buffer_pool_size more memory.'),
    ovRow('Temp tables on disk',tmp?fmtPct(tmpDisk,tmp):'',tmp&&tmpDisk/tmp>0.25?'warn':'',
@@ -2812,7 +2814,7 @@ function serverInfoHtml(raw){
    ovRow('Read / write',(selects+writes)?fmtPct(selects,selects+writes)+' reads':'','',
     fmtCount(selects)+' selects against '+fmtCount(writes)+' writes.\nMostly writes: check the indexes you are maintaining. Mostly reads: a bigger buffer pool or a replica pays off.'),
   ]));
-  cols.push(ovCol('SET UP WITH',[
+  cols.push(ovCol('Set up with',[
    ovRow('Charset',String(s.cs||'')),
    ovRow('Collation',String(s.co||'')),
    ovRow('Time zone',String(s.tz||'')),
@@ -2824,7 +2826,9 @@ function serverInfoHtml(raw){
  const c=cols.filter(Boolean);
  if(!c.length)return '';
  const where=s?(String(s.hn||'')+(s.pt?(':'+s.pt):'')):'';
- let head='<div class="ovtop"><div class="ovtitle"><h2>Server</h2>'+(where?'<span class="ovwhere">'+esc(where)+'</span>':'')+'</div><span class="ovgap"></span>';
+ const warns=[...c.join('').matchAll(/class="ovr warn"[^>]*><span class="l">([^<]*)</g)].map(m=>m[1]);
+ let head='<div class="ovtop"><div class="ovtitle"><h2>Server</h2>'+(where?'<span class="ovwhere">'+esc(where)+'</span>':'')+
+  (warns.length?'<span class="utag uwarn" title="'+esc('Worth a look: '+warns.join(', ')+' - hover each for why')+'">'+warns.length+' to look at</span>':'')+'</div><span class="ovgap"></span>';
  if(raw)head+='<span class="ovupd">Updated '+esc(overviewTimeAgo(raw.fetchedAt))+'</span>';
  head+='<button class="sm" title="Read the server figures and the database list again" onclick="showOverview(true)">Refresh</button></div>';
  return head+'<div class="ovsrv">'+c.join('')+'</div><div class="ovsep"></div>';
@@ -2845,7 +2849,9 @@ function renderOverview() {
 
     const H = ['Database', 'Tables', 'Rows', 'Size', 'Views', 'Procedures', 'Functions', 'Triggers', 'Events', 'Charset', 'Collation'];
     const allCount = raw.r.rows.filter(row => row[0] != null && row[0] !== '').length;
-    const rows = overviewFilteredSortedRows();
+    // The server's own databases after yours, whatever the sort: they are rarely what is looked for.
+    const OV_SYS = /^(information_schema|performance_schema|mysql|sys)$/i, sorted = overviewFilteredSortedRows();
+    const rows = [...sorted.filter(r => !OV_SYS.test(String(r[0]))), ...sorted.filter(r => OV_SYS.test(String(r[0])))];
     const { col: sortCol, dir: sortDir } = window._overviewSort;
 
     let h = serverInfoHtml(raw);
@@ -2860,7 +2866,8 @@ function renderOverview() {
     }).join('') + '</tr></thead><tbody>';
     const maxSize = Math.max(1, ...rows.map(r => +r[3] || 0));
     rows.forEach(row => {
-        h += '<tr data-db="' + esc(String(row[0])) + '"><td>' + esc(String(row[0])) + '</td>'
+        const sys = OV_SYS.test(String(row[0]));
+        h += '<tr data-db="' + esc(String(row[0])) + '"' + (sys ? ' class="ovsys"' : '') + '><td>' + esc(String(row[0])) + (sys ? '<span class="utag">system</span>' : '') + '</td>'
             + '<td class=num>' + fmtCount(+row[1] || 0) + '</td>'
             + '<td class=num>' + fmtCount(+row[2] || 0) + '</td>'
             + '<td class=num>' + fmtBytes(row[3]) + '<div class="szbar"><i style="width:' + Math.max(1, Math.round((+row[3] || 0) / maxSize * 100)) + '%"></i></div></td>'
@@ -2872,7 +2879,7 @@ function renderOverview() {
     // someone filtering down to a few databases would actually want summed.
     if (rows.length) {
         const sum = (idx) => rows.reduce((a, row) => a + (+row[idx] || 0), 0);
-        h += '<tr style="font-weight:600;border-top:2px solid var(--bd)"><td>Total</td>'
+        h += '<tr class="ovtot"><td>Total</td>'
             + '<td class=num>' + fmtCount(sum(1)) + '</td><td class=num>' + fmtCount(sum(2)) + '</td><td class=num>' + fmtBytes(sum(3)) + '</td>'
             + '<td class=num>' + fmtCount(sum(4)) + '</td><td class=num>' + fmtCount(sum(5)) + '</td><td class=num>' + fmtCount(sum(6)) + '</td>'
             + '<td class=num>' + fmtCount(sum(7)) + '</td><td class=num>' + fmtCount(sum(8)) + '</td><td></td><td></td></tr>';
