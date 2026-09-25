@@ -151,7 +151,9 @@ jobs:
             docker cp nobs-pam-check pam$port:/usr/local/bin/nobs-pam-check
             docker exec pam$port chmod 755 /usr/local/bin/nobs-pam-check
             docker cp mariadb.pam pam$port:/etc/pam.d/mariadb
-            for i in $(seq 60); do docker exec pam$port mariadb -uroot -pCiTest.123 -e 'SELECT 1' >/dev/null 2>&1 && break; sleep 2; done
+            # Not "SELECT 1": the image's first start runs a socket-only server for its setup and then
+            # restarts, and that one answers too. healthcheck.sh --connect needs the real server.
+            for i in $(seq 90); do docker exec pam$port healthcheck.sh --connect --innodb_initialized >/dev/null 2>&1 && break; sleep 2; done
             docker exec pam$port mariadb -uroot -pCiTest.123 -e "
               CREATE USER nobs_pam@'%' IDENTIFIED VIA pam USING 'mariadb';
               CREATE DATABASE nobs_pam; GRANT ALL ON nobs_pam.* TO nobs_pam@'%';

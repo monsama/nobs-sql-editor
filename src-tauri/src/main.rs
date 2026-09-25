@@ -2116,6 +2116,48 @@ fn tls_guard_for(connj: &Value, tool: &str) -> Result<Option<String>, String> {
 
 #[cfg(test)]
 fn cnf_file(connj: &Value, tool: &str) -> Result<(tempfile::NamedTempFile, String), String> { cnf_file_with(connj, tool, None) }
+
+// The SHA-256 fingerprint of the certificate a server presents, read the way a client starts TLS on
+// the MySQL protocol: the server's greeting, an SSL request, then the TLS handshake. Nothing is
+// checked and nothing is sent after it - no user, no password. mariadb-dump has no init-command,
+// so the TLS guard cannot reach its session; pinned to this fingerprint (--ssl-fp) it refuses a
+// server without TLS, and any other certificate, by itself. A server that offers no TLS is an error
+// here already.
+fn server_cert_fingerprint(connj: &Value) -> Result<String, String> {
+    use sha2::Digest;
+    use std::io::{Read, Write};
+    let (host, port) = endpoint(connj)?;
+    let fail = |e: &dyn std::fmt::Display| format!("Could not read the server's certificate from {host}:{port}: {e}");
+    let mut s = std::net::TcpStream::connect((host.as_str(), port)).map_err(|e| fail(&e))?;
+    let t = Some(std::time::Duration::from_secs(10));
+    let _ = s.set_read_timeout(t); let _ = s.set_write_timeout(t);
+    let mut head = [0u8; 4];
+    s.read_exact(&mut head).map_err(|e| fail(&e))?;
+    let len = head[0] as usize | (head[1] as usize) << 8 | (head[2] as usize) << 16;
+    let mut greeting = vec![0u8; len];
+    s.read_exact(&mut greeting).map_err(|e| fail(&e))?;
+    if greeting.first() == Some(&0xFF) { return Err(fail(&String::from_utf8_lossy(greeting.get(3..).unwrap_or(&[])))); }
+    // protocol version, server version up to its NUL, thread id (4), scramble (8), filler (1), then
+    // the lower two bytes of the capabilities - where CLIENT_SSL (0x0800) is.
+    let nul = greeting.iter().skip(1).position(|&b| b == 0).ok_or_else(|| fail(&"a greeting without a server version"))? + 1;
+    let at = nul + 1 + 4 + 8 + 1;
+    let caps = greeting.get(at..at + 2).map(|c| u16::from_le_bytes([c[0], c[1]])).ok_or_else(|| fail(&"a greeting cut short"))?;
+    if caps & 0x0800 == 0 { return Err(format!("SSL mode \"required\": the server at {host}:{port} offers no TLS.")); }
+    // SSLRequest: capabilities (SSL, PROTOCOL_41, SECURE_CONNECTION, LONG_PASSWORD), max packet,
+    // character set (utf8mb4_general_ci), 23 bytes of filler.
+    let mut req = vec![32u8, 0, 0, 1];
+    req.extend_from_slice(&(0x0800u32 | 0x0200 | 0x8000 | 0x0001).to_le_bytes());
+    req.extend_from_slice(&(16u32 << 20).to_le_bytes());
+    req.push(45);
+    req.extend_from_slice(&[0u8; 23]);
+    s.write_all(&req).map_err(|e| fail(&e))?;
+    let tls = native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(true).danger_accept_invalid_hostnames(true)
+        .build().map_err(|e| fail(&e))?
+        .connect(&host, s).map_err(|e| fail(&e))?;
+    let der = tls.peer_certificate().map_err(|e| fail(&e))?.ok_or_else(|| fail(&"no certificate"))?.to_der().map_err(|e| fail(&e))?;
+    Ok(sha2::Sha256::digest(&der).iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":"))
+}
 fn cnf_file_with(connj: &Value, tool: &str, guard: Option<&str>) -> Result<(tempfile::NamedTempFile, String), String> {
     let mut f = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
     let mut s = String::from("[client]\n");
@@ -2926,6 +2968,12 @@ async fn export_run(req: Value, dbin: String) -> R {
         let _guard = JobGuard(jid);
         let guard = tls_guard_for(&req["conn"], &dbin)?;
         let (_f, cnf) = cnf_file_with(&req["conn"], &dbin, guard.as_deref())?;
+        // The guard is there for MariaDB's client on "required" - which mariadb-dump cannot run
+        // (no init-command). It is pinned to the server's certificate instead, so the dump's own
+        // session is encrypted or does not happen (see server_cert_fingerprint).
+        let pin = if guard.is_some() {
+            match server_cert_fingerprint(&req["conn"]) { Ok(fp) => Some(fp), Err(e) => return Ok(json!({"ok":false,"error":e})) }
+        } else { None };
         let dbs: Vec<String> = req["dbs"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
         if dbs.is_empty() { return Ok(json!({"ok":false,"error":"No databases selected."})); }
         let folder = req["folder"].as_str().unwrap_or(".").to_string();
@@ -2970,6 +3018,7 @@ async fn export_run(req: Value, dbin: String) -> R {
         // those differ between "table" mode, which dumps table-by-table, and db/single modes).
         let charset = o["charset"].as_str().unwrap_or("utf8mb4");
         let mut common = vec![format!("--defaults-extra-file={}", cnf), format!("--default-character-set={}", charset)];
+        if let Some(fp) = &pin { common.push(format!("--ssl-fp={fp}")); }
         // The chosen character set replaces the options file's SET NAMES utf8mb4 (see cnf_file).
         if !client_is_mariadb(&dbin) && !charset.is_empty() && charset.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             common.push(format!("--loose-init-command=SET NAMES {}", charset));
@@ -6352,6 +6401,33 @@ mod export_cancel_tests {
 #[cfg(test)]
 mod import_tests {
     use super::*;
+
+    // mariadb-dump has no init-command, and on "required" it carried on in plaintext against a
+    // server without TLS. It is pinned to the server's certificate now: where the server has TLS
+    // the export goes through, where it has none nothing is exported.
+    #[tokio::test]
+    #[ignore]
+    async fn a_required_export_through_mariadb_dump_is_encrypted_or_refused() {
+        let (Ok(dsn), Ok(dbin)) = (std::env::var("NOBS_TEST_DSN"), std::env::var("MYSQLDUMP_BIN")) else { eprintln!("NOBS_TEST_DSN or MYSQLDUMP_BIN not set - skipping"); return };
+        if !client_is_mariadb(&dbin) { eprintln!("MYSQLDUMP_BIN is not MariaDB's - skipping"); return; }
+        let d: Vec<&str> = dsn.splitn(4, ':').collect();
+        let conn = json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"required"});
+        let cap = caps::of(&json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default"}));
+        let dir = tempfile::tempdir().unwrap();
+        let ex = export_run(json!({"conn":conn,"dbs":["nobs_test"],"folder":dir.path().to_string_lossy(),"mode":"db",
+            "options":{"charset":"utf8mb4","what":"structure"}}), dbin).await;
+        let wrote = std::fs::read_dir(dir.path()).unwrap().flatten().any(|e| e.path().extension().map(|x| x == "sql").unwrap_or(false));
+        if cap.tls {
+            let fp = server_cert_fingerprint(&conn).unwrap();
+            assert_eq!(fp.len(), 32 * 3 - 1, "a SHA-256 fingerprint: {fp}");
+            let ex = ex.unwrap();
+            assert!(wrote && !ex.to_string().contains("FAILED"), "a server with TLS is exported: {ex}");
+        } else {
+            assert!(server_cert_fingerprint(&conn).unwrap_err().contains("offers no TLS"));
+            assert!(!wrote, "nothing is exported from a server without TLS on \"required\": {ex:?}");
+            assert!(ex.map(|v| v["ok"] == false).unwrap_or(true), "and it says it did not export");
+        }
+    }
 
     // A dump sets a non-strict sql_mode, so a value too long for its column is cut with a warning
     // and the import carries on. That was logged as a plain OK - the data was changed and nothing

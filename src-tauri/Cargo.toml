@@ -16,6 +16,7 @@ serde_json = "1"
 regex = "1"
 tokio = { version = "1", features = ["full"] }
 mysql = { version = "28", features = ["native-tls"] }
+native-tls = "0.2"   # the same one mysql uses; reads a server's certificate to pin mariadb-dump to it
 dirs = "7"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 csv = "1"

@@ -216,7 +216,9 @@ way of asking (the dialog plugin), and the connection error says so.
 Export and Import run the command-line client (below) with the same settings. The MariaDB client
 has no way to check a CA without also checking the host name, except on connections to the local
 machine, so there `verify-ca` is carried out as full `verify`. It never checks less than you asked
-for - at worst a remote export fails where a query on the same connection works.
+for - at worst a remote export fails where a query on the same connection works. On `required`,
+MariaDB's dump tool is pinned to the certificate the server presented a moment before the export,
+so the dump itself is encrypted or does not run.
 
 ## Client tools (mysql / mysqldump)
 
@@ -265,7 +267,6 @@ Apart from your database servers and SSH hosts, the app contacts:
 | `api.github.com` | at start (can be switched off) | the update check above |
 | `downloads.mariadb.org`, `dlm.mariadb.com` or a MariaDB mirror | only when you ask for it in Settings | MariaDB client tools |
 | `dev.mysql.com`, `cdn.mysql.com`, `downloads.mysql.com` | only when you ask for it in Settings | MySQL client tools |
-| `cdn.buymeacoffee.com` | when the window opens | the image on the "Buy me a coffee" button |
 
 None of these requests carries anything beyond what any web request does: your IP address and a
 user agent. There is no telemetry.
