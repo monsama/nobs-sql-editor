@@ -28,7 +28,7 @@
    picked to look good on. */
 /* Corners: small for controls, tags and fields; medium for cards, lists, menus and popups; large
    for dialog windows. Grids, the editor and the bars along the window edges have none. */
-:root{--r-s:4px;--r-m:8px;--r-l:10px}
+:root{--r-s:3px;--r-m:5px;--r-l:6px;--mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace}
 :root{--bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--muted:#777;--gridh:#f0f0f0;--even:#fafafa;--dirty:#fff6cc;--hit:#ffe0b2;--del:#ffdede;--btn:#fafafa;--log:#1e1e1e;--logfg:#d4d4d4;--str:#a31515;--kw:#0000c0;--com:#008000;--num:#098658;--in:#fff;--sb:rgba(0,0,0,.28);--sbh:rgba(0,0,0,.48);--erd-pk:#1a7a5e;--erd-fk:#2a5a9e;--erd-line:#2a5a9e;--diff-tgt:#a8442a;--err-line:#d6373a;--log-warn:#d19a1f}
  body.dark{--bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--muted:#999;--gridh:#2d2d2d;--even:#262626;--dirty:#4a4526;--hit:#5c3d12;--del:#4a2626;--btn:#333;--log:#141414;--logfg:#d4d4d4;--str:#ce9178;--kw:#569cd6;--com:#6a9955;--num:#b5cea8;--in:#2a2a2a;--sb:rgba(255,255,255,.24);--sbh:rgba(255,255,255,.42);--erd-pk:#5dcaa5;--erd-fk:#8fb8e8;--erd-line:#7aa8d8;--diff-tgt:#f0997b;--err-line:#e5484d;--log-warn:#e0a828}
  *{box-sizing:border-box}
@@ -37,7 +37,7 @@
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--sb);border-radius:var(--r-m);border:3px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:var(--sbh);border:2px solid transparent;background-clip:content-box}
-::-webkit-scrollbar-corner{background:transparent} html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
+::-webkit-scrollbar-corner{background:transparent} button,input,select,textarea{font-family:inherit;font-size:inherit} html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
  body{display:flex;flex-direction:column}
  #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .brand{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:2px;letter-spacing:.2px} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
  input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;box-sizing:border-box}
@@ -53,7 +53,7 @@
     caps its shrink at that natural width instead, same principle as everywhere else this session
     that a control's own label shouldn't silently break under pressure from a neighbor. */
  button{padding:0 9px;height:28px;box-sizing:border-box;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:middle;font-size:13px;white-space:nowrap}
- button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-s);font-size:10.5px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
+ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-s);font-size:11px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
  /* A saved connection name or environment label is free text with no length limit at the point
     of use (only a maxlength on the input, as a soft cap) - without this, a long one would either
     stretch the bar past the window or wrap it onto a second line. Ellipsize instead; the title
@@ -110,10 +110,10 @@
  #connListPop .cln{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
  #connListPop .clf{padding:3px 10px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--bd2);white-space:nowrap}
  #connListPop .cll{color:var(--muted);display:inline-flex;width:13px;flex:none}
- #connListPop .chip{display:inline-block;height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+ #connListPop .chip{display:inline-block;height:18px;line-height:18px;padding:0 6px;font-size:11px;letter-spacing:.3px;max-width:160px;overflow:hidden;text-overflow:ellipsis}
  /* The separator before Settings parts it from the buttons left of it; disconnected, there are none. */
  body.disconnected #topActions+.tbchunk>.tbsep:first-child{display:none}
- #bar #connTags .chip{height:18px;line-height:18px;padding:0 6px;font-size:10.5px;letter-spacing:.3px;max-width:110px} #barTop.fit3 #connTags .chip{max-width:92px}
+ #bar #connTags .chip{height:18px;line-height:18px;padding:0 6px;font-size:11px;letter-spacing:.3px;max-width:110px} #barTop.fit3 #connTags .chip{max-width:92px}
  #bar .chip{height:28px;box-sizing:border-box;padding:0 9px;font-size:12px;letter-spacing:.2px} #bar #connStatus{line-height:26px}
  #connStatus.ok{background:var(--panel2);color:var(--fg);border-color:var(--bd);box-shadow:none;min-width:0}
  #connStatus.ok::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;margin-right:6px;vertical-align:1px}
@@ -187,7 +187,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 .tabpane.edfolded-editor [id^="ew_"]{display:none !important}
 /* With the results folded away the editor takes the pane, whatever height a drag last gave it. */
 .tabpane.edfolded-results [id^="ew_"]{flex:1 1 auto !important;height:auto !important}
- .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:13px;line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
+ .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:var(--mono);font-size:13px;line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
  .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
@@ -283,7 +283,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .delcell{color:#c00;cursor:pointer;text-align:center;width:22px}
  .status{padding:3px 8px;font-size:12px;color:var(--fg);border-top:1px solid var(--bd2);background:var(--panel)} .status.err{color:#e06}
  #loghdr{background:#333;color:#ddd;padding:2px 8px;font-size:11px;display:flex;justify-content:space-between}
- #log{height:104px;overflow:auto;background:var(--log);color:var(--logfg);font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px;padding:6px 8px;white-space:pre-wrap}
+ #log{height:104px;overflow:auto;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:12px;padding:6px 8px;white-space:pre-wrap}
  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9000}
 .modal.floating{background:transparent;pointer-events:none}
 .modal.minimized{display:none !important}
@@ -296,7 +296,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  /* Their own style attributes say overflow:hidden, so that the panel inside them scrolls rather
     than the whole dialog. That has to give way when the dialog cannot hold its content at all -
     a hidden overflow there means the buttons at the bottom cannot be reached. */
- .modal.floating .box{overflow:auto !important} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:var(--r-s);background:var(--panel);font-family:'Cascadia Code',Consolas,monospace;font-size:11px;white-space:nowrap}
+ .modal.floating .box{overflow:auto !important} kbd{display:inline-block;padding:1px 7px;border:1px solid var(--bd);border-bottom-width:2px;border-radius:var(--r-s);background:var(--panel);font-family:var(--mono);font-size:11px;white-space:nowrap}
  #mInput{z-index:9600} #mRowForm{z-index:9500}
  /* Every floating dialog's header is spaced the same way: the title with no margin of its own,
     one gap under the row, and the paragraph beneath it given the leading to be read. */
@@ -304,7 +304,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .modal .box>div[onmousedown] h2,.modal .box>div[onmousedown] h3{margin:0 !important}
  .modal .box>div[onmousedown]+.muted,.modal .box>div[onmousedown]+div>.muted:first-child{line-height:1.55}
  .modal.show{display:flex} .box{background:var(--bg);color:var(--fg);border-radius:var(--r-l);padding:16px;max-width:900px;width:94%;max-height:92%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)}
- .box h3{margin:0 0 10px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}
+ .box h3{margin:0 0 10px;font-size:16px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}
  label.ck{display:block;padding:2px 0} .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap} .muted{color:var(--muted);font-size:12px}
  #vActions{justify-content:flex-end}
  #vHexTabs button{border:1px solid var(--bd);background:var(--btn);color:var(--fg);border-radius:var(--r-s);padding:4px 12px;cursor:pointer;font:inherit}
@@ -318,7 +318,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .cpitem:hover{background:var(--hover,rgba(127,127,127,.12))}
  #ctx .item{padding:5px 12px} #ctx .sep{height:1px;background:var(--bd2);margin:3px 0}
  .item.kbsel{background:var(--hover);outline:1px solid var(--accent);outline-offset:-1px}
- #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px}
+ #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:var(--mono);font-size:12px}
  #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff} #allSchemasBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
  table.dz{border-collapse:collapse;width:100%;margin:8px 0} table.dz th{border:none;border-bottom:2px solid var(--bd);padding:6px 6px;text-align:left;color:var(--muted);font-weight:600;font-size:12px} table.dz td{border:none;border-bottom:1px solid var(--bd2);padding:6px 4px} table.dz tr:last-child td{border-bottom:none} table.dz input,table.dz select{width:100%} table.dz{table-layout:fixed} table.dz th:nth-child(2){width:150px} table.dz th:nth-child(3){width:72px} table.dz th:nth-child(4),table.dz th:nth-child(5),table.dz th:nth-child(6){width:34px} table.dz th:nth-child(7){width:190px} table.dz th:nth-child(9){width:36px}
 /* Nothing pending is the normal state, and an accent-coloured badge for it drew the eye to
@@ -382,7 +382,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .plan ul li::after{content:'';position:absolute;left:0;top:15px;width:11px;border-top:1px solid var(--bd)}
  .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:4px 9px;background:var(--bg);font-size:12px;max-width:100%;box-sizing:border-box}
  .pcard.bad,.psum.bad{border-left-color:#d32f2f} .pcard.warn{border-left-color:#ef6c00} .pcard.ok{border-left-color:#f9a825} .pcard.good,.psum.good{border-left-color:#2e7d32}
- .pacc,.pfacts{color:var(--muted);font-weight:400} .pcond{font-family:'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .pacc,.pfacts{color:var(--muted);font-weight:400} .pcond{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .psum{border-left:4px solid var(--muted);padding:4px 9px;font-size:12px;background:var(--panel)} .pjson{margin-top:10px;font-size:12px} .pjson pre{font-size:11px;max-height:300px;overflow:auto}
  /* Chart colours: eight in a fixed order, checked for colour vision and contrast on both themes. */
  .viz-root{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;--s8:#e34948} body.dark .viz-root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767}
@@ -415,7 +415,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .upanel{flex:1;min-width:0;overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m);padding:16px 20px}
  .uempty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;padding:0 40px}
  .uhead{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--bd2)}
- .uhead-t{flex:1;min-width:0} .utitle{font-size:18px;font-weight:600;overflow-wrap:anywhere} .utitle .uhost{color:var(--muted);font-weight:400}
+ .uhead-t{flex:1;min-width:0} .utitle{font-size:16px;font-weight:600;overflow-wrap:anywhere} .utitle .uhost{color:var(--muted);font-weight:400}
  .usub{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
  .usub .utag{margin-left:0}
  .uhead-a,.usec-a{display:flex;gap:6px;flex:none}
@@ -430,7 +430,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .utab td{padding:8px 14px;vertical-align:top;border-top:1px solid var(--bd2);overflow-wrap:anywhere} .utab tbody tr:first-child td{border-top:0}
  .utab col.c1{width:32%} .utab col.c3{width:100px}
  .uplace{display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
- .upriv{display:inline-block;font-size:11px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;border:1px solid var(--bd);border-radius:var(--r-s);padding:1px 6px;margin:1px 4px 3px 0;background:var(--bg)}
+ .upriv{display:inline-block;font-size:11px;font-family:var(--mono);border:1px solid var(--bd);border-radius:var(--r-s);padding:1px 6px;margin:1px 4px 3px 0;background:var(--bg)}
  .upriv.uall{border-color:var(--accent);color:var(--accent)}
  .uprivs:not(.open) .upriv.umore{display:none}
  .umorebtn{font-size:11px;color:var(--accent);cursor:pointer;white-space:nowrap} .uprivs.open .umorebtn{display:none}
@@ -439,7 +439,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .uchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 11px;margin:0 6px 6px 0;background:var(--panel2);font-size:12px}
  .uchip .utag{margin-left:0}
  .usql summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0}
- .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;font-size:11.5px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0;max-height:260px;overflow:auto}
+ .ugrants{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--mono);font-size:12px;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0;max-height:260px;overflow:auto}
  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 12px} .psec{font-weight:600;font-size:12px;margin:10px 0 4px}
  .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:var(--r-s);margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
@@ -452,7 +452,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .toolbar.tight{gap:4px} .toolbar.tight .tbsep{margin:2px !important} .toolbar.tight [id^="resultActions_"],.toolbar.tight [id^="edit_"]{gap:4px !important} .toolbar.tight>label{margin-left:0 !important}
  .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
- body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:15px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
+ body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:16px;font-weight:600} table.ovgrid{border-collapse:collapse;width:100%}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
     eye loses which column it is in halfway along a wide window. */
  table.ovgrid th+th,table.ovgrid td+td{border-left:1px solid var(--bd2)}
@@ -521,7 +521,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setnav button.on svg{color:#fff}
  .setbody{flex:1;min-width:0;overflow:auto;padding:16px 20px 20px}
  .setpage{display:none} .setpage.on{display:block}
- .setpt{margin:0 0 6px;font-size:17px;font-weight:600}
+ .setpt{margin:0 0 6px;font-size:16px;font-weight:600}
  .setpd{color:var(--muted);font-size:12px;margin-bottom:6px}
  .setgroup{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
  .setcard{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:0 16px;margin-top:10px}
@@ -541,7 +541,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .tooldot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
 .toolstatus{font-size:12px;margin:4px 0 8px}
 .toolpath{display:flex;align-items:baseline;gap:6px;min-width:0}
-.toolpath>.p{font-family:Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.toolpath>.p{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .toolcard .row>span:first-child{flex:none}
 </style></head><body>
 <div id="deadOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.78);align-items:center;justify-content:center;flex-direction:column">
@@ -619,7 +619,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div class="modal floating" id="mView"><div class="box" style="width:1000px;max-width:95vw;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mView')" title="Drag to move"><h3 id="vTitle" style="margin:0 0 10px">Value</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mView')" title="Maximize" id="maxBtn_mView" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mView')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <img id="vImg" style="display:none;max-width:100%;max-height:340px;margin-bottom:6px;border:1px solid var(--bd);border-radius:var(--r-s);flex:none">
  <div id="vNote" style="display:none;font-size:11px;color:var(--log-warn);margin-bottom:4px;flex:none"></div>
- <textarea id="vText" spellcheck="false" style="width:100%;height:520px;flex:1;min-height:0;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px"></textarea>
+ <textarea id="vText" spellcheck="false" style="width:100%;height:520px;flex:1;min-height:0;font-family:var(--mono);font-size:12px"></textarea>
  <select id="vSelect" style="width:100%;display:none;padding:8px;font-size:13px;flex:none"></select>
  <div id="vMulti" style="width:100%;display:none;max-height:520px;overflow:auto;padding:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--in);box-sizing:border-box;font-size:13px;flex:1;min-height:0"></div>
  <input id="vDate" style="width:100%;display:none;padding:8px;font-size:13px;box-sizing:border-box;flex:none">
@@ -632,11 +632,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <span class="formlbl">File</span><div class="row" style="margin:0"><input id="csvFile" style="flex:1" placeholder="the .csv file to import"><button onclick="browse({title:'Select CSV file',filter:'*.csv',mode:'file',onPick:pp=>$('csvFile').value=pp})">Browse...</button></div>
   <span class="formlbl">Header</span><label title="The first row of the CSV contains the column names"><input type="checkbox" id="csvHeader" checked> The first row names the columns - they are matched to the table's by name</label>
   <span class="formlbl">Mode</span><div class="row" style="margin:0;gap:14px"><label title="Add the CSV rows to the existing table (does not delete anything)"><input type="radio" name="csvmode" id="csvAppend" checked> Append to the table</label><label title="Empty the table first, then load (use this to restore a table from its own export)"><input type="radio" name="csvmode" id="csvReplace"> Replace its rows (truncate first)</label></div>
-  <span class="formlbl">NULL value</span><div><input id="csvNullVal" value="\N" style="width:64px;font-family:Consolas,monospace" title="A cell holding exactly this is imported as NULL. Clear it to treat empty cells as NULL instead."><div class="muted" style="font-size:11px;margin-top:4px">A cell holding exactly this becomes NULL; an empty cell stays an empty string. Clear it to make empty cells NULL, which is usually what a spreadsheet means.</div></div>
+  <span class="formlbl">NULL value</span><div><input id="csvNullVal" value="\N" style="width:64px;font-family:var(--mono)" title="A cell holding exactly this is imported as NULL. Clear it to treat empty cells as NULL instead."><div class="muted" style="font-size:11px;margin-top:4px">A cell holding exactly this becomes NULL; an empty cell stays an empty string. Clear it to make empty cells NULL, which is usually what a spreadsheet means.</div></div>
  </div>
  <div class="muted" style="font-size:11px;flex:none;margin-top:8px">The whole file is imported as one transaction, with foreign key and unique checks on. For an exact restore of a whole database, use Export and Import instead.</div>
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" onclick="runCsvImport()">Import</button><button onclick="hide('mCsv')">Close</button></div>
- <div id="csvLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
+ <div id="csvLog" class="logpanel" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 <div class="modal floating" id="mExport"><div class="box" style="width:900px;max-width:95vw;height:840px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:120px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mExport')" title="Drag to move"><h3 style="margin:0 0 10px">Export</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mExport')" title="Maximize" id="maxBtn_mExport" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mExport')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><span class="dsec">Databases</span><button class="sm" onclick="expAll(true)">All</button><button class="sm" onclick="expAll(false)">None</button><span class="muted">Open a database with &#9656; to leave some of its tables out.</span></div>
  <!-- flex:1 (not a fixed max-height) so the database/table picker uses the extra room a taller or
@@ -655,14 +655,14 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="xrow"><span class="xlbl">Folder</span><input id="expFolder" style="flex:1" value="C:\temp"><button onclick="browse({title:'Select export folder',mode:'folder',start:$('expFolder').value,onPick:pp=>$('expFolder').value=pp})">Browse...</button></div>
  <details id="expAdv" class="xadv" ontoggle="expAdvToggled()"><summary>Advanced options</summary>
   <div class="grid3" id="expOptsAdv"></div>
-  <div class="row"><label title="The character set mysqldump writes the file in.">Character set <select id="expCharset"><option>utf8mb4</option><option>utf8</option><option>latin1</option><option>binary</option></select></label><span class="optsep"></span><label title="mysqldump --max-allowed-packet. Raise this for very large rows or BLOBs (e.g. 1G).">Max packet <input id="expMaxPacket" value="1G" style="width:56px"></label><span class="optsep"></span><label title="How a NULL is written to CSV. \N is what LOAD DATA reads back; blank makes NULL and an empty string indistinguishable in the file.">NULL in CSV exports <input id="expNullVal" value="\N" style="width:52px;font-family:Consolas,monospace"></label></div>
+  <div class="row"><label title="The character set mysqldump writes the file in.">Character set <select id="expCharset"><option>utf8mb4</option><option>utf8</option><option>latin1</option><option>binary</option></select></label><span class="optsep"></span><label title="mysqldump --max-allowed-packet. Raise this for very large rows or BLOBs (e.g. 1G).">Max packet <input id="expMaxPacket" value="1G" style="width:56px"></label><span class="optsep"></span><label title="How a NULL is written to CSV. \N is what LOAD DATA reads back; blank makes NULL and an empty string indistinguishable in the file.">NULL in CSV exports <input id="expNullVal" value="\N" style="width:52px;font-family:var(--mono)"></label></div>
  </details>
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="expGoBtn" onclick="runExport()">Start Export</button><button class="warn" id="expCancelBtn" disabled onclick="cancelJob('exp')">Cancel</button><button onclick="hide('mExport')">Close</button></div>
  <div id="expProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="expBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
    <div id="expProgLabel" class="muted" style="font-size:11px;margin-top:4px"></div>
  </div>
- <div id="expLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
+ <div id="expLog" class="logpanel" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
 
 <div class="modal floating" id="mImport"><div class="box" style="width:900px;max-width:95vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mImport')" title="Drag to move"><h3 style="margin:0 0 10px">Import</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mImport')" title="Maximize" id="maxBtn_mImport" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mImport')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><span class="dsec">Files</span><span id="impCount" class="muted"></span><span style="flex:1"></span><button onclick="impAddFiles()">Add files...</button><button onclick="impAddFolder()" title="Every .sql file in a folder">Add folder...</button><button onclick="impClear()">Clear</button></div>
@@ -675,7 +675,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="impBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
    <div id="impProgLabel" class="muted" style="font-size:11px;margin-top:4px"></div>
  </div>
- <div id="impLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
+ <div id="impLog" class="logpanel" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;overflow:auto;margin-top:6px;flex:1;min-height:60px"></div></div></div>
 
 <div class="modal floating" id="mCompare"><div class="box" style="width:1400px;max-width:96vw;height:86vh;max-height:1000px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:90px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompare')" title="Drag to move"><h3 style="margin:0">Compare databases</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompare')" title="Maximize" id="maxBtn_mCompare" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompare')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="font-size:11px;margin-bottom:8px;flex:none">Compares two databases through saved connections, each opened on its own with its stored password - so both need "Save password" checked (Manage &gt; Edit).</div>
@@ -703,7 +703,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <span id="cmpSummary" class="muted" style="font-size:11px"></span>
    <span style="display:inline-flex;gap:6px"><button id="cmpPreviewBtn" onclick="previewCompareSql()" disabled>Preview SQL</button><button id="cmpApplyBtn" class="go write" onclick="applyCompare()" disabled>Apply to target</button><button onclick="cmpCloseAndCancel()">Close</button></span>
  </div>
- <div id="cmpLog" class="logpanel" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:140px;overflow:auto;margin-top:6px;flex:0 1 auto;min-height:0"></div>
+ <div id="cmpLog" class="logpanel" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:140px;overflow:auto;margin-top:6px;flex:0 1 auto;min-height:0"></div>
 </div></div>
 
 <div class="modal floating" id="mCompareRows"><div class="box" style="width:1300px;max-width:96vw;height:84vh;max-height:960px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:110px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mCompareRows')" title="Drag to move"><h3 id="cmprTitle" style="margin:0 0 10px">Row comparison</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mCompareRows')" title="Maximize" id="maxBtn_mCompareRows" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mCompareRows')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -730,7 +730,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
 
  <div class="row" style="display:flex;justify-content:flex-end;margin-top:6px;flex:none"><button onclick="cmprCloseAndCancel()">Close</button></div>
- <div id="cmprLog" class="muted" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:120px;overflow:auto;margin-top:6px;flex:none"></div>
+ <div id="cmprLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;margin-top:6px;flex:none"></div>
 </div></div>
 
 <div class="modal floating" id="mUsers"><div class="box" style="width:1250px;max-width:96vw;height:82vh;max-height:880px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:70px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUsers')" title="Drag to move"><h3 style="margin:0 0 10px">Users and privileges</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUsers')" title="Maximize" id="maxBtn_mUsers" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUsers')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -760,7 +760,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
  <div class="row" style="flex:none"><button class="go" onclick="genUserTransfer()">Generate</button><span id="utStatus" class="muted" style="margin-left:8px"></span></div>
- <textarea id="utResult" readonly style="width:100%;box-sizing:border-box;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:12px;margin-top:8px;flex:1;min-height:0"></textarea>
+ <textarea id="utResult" readonly style="width:100%;box-sizing:border-box;font-family:var(--mono);font-size:12px;margin-top:8px;flex:1;min-height:0"></textarea>
  <div class="row" style="justify-content:flex-end;flex:none"><button onclick="copyUserTransfer()">Copy</button><button onclick="saveUserTransferFile()">Save to file...</button><button onclick="hide('mUserTransfer')">Close</button></div>
 </div></div>
 
@@ -818,7 +818,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDump" style="flex:1" placeholder="full path to mysqldump.exe (or mariadb-dump.exe)"><button onclick="browse({title:'Select mysqldump.exe / mariadb-dump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDump').value=pp})">Browse...</button></div>
    <div class="row" style="margin-top:6px"><button class="go" onclick="downloadTools()">Download MariaDB client tools</button><span class="muted" style="font-size:12px">The latest LTS client for Windows from mariadb.org (~90 MB).</span></div>
    <details style="margin-top:6px"><summary class="muted" style="font-size:11px;cursor:pointer">Download address</summary>
-    <div class="row" style="margin-top:6px"><span style="width:92px">URL</span><input id="cfgDownloadUrl" style="flex:1;font-family:Consolas,monospace;font-size:11px" placeholder="https://mirror.mariadb.org/mariadb-{version}/winx64-packages/{file_name}"><button onclick="resetDownloadUrl()" title="Reset to the built-in default">Reset</button></div>
+    <div class="row" style="margin-top:6px"><span style="width:92px">URL</span><input id="cfgDownloadUrl" style="flex:1;font-family:var(--mono);font-size:11px" placeholder="https://mirror.mariadb.org/mariadb-{version}/winx64-packages/{file_name}"><button onclick="resetDownloadUrl()" title="Reset to the built-in default">Reset</button></div>
     <div class="muted" style="font-size:11px;line-height:1.4;margin:2px 0 0">{version} and {file_name} are filled in from the latest MariaDB LTS release. Only change this if the download fails (mariadb.org occasionally changes its layout) - the error message shows what happened.</div>
    </details>
   </div>
@@ -832,8 +832,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   </div>
  </div>
  <div class="muted" style="font-size:11px;line-height:1.5;margin-top:8px">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*, WAMP, XAMPP) &rarr; system PATH.</div>
- <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:Consolas,monospace;font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
- <div id="cfgPaths" class="muted" style="font-size:11px;font-family:Consolas,monospace;margin-top:10px;border-top:1px solid var(--bd2);padding-top:8px;line-height:1.6"></div>
+ <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
+ <div id="cfgPaths" class="muted" style="font-size:11px;font-family:var(--mono);margin-top:10px;border-top:1px solid var(--bd2);padding-top:8px;line-height:1.6"></div>
  </section>
  <section class="setpage" data-p="general">
   <h4 class="setpt">General</h4>
@@ -880,7 +880,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   GNU General Public License for details.
  </div>
  <div style="margin:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--muted)">LINKS</div>
- <div class="muted" style="font-size:12px;line-height:1.8;font-family:Consolas,monospace;user-select:text">
+ <div class="muted" style="font-size:12px;line-height:1.8;font-family:var(--mono);user-select:text">
   Website&nbsp;&nbsp;&nbsp;https://monsama.ch<br>
   Source&nbsp;&nbsp;&nbsp;&nbsp;https://github.com/monsama/nobs-sql-editor<br>
   License&nbsp;&nbsp;&nbsp;https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
@@ -909,9 +909,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none"><span class="muted">Database</span> <input id="dSchema" style="width:280px"> <span class="muted">Table</span> <input id="dName" style="width:320px"> <span id="dMode" class="muted"></span></div>
  <div id="dColsWrap" style="overflow:auto;flex:1;min-height:60px"><table class="dz"><thead><tr><th>Column</th><th>Type</th><th>Length</th><th title="NOT NULL">NN</th><th title="AUTO_INCREMENT">AI</th><th title="PRIMARY KEY">PK</th><th>Default</th><th>Comment</th><th></th></tr></thead><tbody id="dCols"></tbody></table></div>
  <div class="row" style="flex:none"><button onclick="dAddCol()">+ Column</button></div>
- <div class="row" style="flex:none;margin-top:6px"><span class="dsec">Generated SQL</span> <span id="dEditNote" class="muted" style="color:#b26a00"></span></div><textarea id="dSql" oninput="dMark()" style="width:100%;height:120px;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;flex:none"></textarea>
+ <div class="row" style="flex:none;margin-top:6px"><span class="dsec">Generated SQL</span> <span id="dEditNote" class="muted" style="color:#b26a00"></span></div><textarea id="dSql" oninput="dMark()" style="width:100%;height:120px;font-family:var(--mono);flex:none"></textarea>
  <div class="row" style="justify-content:flex-end;flex:none"><button title="Rebuild the SQL from the column grid (discards manual edits in the box)" onclick="dGen(true)">Regenerate from columns</button><button class="go write" title="Run the SQL shown above against the database - creates the table if it's new, or alters it if it already exists" onclick="dApply()">Apply</button><button onclick="hide('mDesign')">Close</button></div>
- <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
+ <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
 
 <script>
 const TOKEN="__TOKEN__";
@@ -1647,7 +1647,7 @@ function inputBox(opts){return new Promise(res=>{_inpResolve=res;$('inpTitle').t
    const b=document.createElement('button');b.className='sm';b.textContent='Browse...';b.style.flex='none';
    b.onclick=()=>browse({title:f.browseTitle||('Select '+(f.label||f.key)),filter:f.filter||'*.*',mode:'file',onPick:pp=>{inp.value=pp;}});
    wrap.appendChild(inp);wrap.appendChild(b);w.appendChild(lb);w.appendChild(wrap);box.appendChild(w);return;}
-  const isTa=(f.type==='textarea');const inp=document.createElement(isTa?'textarea':'input');inp.id='inp_'+f.key;if(!isTa)inp.type=f.type||'text';inp.style.width='100%';if(isTa){inp.rows=Math.min(16,Math.max(5,String(f.value||'').split('\n').length+1));inp.style.fontFamily='"Cascadia Code",Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace';inp.style.fontSize='12px';inp.style.boxSizing='border-box';
+  const isTa=(f.type==='textarea');const inp=document.createElement(isTa?'textarea':'input');inp.id='inp_'+f.key;if(!isTa)inp.type=f.type||'text';inp.style.width='100%';if(isTa){inp.rows=Math.min(16,Math.max(5,String(f.value||'').split('\n').length+1));inp.style.fontFamily='var(--mono)';inp.style.fontSize='12px';inp.style.boxSizing='border-box';
    // A textarea field fills whatever room the dialog actually has (both directions) instead of
    // sitting at a small fixed row-count with dead space below it - #inpFields is a flex column
    // (see its own style), so making this field's wrapper flex:1 and the textarea itself flex:1
@@ -4282,7 +4282,7 @@ function syncFilterRowTop(id){
 // all of it left. Hung on the next cell instead, the overhang goes the other way, over a
 // neighbour that paints earlier - the whole band is there, centred on the line, at 100%, 125% and
 // 150% display scaling alike. The last column's handle goes on the filler cell at the end.
-function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');h+='<th style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
+function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');h+='<th style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
 function setFilter(id,ci,v){const t=T(id);t.filters[ci]=v;t._hitAt=null;syncFilterUi(id);renderBody(id);updatePager(id);updateStatusLine(id);}
 // The toolbar's search box. It belongs to the tab, not to one result, so it keeps applying when
 // another result of a script is picked or the query is run again - the box still shows it.
@@ -5287,7 +5287,7 @@ async function rowForm(id,ri){const t=T(id);if(t.pending&&t.table)await colMeta(
  t.cols.forEach((c,ci)=>{const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
   const w=document.createElement('div');w.style.display='flex';w.style.alignItems='flex-start';w.style.gap='8px';w.style.margin='4px 0';
   const lb=document.createElement('label');lb.textContent=c+(t.pk&&t.pk.indexOf(c)>=0?' (PK)':'');lb.style.width='170px';lb.style.flex='0 0 170px';lb.style.fontSize='12px';lb.style.textAlign='right';lb.style.paddingTop='5px';lb.style.color='var(--muted)';lb.style.overflow='hidden';lb.style.textOverflow='ellipsis';
-  const ta=document.createElement('textarea');ta.id='rf_'+ci;ta.value=(cur===null?'':cur);ta.rows=(cur!=null&&String(cur).length>60)?3:1;ta.style.flex='1';ta.style.fontFamily='"Cascadia Code",Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace';ta.style.fontSize='12px';ta.dataset.null=(cur===null)?'1':'';
+  const ta=document.createElement('textarea');ta.id='rf_'+ci;ta.value=(cur===null?'':cur);ta.rows=(cur!=null&&String(cur).length>60)?3:1;ta.style.flex='1';ta.style.fontFamily='var(--mono)';ta.style.fontSize='12px';ta.dataset.null=(cur===null)?'1':'';
   // Only a field that was typed in, or given NULL, is written: a textarea hands back CRLF as LF,
   // so reading every field back rewrote each untouched multi-line value on the row.
   ta.oninput=()=>{ta.dataset.null='';ta.dataset.touched='1';};
@@ -5650,7 +5650,7 @@ function codeBlockStartHeight(text){const lines=String(text||'').split('\n').len
 // window's own edge), and max-height clamps to the viewport itself so dragging can never grow the
 // block past the visible window - without both, an unbounded resize:both could be dragged to an
 // enormous size and made the whole window unresponsive while it repainted.
-function codeBlockStyle(text){return "display:block;background:var(--log);color:var(--logfg);font-family:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:auto;resize:both;max-width:100%;max-height:calc(100vh - 40px);height:"+codeBlockStartHeight(text);}
+function codeBlockStyle(text){return "display:block;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:auto;resize:both;max-width:100%;max-height:calc(100vh - 40px);height:"+codeBlockStartHeight(text);}
 function openHistory(){const box=$('histList');const h=hist();box.innerHTML=h.length?'':'<div class="cempty">No history yet - the queries you run show here.</div>';h.forEach(sql=>{const d=document.createElement('div');d.className='citem';const code=document.createElement('code');code.style.cssText=codeBlockStyle(sql);code.textContent=sql;const bar=document.createElement('div');bar.className='citem-h';const kw=document.createElement('span');kw.className='citem-t muted';kw.textContent=(sql.trim().match(/^\w+/)||[''])[0].toUpperCase();bar.appendChild(kw);const sv=document.createElement('button');sv.className='sm';sv.textContent='Save to library';sv.title='Keep this query in the library under a name';sv.onclick=e=>{e.stopPropagation();histSaveToLib(sql);};bar.appendChild(sv);const op=document.createElement('button');op.className='sm';op.textContent='Open';op.title='Open this query in a new tab';op.style.marginLeft='6px';const open=()=>{hide('mHist');openTab('history',sql,curSchema,false,null);};op.onclick=e=>{e.stopPropagation();open();};bar.appendChild(op);code.ondblclick=open;code.title='Double-click to open in a new tab';d.appendChild(bar);d.appendChild(code);box.appendChild(d);});show('mHist');}
 // A query from the history, kept in the library: asked for a name, with the SQL there to trim
 // before it is saved. The history keeps no schema, so it is saved against the current one.
@@ -7057,7 +7057,7 @@ function cmpRenderResults(){const box=$('cmpResults');const sr=$('cmpResultsSear
   // Each statement gets the same dark "console" look as the app's query log (var(--log)/--logfg,
   // always dark regardless of light/dark theme) instead of sitting as plain wrapped text - reads
   // like a small code block rather than a run-on sentence, especially for long CREATE/ALTER DDL.
-  t.sql.forEach((st,si)=>{h+='<label style="display:flex;align-items:flex-start;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" style="margin-top:7px;flex:none" '+(st.checked?'checked':'')+' onclick="_cmpTables['+ti+'].sql['+si+'].checked=this.checked;cmpUpdateSummary()"><code style="flex:1;display:block;background:var(--log);color:var(--logfg);font-family:\'Cascadia Code\',Consolas,\'SF Mono\',Menlo,\'DejaVu Sans Mono\',monospace;font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere">'+esc(st.stmt)+'</code></label>';});
+  t.sql.forEach((st,si)=>{h+='<label style="display:flex;align-items:flex-start;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" style="margin-top:7px;flex:none" '+(st.checked?'checked':'')+' onclick="_cmpTables['+ti+'].sql['+si+'].checked=this.checked;cmpUpdateSummary()"><code style="flex:1;display:block;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere">'+esc(st.stmt)+'</code></label>';});
   h+='</td></tr>';});
  h+='</table>';box.innerHTML=h;cmpUpdateSummary();cmpFilterResults();}
 function cmpFilterResults(){const q=($('cmpResultSearch').value||'').toLowerCase();
@@ -7292,7 +7292,7 @@ function cmprDiffRender(){
    h+='<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px"><tr class="muted" style="text-align:left"><th style="padding:2px 6px;width:25%">Column</th><th style="padding:2px 6px;width:37%">Source</th><th style="padding:2px 6px;width:37%">Target (current)</th></tr>';
    r.colDiffs.forEach((cd,ci)=>{
     const isPk=(_cmprDiffState.pkCols||[]).indexOf(cd.col)>=0;const isFk=(_cmprDiffState.fkCols||[]).indexOf(cd.col)>=0;
-    const kb=(isPk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:9px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');
+    const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');
     // Every cell here opens the viewer, not just the ones long enough to be visibly clipped -
     // consistent "click to inspect" affordance across the whole grid beats a mix of clickable and
     // non-clickable cells that looks identical until you try clicking one. stopPropagation keeps
