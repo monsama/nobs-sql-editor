@@ -107,6 +107,13 @@ foreach ($spec in $Servers) {
             & $install "--datadir=$data" "--password=$Password" "--port=$port" '--allow-remote-root-access'
             if ($LASTEXITCODE -ne 0) { throw "$install failed" }
         }
+        # mysql_install_db runs its own mysqld to create the tables. On the CI runner the server below
+        # was started while that one was still finishing: its very first statement found mysql.user
+        # "marked as crashed", on a data directory seconds old. Start only once it is gone.
+        for ($i = 0; $i -lt 120; $i++) {
+            if (-not (Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $server })) { break }
+            Start-Sleep -Milliseconds 500
+        }
         Start-Process -FilePath $server -WindowStyle Hidden -ArgumentList (@("--defaults-file=`"$data\my.ini`"", "--log-error=`"$log`"") + $extra)
         Wait-Port $port "$name ($flavor $version)"
     } else {
@@ -146,6 +153,8 @@ foreach ($spec in $Servers) {
     }
     if ($flavor -eq 'mariadb' -and [version]$version -lt [version]'10.4') {
         $priv = 'user', 'db', 'tables_priv', 'columns_priv', 'procs_priv', 'proxies_priv', 'roles_mapping'
+        # Repaired first, in case the installer left them unclosed after all (see above).
+        Invoke-Sql $client $port ('REPAIR TABLE ' + (($priv | ForEach-Object { "mysql.$_" }) -join ', ') + ';') | Out-Null
         Invoke-Sql $client $port ((($priv | ForEach-Object { "ALTER TABLE mysql.$_ ENGINE=Aria;" }) -join ' ') + ' FLUSH PRIVILEGES;')
     }
     Invoke-Sql $client $port -File (Resolve-Path $Fixture).Path
