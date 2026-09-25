@@ -50,7 +50,7 @@ INSERT INTO ${DB}.p VALUES (1,'a','a'),(2,'b','b'),(3,'c','c'),(4,'d','d');`);
     G.check('each history entry offers it', [...$('histList').querySelectorAll('button')].some(b => b.textContent === 'Save to library'), 'no button');
     // A click on the query - which is where resizing its box ends - used to open it and close the
     // window. Only Open (or a double-click) opens it now.
-    const entry = $('histList').querySelector('.item');
+    const entry = $('histList').querySelector('.citem');
     if (entry) {
       entry.querySelector('code').click();
       G.check('clicking a history query, as resizing it does, leaves the window open', getComputedStyle($('mHist')).display !== 'none', '');
