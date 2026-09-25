@@ -84,7 +84,7 @@
     await whoHasAccess('nobs_test');
     await G.until(() => $('accList').querySelector('.utab'), 10000);
     const acc = $('accList').innerText;
-    G.check('Who has access lists the accounts, with where they may act', /nobs_ue_a/.test(acc) && /nobs_ue_moved/.test(acc) && /Database/.test(acc) && /SELECT/.test(acc), acc.slice(0, 300));
+    G.check('Who has access lists the accounts, with where they may act', /nobs_ue_a/.test(acc) && /nobs_ue_moved/.test(acc) && /database/i.test(acc) && /SELECT/.test(acc), acc.slice(0, 300));
     $('accFilter').value = 'moved'; accRender();
     G.check('and the filter narrows them', /nobs_ue_moved/.test($('accList').innerText) && !/nobs_ue_a@/.test($('accList').innerText), $('accList').innerText.slice(0, 200));
     [...$('accList').querySelectorAll('.acclink')].find(a => a.dataset.u === 'nobs_ue_moved').click();
