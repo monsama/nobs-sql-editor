@@ -28,7 +28,7 @@
    picked to look good on. */
 /* Corners: small for controls, tags and fields; medium for cards, lists, menus and popups; large
    for dialog windows. Grids, the editor and the bars along the window edges have none. */
-:root{--r-s:3px;--r-m:5px;--r-l:6px;--mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace}
+:root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--r-s:3px;--r-m:5px;--r-l:6px;--mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace}
 :root{--bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--muted:#777;--gridh:#f0f0f0;--even:#fafafa;--dirty:#fff6cc;--hit:#ffe0b2;--del:#ffdede;--btn:#fafafa;--log:#1e1e1e;--logfg:#d4d4d4;--str:#a31515;--kw:#0000c0;--com:#008000;--num:#098658;--in:#fff;--sb:rgba(0,0,0,.28);--sbh:rgba(0,0,0,.48);--erd-pk:#1a7a5e;--erd-fk:#2a5a9e;--erd-line:#2a5a9e;--diff-tgt:#a8442a;--err-line:#d6373a;--log-warn:#d19a1f}
  body.dark{--bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--muted:#999;--gridh:#2d2d2d;--even:#262626;--dirty:#4a4526;--hit:#5c3d12;--del:#4a2626;--btn:#333;--log:#141414;--logfg:#d4d4d4;--str:#ce9178;--kw:#569cd6;--com:#6a9955;--num:#b5cea8;--in:#2a2a2a;--sb:rgba(255,255,255,.24);--sbh:rgba(255,255,255,.42);--erd-pk:#5dcaa5;--erd-fk:#8fb8e8;--erd-line:#7aa8d8;--diff-tgt:#f0997b;--err-line:#e5484d;--log-warn:#e0a828}
  *{box-sizing:border-box}
@@ -53,7 +53,7 @@
     caps its shrink at that natural width instead, same principle as everywhere else this session
     that a control's own label shouldn't silently break under pressure from a neighbor. */
  button{padding:0 9px;height:28px;box-sizing:border-box;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:middle;font-size:13px;white-space:nowrap}
- button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-s);font-size:11px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:#c0504d;color:#fff}
+ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)} button:disabled{opacity:.45;cursor:not-allowed;filter:none} button:focus-visible{outline:2px solid var(--accent);outline-offset:1px} .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-s);font-size:11px;font-weight:600;line-height:1.5;letter-spacing:.4px;white-space:nowrap;border:1px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)} .chip.ok{background:#2e7d46;color:#fff} .chip.bad{background:var(--danger-bg);color:#fff}
  /* A saved connection name or environment label is free text with no length limit at the point
     of use (only a maxlength on the input, as a soft cap) - without this, a long one would either
     stretch the bar past the window or wrap it onto a second line. Ellipsize instead; the title
@@ -72,7 +72,7 @@
     part of the label, so a long name cut short with an ellipsis never takes the x with it. */
  /* Connected, the pill is the Disconnect button too: it turns red under the pointer, and keeps its size. */
  #connStatus.ok{cursor:pointer}
- #connStatus.ok:hover,#connStatus.ok:focus-visible{background:#c0504d;border-color:#c0504d;color:#fff}
+ #connStatus.ok:hover,#connStatus.ok:focus-visible{background:var(--danger-bg);border-color:var(--danger-bg);color:#fff}
  #connStatus.ok:hover::before,#connStatus.ok:focus-visible::before{background:#fff}
  /* The charset box is as wide as its choice, and never narrower than "charset: server" - it is
     the one thing in the bar that says the text is not read as the server sends it. */
@@ -125,7 +125,7 @@
  #connStatus.off::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 2px var(--muted);margin-right:0;vertical-align:1px}
  /* The schema the active tab's queries run in - see updateSchemaBadge. The same green as the dot,
     and not the accent, which is already the selected row's background. */
- #schemas .item.runs{box-shadow:inset 3px 0 0 #3fb950;font-weight:600} button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.go{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.sm{padding:0 6px;font-size:12px} button.warn{background:#b23b3b;color:#fff;border-color:#933}
+ #schemas .item.runs{box-shadow:inset 3px 0 0 #3fb950;font-weight:600} button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.go{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)} button.sm{padding:0 6px;font-size:12px} button.warn{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg)}
  #main{flex:1;display:flex;min-height:0}
  /* 280px is not an arbitrary floor - it's the narrowest the SCHEMAS header's label + its 4
     buttons (+ Schema/+ Table/ER/refresh) fit on one line without wrapping into an overlapping
@@ -191,7 +191,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
  .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
- .txdirty{color:#d9822b;font-weight:600} .tab.txopen{box-shadow:inset 0 -2px 0 #d9822b}
+ .txdirty{color:var(--warn);font-weight:600} .tab.txopen{box-shadow:inset 0 -2px 0 var(--warn)}
  #sshBtn.on{border-color:var(--accent);color:var(--accent)}
  /* A query bar is fitted to everything it can show, not to what it shows at the moment (fitBar):
     the result buttons, the grid-edit buttons and Commit/Rollback keep their room while hidden, and
@@ -291,7 +291,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .modal:not(.floating) .box{position:relative}
 .box>.wctl{position:absolute;top:8px;right:10px;background:var(--bg);padding-left:6px;z-index:3}
 .wctl>span{cursor:pointer;width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-s);color:var(--muted);font-size:14px;line-height:1;user-select:none}
-.wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:#c0504d;color:#fff}
+.wctl>span:hover{background:var(--panel2);color:var(--fg)} .wctl>span:last-child:hover{background:var(--danger-bg);color:#fff}
 .modal.floating .box{position:fixed;pointer-events:auto;margin:0;resize:both;overflow:auto;min-width:340px;min-height:200px}
  /* Their own style attributes say overflow:hidden, so that the panel inside them scrolls rather
     than the whole dialog. That has to give way when the dialog cannot hold its content at all -
@@ -327,7 +327,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .pill{background:var(--accent);color:#fff;border-radius:var(--r-s);padding:0 9px;font-size:12px;display:inline-flex;align-items:center;height:28px;box-sizing:border-box;white-space:nowrap} /* as tall as the buttons beside it */
 #toasts{position:fixed;bottom:16px;right:16px;z-index:99997;display:flex;flex-direction:column;gap:8px;max-width:min(760px,56vw)}
 .toast{background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:10px 14px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 14px rgba(0,0,0,.3);animation:toastin .2s ease-out}
-.toast.err{border-left-color:#c0504d}
+.toast.err{border-left-color:var(--danger-bg)}
 .toast.ok{border-left-color:#2e8f4f}
 @keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
  @keyframes expmove{0%{margin-left:-40%}50%{margin-left:60%}100%{margin-left:-40%}}
@@ -381,7 +381,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .plan ul li::before{content:'';position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--bd)} .plan ul li:last-child::before{bottom:auto;height:15px}
  .plan ul li::after{content:'';position:absolute;left:0;top:15px;width:11px;border-top:1px solid var(--bd)}
  .pstep{font-weight:600;font-size:12px;padding:2px 0} .pcard{display:inline-block;border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:5px 10px;background:var(--panel2);font-size:12px;max-width:100%;box-sizing:border-box}
- .pcard.bad,.psum.bad{border-left-color:#d32f2f} .pcard.warn{border-left-color:#ef6c00} .pcard.ok{border-left-color:#f9a825} .pcard.good,.psum.good{border-left-color:#2e7d32}
+ .pcard.bad,.psum.bad{border-left-color:var(--danger)} .pcard.warn{border-left-color:var(--warn)} .pcard.ok{border-left-color:#f9a825} .pcard.good,.psum.good{border-left-color:#2e7d32}
  .pacc,.pfacts{color:var(--muted);font-weight:400} .pcond{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .psum{border:1px solid var(--bd);border-left:4px solid var(--muted);border-radius:var(--r-m);padding:8px 12px;font-size:12px;background:var(--panel2);margin-bottom:6px} .pjson{margin-top:14px;font-size:12px} .pjson summary{cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:4px 0} .pjson pre{font-family:var(--mono);font-size:11px;max-height:300px;overflow:auto;background:var(--log);color:var(--logfg);padding:8px 10px;border-radius:var(--r-s);margin:6px 0 0}
  /* Chart colours: eight in a fixed order, checked for colour vision and contrast on both themes. */
@@ -392,7 +392,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .cleg{font-size:12px;display:inline-flex;align-items:center} .cleg i,.ctip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
  .ctip{position:absolute;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:6px 9px;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:nowrap} .ctip span{color:var(--muted);margin-left:6px}
  .utag{font-size:10px;border:1px solid var(--bd);border-radius:var(--r-s);padding:0 4px;margin-left:6px;color:var(--muted)} .uitem.sel .utag{color:#fff;border-color:#fff}
- .utag.urole{border-color:var(--accent);color:var(--accent)} .utag.uwarn,.uwarn{color:#d9822b;border-color:#d9822b}
+ .utag.urole{border-color:var(--accent);color:var(--accent)} .utag.uwarn,.uwarn{color:var(--warn);border-color:var(--warn)}
  /* One look for every window: a small uppercase heading over each part, and lists as cards - one
     row each, a row's actions at its right, and a note in the middle when there is nothing yet. */
  .dsec{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
@@ -481,7 +481,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ovr .v{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  /* Only the few lines worth noticing are coloured; the rest stay out of the way. */
  .ovr.note .v{color:var(--accent)}
- .ovr.warn .v{color:#d9822b}
+ .ovr.warn .v{color:var(--warn)}
  /* Parts the server from what is on it, so the page reads as two things rather than one long one. */
  .ovsep{display:none}
  /* How big a database is compared with the biggest one here - the numbers alone make that a
@@ -542,8 +542,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setrc input[type=checkbox]{width:16px;height:16px;margin:0}
  /* the buttons down the right of a settings card are one width, so they line up */
  .setcard .setrc>button{width:150px;justify-content:center}
+ /* every field and list in a window as tall as its buttons; in the table designer's grid a little
+    less, and the same for both */
+ .box :is(input:not([type=checkbox],[type=radio],[type=file],[type=hidden],[type=range]),select):not(table *){height:28px}
+ .box table.dz :is(input:not([type=checkbox]),select){height:26px}
  /* a path that did not pass the check before Save */
- #mSettings input.bad{border-color:#e5534b;box-shadow:0 0 0 1px #e5534b}
+ #mSettings input.bad{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
@@ -669,7 +673,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="grid3" id="expOptsAdv"></div>
   <div class="row"><label title="The character set mysqldump writes the file in.">Character set <select id="expCharset"><option>utf8mb4</option><option>utf8</option><option>latin1</option><option>binary</option></select></label><span class="optsep"></span><label title="mysqldump --max-allowed-packet. Raise this for very large rows or BLOBs (e.g. 1G).">Max packet <input id="expMaxPacket" value="1G" style="width:56px"></label><span class="optsep"></span><label title="How a NULL is written to CSV. \N is what LOAD DATA reads back; blank makes NULL and an empty string indistinguishable in the file.">NULL in CSV exports <input id="expNullVal" value="\N" style="width:52px;font-family:var(--mono)"></label></div>
  </details>
- <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="expGoBtn" onclick="runExport()">Start Export</button><button class="warn" id="expCancelBtn" disabled onclick="cancelJob('exp')">Cancel</button><button onclick="hide('mExport')">Close</button></div>
+ <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="expGoBtn" onclick="runExport()">Export</button><button class="warn" id="expCancelBtn" disabled onclick="cancelJob('exp')">Cancel</button><button onclick="hide('mExport')">Close</button></div>
  <div id="expProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="expBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
    <div id="expProgLabel" class="muted" style="font-size:11px;margin-top:4px"></div>
@@ -682,7 +686,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="impList" class="implist"></div>
  <div class="xrow"><span class="xlbl">Into database</span><input id="impDb" placeholder="the one each file names" style="width:300px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="openImpDbPicker()" oninput="renderImpDbPicker()" onblur="setTimeout(()=>{const p=$('impDbPicker');if(p)p.style.display='none';},150)"><label class="ck" title="Create the database first when it does not exist."><input type="checkbox" id="impCreate"> Create it if missing</label></div>
  <div class="xrow"><span class="xlbl">While loading</span><label class="ck" title="Turn foreign key and unique checks off during the import, for tables that come in out of order or refer to each other."><input type="checkbox" id="impFk" checked> Foreign key checks off</label><label class="ck" title="Keep going when a file or statement fails, rather than stopping (mysql --force)."><input type="checkbox" id="impForce"> Carry on after an error</label><label class="ck" title="Needed when the dump holds raw NUL bytes in binary or text columns (the error: ASCII '\0' appeared in the statement). Safe to leave on for any dump that might hold binary data (mysql --binary-mode)."><input type="checkbox" id="impBinary"> Binary mode</label><span class="optsep"></span><label title="mysql --max-allowed-packet. Match or exceed what the dump was exported with - a file made with a larger packet (large rows or BLOBs in extended INSERTs) can otherwise fail with &quot;MySQL server has gone away&quot; against the client's smaller default (16M).">Max packet <input id="impMaxPacket" value="1G" style="width:56px"></label></div>
- <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="impGoBtn" onclick="runImport()">Run Import</button><button class="warn" id="impCancelBtn" disabled onclick="cancelJob('imp')">Cancel</button><button onclick="hide('mImport')">Close</button></div>
+ <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="impGoBtn" onclick="runImport()">Import</button><button class="warn" id="impCancelBtn" disabled onclick="cancelJob('imp')">Cancel</button><button onclick="hide('mImport')">Close</button></div>
  <div id="impProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="impBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
    <div id="impProgLabel" class="muted" style="font-size:11px;margin-top:4px"></div>
@@ -800,7 +804,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 
 <div class="modal floating" id="mHist"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mHist')" title="Drag to move"><h3 style="margin:0 0 10px">Query history</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mHist')" title="Maximize" id="maxBtn_mHist" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mHist')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="histList" class="clist" style="flex:1;min-height:0"></div>
- <div class="row" style="justify-content:flex-end;flex:none"><button class="warn" onclick="clearHistory()">Clear history</button><button onclick="hide('mHist')">Close</button></div></div></div>
+ <div class="row" style="flex:none"><button class="warn" onclick="clearHistory()">Clear history</button><span style="flex:1"></span><button onclick="hide('mHist')">Close</button></div></div></div>
 <div class="modal floating" id="mPlan"><div class="box" style="width:780px;max-width:95vw;height:560px;display:flex;flex-direction:column;overflow:hidden;top:70px;left:160px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPlan')" title="Drag to move"><h3 id="planTitle" style="margin:0 0 10px">Query plan</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPlan')" title="Maximize" id="maxBtn_mPlan" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPlan')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="planBody" style="overflow:auto;flex:1;min-height:0"></div>
  <div class="row" style="justify-content:flex-end;flex:none"><button onclick="hide('mPlan')">Close</button></div></div></div>
@@ -1587,7 +1591,7 @@ async function openAbout(){
 function renderToolsStatus(r){
  const row=(name,path,src,ver,none)=>{const ok=path&&path!=='(not found)';
   return '<div style="margin:2px 0"><div class="toolpath"><b>'+name+':</b>'+(ok?'<span class="p" title="'+esc(path)+'">'+esc(path)+'</span><span style="color:#3fb950">&#10003;</span></div><div class="muted" style="font-size:11px;margin-left:2px">'+esc((ver?ver+' - ':'')+(src||''))+'</div>':none+'</div>')+'</div>';};
- const missing='<span style="color:#e5534b">&#10007; not found</span>';
+ const missing='<span style="color:var(--danger)">&#10007; not found</span>';
  const ma=$('cfgStatusMaria'),my=$('cfgStatusMysql');
  if(ma)ma.innerHTML=row('mysql',r.mysql,r.mysql_source,r.mysql_version,missing)+row('mysqldump',r.mysqldump,r.mysqldump_source,r.mysqldump_version,missing);
  if(my)my.innerHTML=row('mysql',r.mysql_for_mysql,r.mysql_for_mysql_source,r.mysql_for_mysql_version,'<span class="muted">none - the tools for MariaDB servers are used</span>')
