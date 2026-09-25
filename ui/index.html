@@ -510,7 +510,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  @media (max-width:820px){.sccols{columns:1}}
  .scsec{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 14px} .scsec td:first-child{width:44%;white-space:normal !important}
  .sch{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
- .toolcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+ .toolcards{display:grid;grid-template-columns:1fr;gap:12px} /* one above the other: the paths are the longest thing here, and get the width */
  /* Compare before its first run: what to do, and what happens, where the results will be. */
  #cmpResults:empty{display:flex;align-items:center;justify-content:center}
  #cmpResults:empty::before{content:"Pick the source and the target database above, then Run comparison.\A\AThe structure of their tables is compared first - columns, keys, foreign keys and checks - and\A Check row differences then compares their rows. Nothing changes on the target until you apply it.";white-space:pre-line;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;max-width:680px;border:1px dashed var(--bd);border-radius:var(--r-m);padding:26px 30px}
@@ -551,11 +551,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
-.toolcard{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--panel2);min-width:0}
-.toolcard.inuse{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.toolcard-h{font-size:13px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.toolcard{border:1px solid var(--bd);border-radius:var(--r-m);padding:14px 16px;background:var(--panel2);min-width:0}
+.toolcard.inuse{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)} .toolcard.inuse .toolcard-h::after{content:"In use";margin-left:4px;font-size:10px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:var(--r-s);padding:0 6px;line-height:16px}
+.toolcard-h{font-size:14px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .tooldot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
-.toolstatus{font-size:12px;margin:4px 0 8px}
+.toolstatus{font-size:12px;margin:10px 0 12px;padding:8px 12px;background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r-s)} .toolstatus:empty{display:none}
 .toolpath{display:flex;align-items:baseline;gap:6px;min-width:0}
 .toolpath>.p{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .toolcard .row>span:first-child{flex:none}
@@ -832,7 +832,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div id="cfgStatusMaria" class="toolstatus"></div>
    <div class="row"><span style="width:92px">mysql</span><input id="cfgMysql" style="flex:1" placeholder="full path to mysql.exe (or mariadb.exe)"><button onclick="browse({title:'Select mysql.exe / mariadb.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgMysql').value=pp})">Browse...</button></div>
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDump" style="flex:1" placeholder="full path to mysqldump.exe (or mariadb-dump.exe)"><button onclick="browse({title:'Select mysqldump.exe / mariadb-dump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDump').value=pp})">Browse...</button></div>
-   <div class="row" style="margin-top:6px"><button class="go" onclick="downloadTools()">Download MariaDB client tools</button><span class="muted" style="font-size:12px">The latest LTS client for Windows from mariadb.org (~90 MB).</span></div>
+   <div class="row" style="margin-top:6px"><button onclick="downloadTools()">Download MariaDB client tools</button><span class="muted" style="font-size:12px">The latest LTS client for Windows from mariadb.org (~90 MB).</span></div>
    <details style="margin-top:6px"><summary class="muted" style="font-size:11px;cursor:pointer">Download address</summary>
     <div class="row" style="margin-top:6px"><span style="width:92px">URL</span><input id="cfgDownloadUrl" style="flex:1;font-family:var(--mono);font-size:11px" placeholder="https://mirror.mariadb.org/mariadb-{version}/winx64-packages/{file_name}"><button onclick="resetDownloadUrl()" title="Reset to the built-in default">Reset</button></div>
     <div class="muted" style="font-size:11px;line-height:1.4;margin:2px 0 0">{version} and {file_name} are filled in from the latest MariaDB LTS release. Only change this if the download fails (mariadb.org occasionally changes its layout) - the error message shows what happened.</div>
@@ -844,7 +844,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div id="cfgStatusMysql" class="toolstatus"></div>
    <div class="row"><span style="width:92px">mysql</span><input id="cfgMysqlMy" style="flex:1" placeholder="MySQL's mysql.exe - empty: detect a MySQL Server installation"><button onclick="browse({title:'Select MySQL\'s mysql.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgMysqlMy').value=pp})">Browse...</button></div>
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDumpMy" style="flex:1" placeholder="MySQL's mysqldump.exe - empty: detect a MySQL Server installation"><button onclick="browse({title:'Select MySQL\'s mysqldump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDumpMy').value=pp})">Browse...</button></div>
-   <div class="row" style="margin-top:6px"><button class="go" onclick="downloadMysqlTools()">Download MySQL client tools</button><span class="muted" style="font-size:12px">mysql and mysqldump from the current MySQL 8.4 LTS release on dev.mysql.com (~270 MB, of which about 14 MB is kept), checked against the MD5 MySQL publishes.</span></div>
+   <div class="row" style="margin-top:6px"><button onclick="downloadMysqlTools()">Download MySQL client tools</button><span class="muted" style="font-size:12px">mysql and mysqldump from the current MySQL 8.4 LTS release on dev.mysql.com (~270 MB, of which about 14 MB is kept), checked against the MD5 MySQL publishes.</span></div>
   </div>
  </div>
  <div class="muted" style="font-size:11px;line-height:1.5;margin-top:8px">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*, WAMP, XAMPP) &rarr; system PATH.</div>
