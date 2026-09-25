@@ -54,6 +54,10 @@ INSERT INTO ${DB}.x (id,a,secret) VALUES (1,5,'hidden');`);
 
     if (G.desktop) {
       const file = G.env.tmp + '/x_inserts.sql';
+      // The app writes only where the Save dialog was answered; a debug build lets a test name it.
+      const refused = await G.A('/api/export-table', { db: DB, table: 'x', file, format: 'inserts' });
+      G.check('a file not chosen in the Save dialog is not written', refused.ok === false && /Save dialog/.test(refused.error || ''), refused);
+      await G.A('/api/grant-save-path-for-test', { path: file });
       const r = await G.A('/api/export-table', { db: DB, table: 'x', file, format: 'inserts' });
       G.check('the INSERT export of a table succeeds', r.ok, r);
     } else {

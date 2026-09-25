@@ -219,8 +219,10 @@ echo | openssl s_client -starttls mysql -connect HOST:PORT -showcerts
 The CA is the last certificate printed (for MariaDB, the only one).
 
 **PAM and LDAP accounts** (MariaDB's `auth_pam`, MySQL Enterprise's PAM and LDAP plugins) sign in
-with the password as it is typed. The app sends it only over an encrypted connection: `required`,
-a verifying mode, or `default` when the server offers TLS. A MariaDB server has to ask for it that
+with the password as it is typed. The app sends it only where the server has been verified - a
+verifying mode - or, on a network you trust, over `required` or `default` when the saved
+connection has **PAM / LDAP sign-in** ticked: those modes check no certificate, so whoever sits in
+between could pose as the server and read the password. A MariaDB server has to ask for it that
 way - set `pam_use_cleartext_plugin=ON` in its configuration. The app cannot answer PAM's other
 way of asking (the dialog plugin), and the connection error says so.
 
@@ -284,6 +286,36 @@ Apart from your database servers and SSH hosts, the app contacts:
 
 None of these requests carries anything beyond what any web request does: your IP address and a
 user agent. There is no telemetry.
+
+## Security notes
+
+What the app protects, and where its limits are.
+
+- **Read-only / safe mode** refuses every statement that writes, before it is sent - in the
+  backend, not only in the interface - and a connection saved as read-only stays read-only even
+  if the page asks otherwise (unless another saved connection to the same account is not
+  read-only). It judges statements, not what they call: a SELECT that calls a stored function
+  which writes, `GET_LOCK()`, `SLEEP()` or `SELECT ... FOR UPDATE` still has its effect. For
+  a guarantee, give the account only the SELECT privilege.
+- **Import is not a sandbox.** "Into database" is where the files go, but a statement in a file
+  that names another database or table, or grants rights, still does what it says, with your
+  rights. The client runs the files in binary mode, so client commands in them (`system`, `tee`,
+  `source`, `\!`) are refused. Import only files you trust.
+- **SSL `default`** encrypts when the server offers TLS and falls back to unencrypted when it does
+  not - so someone who can block the server's TLS offer gets an unencrypted connection. Use
+  `required` or a verifying mode where that matters. `required` checks no certificate.
+- **The MariaDB dump tool on `required`** is pinned to the certificate the server presented a
+  moment before - trusted on first sight, like `required` itself.
+- **SSH tunnels** accept a host's key the first time they see it (`StrictHostKeyChecking=accept-new`)
+  and refuse a changed one afterwards. The tunnel's local end listens on 127.0.0.1, where other
+  programs and users of the same computer can reach it too - they still need the database
+  password.
+- **Passwords** are kept in the Windows Credential Manager; the temporary option files the command-line
+  tools read are private to you and removed after use (and at the next start, if the app was
+  killed). A password in SQL the app logs, shows in a message or keeps with your open tabs is
+  written as `'***'`.
+- **The window** loads only the app's own page, under a content security policy that lets it
+  load or send nothing elsewhere. Files are written only where you picked them in a Save dialog.
 
 ## How it's tested
 

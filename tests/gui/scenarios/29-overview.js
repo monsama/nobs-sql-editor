@@ -17,6 +17,8 @@
     G.check('your databases come before the server\'s own', firstSys < 0 || order.slice(firstSys).every(d => sys.test(d)), order);
   } finally {
     await G.run(`DROP DATABASE IF EXISTS ${A}; DROP DATABASE IF EXISTS ${B};`);
+    // Not left selected: the next scenario's query tabs would run in a database that is gone.
+    if (curSchema === A || curSchema === B) { curSchema = null; if ($('objdb') && [A, B].includes($('objdb').textContent)) clearObjectsPanel(); }
     await loadSchemas();
   }
   return G.report();

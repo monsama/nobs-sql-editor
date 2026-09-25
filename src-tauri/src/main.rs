@@ -410,7 +410,23 @@ fn browse_charset(connj: &Value) -> Option<String> {
 // session's charset and stored as different bytes than the ones on screen. The UI disables writing
 // in that mode as well; this is the half that does not depend on the UI being right.
 fn ro_mode(req: &Value) -> bool {
-    req["ro"].as_bool().unwrap_or(false) || browse_charset(&req["conn"]).is_some()
+    ro_flag(req) || browse_charset(&req["conn"]).is_some()
+}
+
+// Marked read-only by the page, or by the saved connections themselves: when every saved connection
+// to this account (host, port, user, SSH host) is read-only, so is the request, whatever the page
+// sent - the page is not the only thing standing between a read-only connection and a write. A
+// second saved connection to the same account that is not read-only leaves it to the page.
+fn ro_flag(req: &Value) -> bool {
+    req["ro"].as_bool().unwrap_or(false) || saved_ro(&req["conn"])
+}
+fn saved_ro(connj: &Value) -> bool {
+    if !connj.is_object() { return false; }
+    let s = |v: &Value| v.as_str().map(|x| x.trim().to_lowercase()).or_else(|| v.as_u64().map(|n| n.to_string())).unwrap_or_default();
+    let key = |c: &Value| (s(&c["host"]), s(&c["port"]), c["user"].as_str().unwrap_or("").to_string(), s(&c["sshHost"]));
+    let k = key(connj);
+    let same: Vec<Value> = load_profiles().into_iter().filter(|c| key(c) == k).collect();
+    !same.is_empty() && same.iter().all(|c| c["readonly"].as_bool().unwrap_or(false))
 }
 
 // ---------- SSH tunnels ----------
@@ -500,18 +516,24 @@ fn open_tunnel_on(local: u16, ssh_host: &str, ssh_port: u16, ssh_user: &str, key
               "-o", "ServerAliveInterval=30", "-o", "ConnectTimeout=15"]);
     cmd.arg("-L").arg(format!("127.0.0.1:{}:{}:{}", local, target, port)).arg("-p").arg(ssh_port.to_string());
     if !key.is_empty() { cmd.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes"]); }
-    if password.is_empty() {
+    // Kept until this function returns - the tunnel is up, or it has failed.
+    let _pw_file: Option<tempfile::NamedTempFile> = if password.is_empty() {
         // Nobody can answer a prompt, so there is none: a login that would need one fails.
         cmd.args(["-o", "BatchMode=yes"]);
+        None
     } else {
         // The password goes to ssh the one way it takes one without a terminal: a program it runs
-        // and reads it from - this app again (see main), with the password in that run's environment.
-        // One try, so a wrong one fails at once instead of being offered again.
+        // and reads it from - this app again (see main). The password is in a file of the user's own
+        // that lasts until the tunnel is up or has failed (this function), not in the environment,
+        // where it stayed readable for as long as ssh ran. One try, so a wrong one fails at once.
         cmd.args(["-o", "NumberOfPasswordPrompts=1"]);
+        let mut f = tempfile::Builder::new().prefix("nobs-ssh-").tempfile().map_err(|e| (format!("Could not prepare the SSH password: {e}"), false))?;
+        { use std::io::Write; f.write_all(password.as_bytes()).and_then(|_| f.flush()).map_err(|e| (format!("Could not prepare the SSH password: {e}"), false))?; }
         if let Ok(me) = std::env::current_exe() {
-            cmd.env("SSH_ASKPASS", me).env("SSH_ASKPASS_REQUIRE", "force").env("NOBS_SSH_ASKPASS", "1").env("NOBS_SSH_PW", password);
+            cmd.env("SSH_ASKPASS", me).env("SSH_ASKPASS_REQUIRE", "force").env("NOBS_SSH_ASKPASS", "1").env("NOBS_SSH_PWFILE", f.path());
         }
-    }
+        Some(f)
+    };
     // After "--" the destination cannot be read as an option, whatever it starts with.
     cmd.arg("--").arg(if ssh_user.is_empty() { ssh_host.to_string() } else { format!("{}@{}", ssh_user, ssh_host) });
     cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
@@ -592,9 +614,13 @@ fn build_conn(connj: &Value) -> Result<Conn, String> {
     // pam_use_cleartext_plugin=ON, MySQL Enterprise) - sends the password as it is typed, so it is
     // answered only on a connection that is encrypted: "required" and the verify modes always are,
     // and "default" on its TLS attempt. The plaintext fallback, and "disabled", refuse it.
-    if ssl == "required" || ssl_mode_verifies(ssl) { ob = ob.enable_cleartext_plugin(true); }
+    // And where the server's certificate is not checked ("required", "default"), only when the
+    // connection says so (clearPw): TLS that checks nothing lets whoever sits in between pose as the
+    // server, ask for the password as typed, and read it.
+    let clear_ok = connj["clearPw"].as_bool().unwrap_or(false);
+    if ssl_mode_verifies(ssl) || (ssl == "required" && clear_ok) { ob = ob.enable_cleartext_plugin(true); }
     if ssl == "default" {
-        let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true))).enable_cleartext_plugin(true);
+        let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true))).enable_cleartext_plugin(clear_ok);
         match Conn::new(Opts::from(tls)) {
             Ok(c) => return Ok(c),
             Err(e) if tls_was_the_problem(&e) => {}
@@ -610,6 +636,9 @@ fn tls_was_the_problem(e: &mysql::Error) -> bool {
     match e {
         mysql::Error::DriverError(mysql::DriverError::TlsNotSupported) => true,
         mysql::Error::TlsError(_) => true,
+        // An answer from the server is never TLS failing: "Access denied for user 'ssl_admin'" -
+        // or any message that happens to say ssl - would otherwise be retried without encryption.
+        mysql::Error::MySqlError(_) => false,
         _ => { let m = e.to_string().to_lowercase(); m.contains("tls") || m.contains("ssl") || m.contains("handshake") }
     }
 }
@@ -704,14 +733,15 @@ fn explain_conn_error(ssl: &str, has_ca: bool, err: &str) -> String {
     // The driver words it one way on the first request and another on a switch to it.
     if err.contains("mysql_clear_password must be enabled") || err.contains("Unknown authentication protocol: `mysql_clear_password`") {
         return format!("{err}\n\nThis account signs in with its password sent as typed (PAM or LDAP), and \
-this connection is not encrypted, so the password was not sent. Set SSL to \"required\" (or a verify \
-mode) on a server that has TLS.");
+this connection is not encrypted, or does not check the server's certificate, so the password was not \
+sent. Set SSL to a verify mode, or - on a network you trust - to \"required\" with \"PAM / LDAP sign-in\" \
+ticked in the saved connection.");
     }
     if err.contains("Unknown authentication protocol: `dialog`") {
         return format!("{err}\n\nThis account signs in through PAM with MariaDB's dialog plugin, which \
 this app cannot answer. On the server, SET GLOBAL pam_use_cleartext_plugin=ON (and in its config file) \
 makes PAM ask for the password in a way the app can answer - over an encrypted connection, so set SSL \
-to \"required\".");
+to a verify mode, or to \"required\" with \"PAM / LDAP sign-in\" ticked in the saved connection.");
     }
     let tls_related = err.contains("TlsError") || err.contains("certificate") || err.contains("Certificate");
     if !ssl_mode_verifies(ssl) || !tls_related { return err.to_string(); }
@@ -1129,7 +1159,7 @@ fn sql_id(name: &str) -> String { format!("`{}`", name.replace('`', "``")) }
 // nested inside parentheses (unlike a regex, which can't do that). Used by sql_is_readonly to see
 // past a CTE's own body (or a subquery's) to the keyword actually driving the statement. Each
 // removed group leaves a single space behind so words on either side don't get glued together.
-fn strip_parens(s: &str) -> String {
+fn strip_parens(s: &str, backslash_escapes: bool) -> String {
     let mut out = String::with_capacity(s.len());
     let mut depth = 0i32;
     // A ')' (or, for that matter, a keyword) inside a quoted string/identifier isn't a real
@@ -1143,7 +1173,7 @@ fn strip_parens(s: &str) -> String {
     while let Some(c) = chars.next() {
         if let Some(q) = quote {
             if escaped { escaped = false; }
-            else if c == '\\' { escaped = true; }
+            else if c == '\\' && backslash_escapes && q != '`' { escaped = true; }
             else if c == q {
                 // A doubled quote ('' or "" or ``) is an escaped literal quote, not the closer -
                 // consume the pair and stay inside the string.
@@ -1170,7 +1200,7 @@ fn strip_parens(s: &str) -> String {
 // outside a quoted string. Used to unwrap MariaDB's "SET STATEMENT <assignments> FOR <statement>",
 // where the part after FOR is a whole statement that really executes. A FOR inside a string
 // literal - SET STATEMENT x='FOR' FOR SELECT 1 - is not the separator and must not be taken for one.
-fn split_off_keyword(s: &str, kw: &str) -> Option<String> {
+fn split_off_keyword(s: &str, kw: &str, backslash_escapes: bool) -> Option<String> {
     let raw: Vec<char> = s.chars().collect();
     let up: Vec<char> = s.to_uppercase().chars().collect();
     let k: Vec<char> = kw.to_uppercase().chars().collect();
@@ -1182,7 +1212,7 @@ fn split_off_keyword(s: &str, kw: &str) -> Option<String> {
         let c = raw[i];
         if let Some(q) = quote {
             if escaped { escaped = false; }
-            else if c == '\\' { escaped = true; }
+            else if c == '\\' && backslash_escapes && q != '`' { escaped = true; }
             else if c == q { quote = None; }
             i += 1;
             continue;
@@ -1199,6 +1229,28 @@ fn split_off_keyword(s: &str, kw: &str) -> Option<String> {
         i += 1;
     }
     None
+}
+
+// The words of a statement outside its quoted strings and identifiers, upper-cased: letters, digits
+// and _ @ $ . - so @@GLOBAL.x is one word. The quotes follow the server's rules, as above.
+fn unquoted_words(s: &str, backslash_escapes: bool) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for c in s.chars() {
+        if let Some(q) = quote {
+            if escaped { escaped = false; }
+            else if c == '\\' && backslash_escapes && q != '`' { escaped = true; }
+            else if c == q { quote = None; }
+            continue;
+        }
+        if c.is_alphanumeric() || matches!(c, '_' | '@' | '$' | '.') { cur.extend(c.to_uppercase()); continue; }
+        if !cur.is_empty() { words.push(std::mem::take(&mut cur)); }
+        if c == '\'' || c == '"' || c == '`' { quote = Some(c); }
+    }
+    if !cur.is_empty() { words.push(cur); }
+    words
 }
 
 // The text with its comments taken out the way the server reads them, strings left as they are.
@@ -1268,6 +1320,7 @@ fn sql_is_readonly_as(sql: &str, backslash_escapes: bool) -> bool {
     // through untouched. This strips a leading FORMAT=JSON clause so the wrapped statement's own
     // keyword is what's left to check.
     let re_analyze_fmt = regex::Regex::new(r"(?i)^FORMAT\s*=\s*JSON\s+").unwrap();
+    let re_explain_fmt = regex::Regex::new(r"(?i)^FORMAT\s*=\s*\w+\s+").unwrap();
     let s = strip_sql_comments(sql, backslash_escapes);
     const ALLOW: &[&str] = &["SELECT","SHOW","DESCRIBE","DESC","EXPLAIN","USE","WITH","SET","HELP","VALUES","TABLE","ANALYZE","CHECK","CHECKSUM"];
     for stmt in s.split(';') {
@@ -1283,18 +1336,20 @@ fn sql_is_readonly_as(sql: &str, backslash_escapes: bool) -> bool {
         // wrote the file. Only the OUTFILE/DUMPFILE forms are refused; SELECT ... INTO @var is an
         // ordinary variable assignment and stays allowed, and an INTO inside a string literal is
         // not a clause at all - which is why this looks for the keyword outside quotes.
-        if let Some(rest) = split_off_keyword(t, "INTO") {
-            let head = rest.split_whitespace().next().unwrap_or("").to_uppercase();
-            if head == "OUTFILE" || head == "DUMPFILE" { return false; }
-        }
+        // Every INTO, not only the first: "SELECT a INTO @x FROM t UNION SELECT b INTO OUTFILE ..."
+        // has its file behind the second.
+        let words = unquoted_words(t, backslash_escapes);
+        if words.windows(2).any(|p| p[0] == "INTO" && (p[1] == "OUTFILE" || p[1] == "DUMPFILE")) { return false; }
         // SET is allowed because a session variable is harmless, but SET GLOBAL / SET PERSIST -
         // and their @@GLOBAL. / @@PERSIST. spellings - reconfigure the server for every
         // connection, which is not something a read-only connection should be able to do.
         if w == "SET" {
             let up = t.to_uppercase();
             let second = up.split_whitespace().nth(1).unwrap_or("");
-            if second.starts_with("GLOBAL") || second.starts_with("PERSIST")
-                || up.contains("@@GLOBAL") || up.contains("@@PERSIST") { return false; }
+            // In any of the assignments, not only the first: "SET @a = 1, GLOBAL x = 1" is two.
+            if words.iter().any(|w| w == "GLOBAL" || w == "PERSIST" || w == "PERSIST_ONLY" || w.starts_with("@@GLOBAL") || w.starts_with("@@PERSIST")) { return false; }
+            // SET RESOURCE GROUP g FOR <thread> moves another connection's thread (MySQL).
+            if second == "RESOURCE" { return false; }
             // SET is allow-listed for session variables, but several SET forms are not variable
             // assignments at all. These three write, and were reaching the server on a connection
             // the user had marked read-only:
@@ -1308,7 +1363,7 @@ fn sql_is_readonly_as(sql: &str, backslash_escapes: bool) -> bool {
             if second == "PASSWORD" { return false; }
             if second == "DEFAULT" && up.split_whitespace().nth(2).unwrap_or("") == "ROLE" { return false; }
             if second == "STATEMENT" {
-                match split_off_keyword(t, "FOR") {
+                match split_off_keyword(t, "FOR", backslash_escapes) {
                     // Recurse: the wrapped statement is judged exactly as if it had been typed on
                     // its own, so "FOR SELECT 1" stays allowed and "FOR DROP TABLE t" does not.
                     Some(inner) => { if !sql_is_readonly(&inner) { return false; } }
@@ -1323,13 +1378,25 @@ fn sql_is_readonly_as(sql: &str, backslash_escapes: bool) -> bool {
         // strip_parens, leaving roughly "WITH cte1 AS , cte2 AS  DELETE FROM t ..." - the first
         // remaining recognizable verb after that is the statement actually being run.
         if w == "WITH" {
-            let stripped = strip_parens(t);
+            let stripped = strip_parens(t, backslash_escapes);
             const VERBS: &[&str] = &["SELECT","INSERT","UPDATE","DELETE","REPLACE","TABLE","VALUES"];
             let verb = stripped.split_whitespace().map(|w| w.to_uppercase()).find(|w| VERBS.contains(&w.as_str()));
             match verb.as_deref() {
                 Some("SELECT") | Some("TABLE") | Some("VALUES") => {}
                 _ => return false,
             }
+        }
+        // EXPLAIN ANALYZE (MySQL 8.0.18+, and DESCRIBE/DESC ANALYZE with it) runs the statement it
+        // profiles, and from 8.0.19 that can be a multi-table UPDATE or DELETE - which then changes
+        // the data. What follows ANALYZE (and a FORMAT=) is judged as a statement of its own, and
+        // has to be a query. EXPLAIN without ANALYZE runs nothing.
+        if matches!(w.as_str(), "EXPLAIN" | "DESCRIBE" | "DESC") && words.get(1).map(|x| x == "ANALYZE").unwrap_or(false) {
+            let rest = t.split_once(char::is_whitespace).map(|x| x.1).unwrap_or("").trim_start();
+            let rest = rest.split_once(char::is_whitespace).map(|x| x.1).unwrap_or("").trim_start();
+            let inner = re_explain_fmt.replace(rest, "").to_string();
+            let inner_w = inner.split_whitespace().next().unwrap_or("").to_uppercase();
+            if !matches!(inner_w.as_str(), "SELECT" | "WITH" | "TABLE" | "VALUES") && !inner.starts_with('(') { return false; }
+            if !sql_is_readonly_as(&inner, backslash_escapes) { return false; }
         }
         if w == "ANALYZE" {
             let rest = t.split_once(char::is_whitespace).map(|x| x.1).unwrap_or("").trim_start();
@@ -1459,10 +1526,12 @@ fn resolve_bin(names: &[&str], env_key: &str) -> Result<String, String> {
     {
         #[cfg(windows)]
         let (bases, direct) = (
+            // Not C:\wamp64 or C:\xampp: any user of the computer can create those, and a mysql.exe
+            // put there would be run as whoever uses the app. Their tools are used when picked in
+            // Settings.
             vec![std::path::PathBuf::from("C:\\Program Files"),
-                 std::path::PathBuf::from("C:\\Program Files (x86)"),
-                 std::path::PathBuf::from("C:\\wamp64\\bin")],
-            vec![std::path::PathBuf::from("C:\\xampp\\mysql\\bin")]);
+                 std::path::PathBuf::from("C:\\Program Files (x86)")],
+            Vec::<std::path::PathBuf>::new());
         #[cfg(not(windows))]
         let (bases, direct): (Vec<std::path::PathBuf>, Vec<std::path::PathBuf>) = (vec![], vec![]);
         for d in tool_search_dirs(&bases, &direct) {
@@ -1755,7 +1824,7 @@ async fn process_list(req: Value) -> R {
 #[tauri::command]
 async fn kill_process(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
-        if req["ro"].as_bool().unwrap_or(false) {
+        if ro_flag(&req) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let pid = req["pid"].as_str().unwrap_or("");
@@ -2015,7 +2084,7 @@ async fn exec(req: Value) -> R {
 // registered, so each value is written for its column's type, as Compare does (see sql_val_for).
 async fn rowop(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
-        if req["ro"].as_bool().unwrap_or(false) {
+        if ro_flag(&req) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let db = req["db"].as_str().unwrap_or(""); let table = req["table"].as_str().unwrap_or("");
@@ -2205,9 +2274,14 @@ fn server_cert_fingerprint(connj: &Value) -> Result<String, String> {
     let der = tls.peer_certificate().map_err(|e| fail(&e))?.ok_or_else(|| fail(&"no certificate"))?.to_der().map_err(|e| fail(&e))?;
     Ok(sha2::Sha256::digest(&der).iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":"))
 }
+// Temp files that hold a password are named so, and one a crash left behind is removed at the next
+// start (sweep_secret_temp_files).
 fn cnf_file_with(connj: &Value, tool: &str, guard: Option<&str>) -> Result<(tempfile::NamedTempFile, String), String> {
-    let mut f = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
+    let mut f = tempfile::Builder::new().prefix("nobs-cnf-").suffix(".cnf").tempfile().map_err(|e| e.to_string())?;
     let mut s = String::from("[client]\n");
+    // LOAD DATA LOCAL INFILE lets the SERVER ask the client for any file it names. The app never
+    // uses it, so the client tools are told to refuse (loose-: mysqldump has no such option).
+    s += "loose-local-infile=0\n";
     // Through the SSH tunnel when the connection has one, as build_conn does.
     let (host, port) = endpoint(connj)?;
     s += &format!("host={}\nport={}\nuser={}\n", cnf_safe(&host), port, cnf_quote(connj["user"].as_str().unwrap_or("root")));
@@ -2234,7 +2308,8 @@ fn cnf_file_with(connj: &Value, tool: &str, guard: Option<&str>) -> Result<(temp
     // and it is told only on a connection that is encrypted, as build_conn does. (MariaDB's sends it
     // when asked, and answers the dialog plugin as well.)
     let ssl = connj["ssl"].as_str().unwrap_or("default");
-    if !client_is_mariadb(tool) && (ssl == "required" || ssl_mode_verifies(ssl)) { s += "loose-enable-cleartext-plugin\n"; }
+    // As build_conn: where the certificate is checked, or where the connection says so.
+    if !client_is_mariadb(tool) && (ssl_mode_verifies(ssl) || (ssl == "required" && connj["clearPw"].as_bool().unwrap_or(false))) { s += "loose-enable-cleartext-plugin\n"; }
     // The ssl setting used to stop at the native driver: export and import went out over whatever
     // the CLI happened to negotiate, so a connection saved as "required" - or as "disabled" - was
     // quietly something else as soon as it was dumped or loaded.
@@ -2570,7 +2645,7 @@ async fn script_results(req: Value) -> R {
 
 #[tauri::command]
 async fn import(app: tauri::AppHandle, req: Value) -> R {
-    if req["ro"].as_bool().unwrap_or(false) {
+    if ro_flag(&req) {
         return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
     }
     let mbin = match resolve_tool_for(&app, "mysql", &["mysql", "mariadb"], "MYSQL_BIN", &req["conn"]) { Ok(b) => b, Err(e) => return Ok(json!({"ok":false,"error":e})) };
@@ -2756,23 +2831,24 @@ async fn import_run(req: Value, mbin: String) -> R {
             if !std::path::Path::new(&f).exists() { log.push(format!("SKIP (missing): {}", f)); continue; }
             // Warnings are asked for: a dump sets a non-strict sql_mode, so a value too long for its
             // column, or out of range, is cut and the import carried on - logged as a plain OK.
-            let mut args = vec![format!("--defaults-extra-file={}", cnf), "--show-warnings".into()];
+            // --binary-mode, always: a dump file is data, and without it mysql.exe carries out the
+            // client commands in it - MySQL's runs "system <anything>" and "tee <file>" (measured with
+            // 8.0 and 8.4), which a file someone sends you can hold. In binary mode both clients refuse
+            // every client command but DELIMITER and \C in piped input; a raw NUL goes through too.
+            let mut args = vec![format!("--defaults-extra-file={}", cnf), "--binary-mode".into(), "--show-warnings".into()];
             if req["force"].as_bool().unwrap_or(false) { args.push("--force".into()); }
             // This replaces the options file's init-command, so it repeats its SET NAMES (cnf_file).
             if req["fkOff"].as_bool().unwrap_or(false) {
                 let first = if client_is_mariadb(&mbin) { guard.as_ref().map(|g| format!("{g}; ")).unwrap_or_default() } else { "SET NAMES utf8mb4; ".to_string() };
                 args.push(format!("--init-command={}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", first));
             }
-            // The "binary-mode" checkbox sends this, but nothing ever read it - checking it in
-            // the UI silently did nothing, so the exact NUL-byte error its tooltip promises to
-            // fix ("ASCII '\0' appeared in the statement") kept recurring with the box checked.
-            if req["binaryMode"].as_bool().unwrap_or(false) { args.push("--binary-mode".into()); }
             // Export lets you raise mysqldump's --max-allowed-packet (needed for extended-insert
             // with large rows/BLOBs), but the mysql client re-importing that exact file has its
             // own, separate default (16M) - without a matching bump here, re-importing a dump
             // exported with a larger packet size fails with "MySQL server has gone away".
             if let Some(mp) = req["maxpacket"].as_str() { if !mp.is_empty() { args.push(format!("--max-allowed-packet={}", mp)); } }
-            if !target.is_empty() { args.push(target.clone()); }
+            // As --database=, so a name cannot be read as another option.
+            if !target.is_empty() { args.push(format!("--database={}", target)); }
             let short = || std::path::Path::new(&f).file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_else(|| f.clone());
             let names = match dump_db_names(&f) { Ok(n) => n, Err(e) => { log.push(format!("FAILED {} : cannot read the file: {}", short(), e)); continue; } };
             let mut cmd = Command::new(&mbin);
@@ -2783,7 +2859,7 @@ async fn import_run(req: Value, mbin: String) -> R {
                 // nor an older MariaDB one (10.2) knows - "/*M!999999\- enable the sandbox mode */" -
                 // and restoring such a dump failed at line 1 with "Unknown command '\-'". Every
                 // client is given the file without it: the line only asks the client to refuse
-                // shell commands, and the Windows client has no shell command (\!) anyway.
+                // shell commands, and --binary-mode (above) refuses every client command already.
                 DumpPlan::AsIs if dump_starts_with_sandbox_line(&f) => {
                     let path = f.clone();
                     let feed: StdinFeed = Box::new(move |mut stdin| {
@@ -2903,6 +2979,15 @@ async fn export(app: tauri::AppHandle, req: Value) -> R {
 // (mysqldump db table1 table2 ... dumps only the named tables - no --databases needed, but this
 // only works for a single database at a time). Returns (ignore_table_args, positional_tables) -
 // exactly one of the two is non-empty whenever `d` has any exclusions at all.
+// The database and table names go after "--", so a name that starts with "-" is a name and not
+// another option (a database called "--result-file=C:/x" would otherwise say where to write).
+// Everything else has to come before, --result-file included.
+fn push_names(a: &mut Vec<String>, result_file: &str, names: impl IntoIterator<Item = String>) {
+    a.push(format!("--result-file={}", result_file));
+    a.push("--".into());
+    a.extend(names);
+}
+
 fn table_filter_args(d: &str, excl: &std::collections::HashSet<String>, conn_req: &Value) -> Result<(Vec<String>, Vec<String>), String> {
     let prefix = format!("{}.", d);
     let this_excl: Vec<&str> = excl.iter().filter(|k| k.starts_with(&prefix)).map(|k| k.as_str()).collect();
@@ -3181,8 +3266,7 @@ async fn export_run(req: Value, dbin: String) -> R {
                     if flag("routines") { a.push("--routines".into()); }
                     if flag("events") { a.push("--events".into()); }
                     if flag("adddroptb") { a.push("--add-drop-table".into()); } else { a.push("--skip-add-drop-table".into()); }
-                    a.push(dbs[0].clone());
-                    a.extend(included);
+                    push_names(&mut a, &file, std::iter::once(dbs[0].clone()).chain(included));
                 } else {
                     a.push("--databases".into());
                     if flag("routines") { a.push("--routines".into()); }
@@ -3191,9 +3275,8 @@ async fn export_run(req: Value, dbin: String) -> R {
                     if flag("adddroptb") { a.push("--add-drop-table".into()); } else { a.push("--skip-add-drop-table".into()); }
                     if !flag("createdb") { a.push("--no-create-db".into()); }
                     for k in &excl { a.push(format!("--ignore-table={}", k)); }
-                    for d in &dbs { a.push(d.clone()); }
+                    push_names(&mut a, &file, dbs.iter().cloned());
                 }
-                a.push(format!("--result-file={}", file));
                 match run(&dbin, &a, &file) {
                     Ok((true, msg)) => log.push(msg),
                     Ok((false, err)) => { if err == RUN_CANCELLED { log.push(format!("CANCELLED {}", single_base)); cancelled = true; } else { log.push(format!("FAILED {} : {}", single_base, err)); } }
@@ -3220,8 +3303,7 @@ async fn export_run(req: Value, dbin: String) -> R {
                     if flag("routines") { a.push("--routines".into()); }
                     if flag("events") { a.push("--events".into()); }
                     if flag("adddroptb") { a.push("--add-drop-table".into()); } else { a.push("--skip-add-drop-table".into()); }
-                    a.push(d.clone());
-                    a.extend(included);
+                    push_names(&mut a, &file, std::iter::once(d.clone()).chain(included));
                 } else {
                     a.push("--databases".into());
                     if flag("routines") { a.push("--routines".into()); }
@@ -3230,9 +3312,8 @@ async fn export_run(req: Value, dbin: String) -> R {
                     if flag("adddroptb") { a.push("--add-drop-table".into()); } else { a.push("--skip-add-drop-table".into()); }
                     if !flag("createdb") { a.push("--no-create-db".into()); }
                     for k in &excl { if k.starts_with(&format!("{}.", d)) { a.push(format!("--ignore-table={}", k)); } }
-                    a.push(d.clone());
+                    push_names(&mut a, &file, std::iter::once(d.clone()));
                 }
-                a.push(format!("--result-file={}", file));
                 match run(&dbin, &a, &file) {
                     Ok((true, msg)) => log.push(msg),
                     Ok((false, err)) => { if err == RUN_CANCELLED { log.push(format!("CANCELLED {}", d)); cancelled = true; } else { log.push(format!("FAILED {} : {}", d, err)); } }
@@ -3266,10 +3347,9 @@ async fn export_run(req: Value, dbin: String) -> R {
                     // The excluded tables are left out; when they are most of the database, the
                     // wanted ones are named instead (see table_filter_args).
                     match table_filter_args(d, &excl, &req["conn"]) {
-                        Ok((ignore, included)) => { a.extend(ignore); a.push(d.clone()); a.extend(included); }
+                        Ok((ignore, included)) => { a.extend(ignore); push_names(&mut a, &whole, std::iter::once(d.clone()).chain(included)); }
                         Err(e) => { log.push(format!("FAILED (list tables) {} : {}", d, e)); continue; }
                     }
-                    a.push(format!("--result-file={}", whole));
                     let dumped = run(&dbin, &a, &whole);
                     match dumped {
                         Ok((true, _)) => {
@@ -3316,8 +3396,7 @@ async fn export_run(req: Value, dbin: String) -> R {
                     a.push("--no-create-info".into()); a.push("--no-data".into()); a.push("--no-create-db".into()); a.push("--skip-triggers".into());
                     if flag("routines") { a.push("--routines".into()); }
                     if flag("events") { a.push("--events".into()); }
-                    a.push(d.clone());
-                    a.push(format!("--result-file={}", file));
+                    push_names(&mut a, &file, std::iter::once(d.clone()));
                     match run(&dbin, &a, &file) {
                         Ok((true, msg)) => log.push(format!("{} (routines/events)", msg)),
                         Ok((false, err)) => { if err == RUN_CANCELLED { log.push(format!("CANCELLED {} routines/events", d)); cancelled = true; } else { log.push(format!("FAILED {} routines/events : {}", d, err)); } }
@@ -3338,7 +3417,7 @@ async fn export_run(req: Value, dbin: String) -> R {
 #[tauri::command]
 async fn importcsv(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
-        if req["ro"].as_bool().unwrap_or(false) {
+        if ro_flag(&req) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let file = req["file"].as_str().unwrap_or("").to_string();
@@ -3524,7 +3603,7 @@ async fn conn_list(_req: Value) -> R {
         let has_password = keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).is_some();
         json!({
             "name": c["name"], "host": c["host"], "port": c["port"], "user": c["user"], "ssl": c["ssl"],
-            "sslCa": c["sslCa"], "sshHost": c["sshHost"], "sshPort": c["sshPort"], "sshUser": c["sshUser"], "sshKey": c["sshKey"],
+            "sslCa": c["sslCa"], "clearPw": c["clearPw"].as_bool().unwrap_or(false), "sshHost": c["sshHost"], "sshPort": c["sshPort"], "sshUser": c["sshUser"], "sshKey": c["sshKey"],
             "accent": c["accent"], "env": c["env"], "readonly": c["readonly"].as_bool().unwrap_or(false),
             "primary": c["primary"].as_bool().unwrap_or(false), "hasPassword": has_password
         })
@@ -3538,7 +3617,7 @@ async fn conn_get(req: Value) -> R {
     match c {
         Some(c) => {
             let pass = keyring::Entry::new("NOBSSQL-Desktop", &name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
-            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,
+            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"clearPw":c["clearPw"].as_bool().unwrap_or(false),"password":pass,
                 "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"sshPassword":ssh_pw_get(&name)},
                 "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false)}))
         }
@@ -3569,7 +3648,7 @@ async fn conn_save(req: Value) -> R {
     let mut list: Vec<Value> = before.into_iter().filter(|c| c["name"].as_str() != Some(name.as_str())).collect();
     list.push(json!({
         "name": name, "host": conn["host"], "port": conn["port"], "user": conn["user"], "ssl": conn["ssl"],
-        "sslCa": conn["sslCa"],
+        "sslCa": conn["sslCa"], "clearPw": conn["clearPw"].as_bool().unwrap_or(false),
         "sshHost": conn["sshHost"], "sshPort": conn["sshPort"], "sshUser": conn["sshUser"], "sshKey": conn["sshKey"],
         "accent": req.get("accent").cloned().unwrap_or(Value::Null),
         "env": req.get("env").cloned().unwrap_or(Value::Null),
@@ -3635,7 +3714,7 @@ fn resolve_saved_conn(name: &str) -> Result<(Value, bool), String> {
     // so between servers in different zones every copied TIMESTAMP moved by the difference (Zurich
     // to UTC: 12:00 UTC arrived as 14:00 UTC), and equal values showed as different. UTC on both
     // sides makes the text mean the same instant everywhere.
-    let connj = json!({"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"password":pass,"utc":true,
+    let connj = json!({"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"clearPw":c["clearPw"].as_bool().unwrap_or(false),"password":pass,"utc":true,
         "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"sshPassword":ssh_pw_get(name)});
     Ok((connj, c["readonly"].as_bool().unwrap_or(false)))
 }
@@ -4847,8 +4926,48 @@ fn cancel_job(req: Value) -> R {
     }
 }
 
+// The page does not name a file to write: it asks for the Save dialog here, and what the user picks
+// there may be written once. A page that could pass any path to save_text, save_binary or
+// export_table could write any file the user can - a script into the Startup folder.
+fn save_grants() -> &'static Mutex<std::collections::HashSet<String>> {
+    static G: std::sync::OnceLock<Mutex<std::collections::HashSet<String>>> = std::sync::OnceLock::new();
+    G.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+fn take_save_grant(path: &str) -> bool { save_grants().lock().unwrap().remove(path) }
+
+#[tauri::command]
+async fn pick_save_path(app: tauri::AppHandle, req: Value) -> R {
+    use tauri_plugin_dialog::DialogExt;
+    let mut d = app.dialog().file();
+    if let Some(n) = req["defaultPath"].as_str().filter(|s| !s.is_empty()) { d = d.set_file_name(n); }
+    for f in req["filters"].as_array().cloned().unwrap_or_default() {
+        let exts: Vec<String> = f["extensions"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+        let refs: Vec<&str> = exts.iter().map(|s| s.as_str()).collect();
+        d = d.add_filter(f["name"].as_str().unwrap_or(""), &refs);
+    }
+    let picked = tokio::task::spawn_blocking(move || d.blocking_save_file()).await.map_err(|e| e.to_string())?;
+    let Some(fp) = picked else { return Ok(Value::Null) };
+    let p = fp.into_path().map_err(|e| e.to_string())?.to_string_lossy().to_string();
+    save_grants().lock().unwrap().insert(p.clone());
+    Ok(json!(p))
+}
+
+// The GUI tests cannot click through a native Save dialog, so a debug build (which is what they run)
+// lets them name the file; a release build does not.
+#[tauri::command]
+fn grant_save_path_for_test(req: Value) -> R {
+    #[cfg(debug_assertions)]
+    {
+        save_grants().lock().unwrap().insert(req["path"].as_str().unwrap_or("").to_string());
+        Ok(json!({"ok":true}))
+    }
+    #[cfg(not(debug_assertions))]
+    { let _ = req; Ok(json!({"ok":false,"error":"not in this build"})) }
+}
+
 #[tauri::command]
 async fn export_table(app: tauri::AppHandle, req: Value) -> R {
+    if !take_save_grant(req["file"].as_str().unwrap_or("")) { return Ok(json!({"ok":false,"error":"not a path chosen in the Save dialog"})); }
     export_table_run(Some(app), req).await
 }
 
@@ -5102,13 +5221,10 @@ fn open_folder(req: Value) -> R {
 #[tauri::command]
 fn check_tool(req: Value) -> R {
     let path = req["path"].as_str().unwrap_or("").trim().to_string();
-    let kind = req["kind"].as_str().unwrap_or("mysql");
+    let kind = req["kind"].as_str().unwrap_or("");
     if path.is_empty() { return Ok(json!({"ok":true})); }
+    if let Some(e) = tool_path_problem(&path, kind) { return Ok(json!({"ok":true,"error":e})); }
     if !std::path::Path::new(&path).is_file() { return Ok(json!({"ok":true,"error":"there is no file at this path"})); }
-    let stem = std::path::Path::new(&path).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
-    let is_dump = stem.contains("dump");
-    if kind == "mysqldump" && !is_dump { return Ok(json!({"ok":true,"error":"this is not mysqldump.exe or mariadb-dump.exe"})); }
-    if kind == "mysql" && (is_dump || !(stem == "mysql" || stem == "mariadb")) { return Ok(json!({"ok":true,"error":"this is not mysql.exe or mariadb.exe"})); }
     match tool_version(&path) {
         Some(v) if v.starts_with("cannot start") => Ok(json!({"ok":true,"error":v})),
         Some(v) => Ok(json!({"ok":true,"version":v})),
@@ -5116,11 +5232,40 @@ fn check_tool(req: Value) -> R {
     }
 }
 
+// Whether a path may be run as a client tool: a local .exe (not \\server\share, not \\?\ or a
+// device), called mysql/mariadb or mysqldump/mariadb-dump as its box asks. None when it may.
+fn tool_path_problem(path: &str, kind: &str) -> Option<&'static str> {
+    if kind != "mysql" && kind != "mysqldump" { return Some("unknown kind of tool"); }
+    if path.starts_with("\\\\") || path.starts_with("//") { return Some("a tool has to be on this computer, not on a network share"); }
+    let p = std::path::Path::new(path);
+    let stem = p.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let is_dump = stem.contains("dump");
+    if kind == "mysqldump" && !is_dump { return Some("this is not mysqldump.exe or mariadb-dump.exe"); }
+    if kind == "mysql" && (is_dump || !(stem == "mysql" || stem == "mariadb")) { return Some("this is not mysql.exe or mariadb.exe"); }
+    if !p.extension().map(|e| e.eq_ignore_ascii_case("exe")).unwrap_or(false) { return Some("a tool is an .exe file"); }
+    None
+}
+
 #[tauri::command]
 fn save_config(req: Value) -> R {
     let mut cfg = load_cfg();
+    // Only what Settings saves, and checked as Settings checks it: a tool path is a MySQL or MariaDB
+    // client on this computer, the download address is https. Anything else in config.json is
+    // edited by hand or not at all - a page that could write any key could point the app at any
+    // program to run, or at another download page to take a checksum from.
+    const TOOLS: &[(&str, &str)] = &[("mysql_bin", "mysql"), ("mysqldump_bin", "mysqldump"), ("mysql_bin_mysql", "mysql"), ("mysqldump_bin_mysql", "mysqldump")];
     if let Some(m) = req["config"].as_object() {
-        for (k, v) in m { cfg[k] = v.clone(); }
+        for (k, v) in m {
+            let s = v.as_str().unwrap_or("").trim().to_string();
+            if let Some((_, kind)) = TOOLS.iter().find(|(n, _)| n == k) {
+                if !s.is_empty() { if let Some(e) = tool_path_problem(&s, kind) { return Ok(json!({"ok":false,"error":format!("{k} : {e}")})); } }
+            } else if k == "mariadb_download_url_template" {
+                if !s.is_empty() && !s.starts_with("https://") { return Ok(json!({"ok":false,"error":"the download address has to start with https://"})); }
+            } else {
+                return Ok(json!({"ok":false,"error":format!("{k} cannot be set here")}));
+            }
+            cfg[k] = json!(s);
+        }
     }
     match std::fs::write(config_file(), serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
         Ok(_) => {
@@ -5336,7 +5481,9 @@ fn download_mysql_tools_blocking() -> R {
         .build().map_err(|e| e.to_string())?;
     let cfg = load_cfg();
     let setting = |k: &str, d: &str| cfg.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).unwrap_or(d).to_string();
-    let page = setting("mysql_download_page", DEFAULT_MYSQL_DOWNLOAD_PAGE);
+    // An override is taken only as https: the page is where the checksum comes from.
+    let https = |k: &str, d: &str| { let v = setting(k, d); if v.starts_with("https://") { v } else { d.to_string() } };
+    let page = https("mysql_download_page", DEFAULT_MYSQL_DOWNLOAD_PAGE);
     let html = client.get(&page).send().and_then(|r| r.error_for_status()).and_then(|r| r.text())
         .map_err(|e| format!("Could not read MySQL's download page {page}: {e}"))?;
     let (file_name, version, md5) = parse_mysql_download_page(&html)
@@ -5345,7 +5492,7 @@ fn download_mysql_tools_blocking() -> R {
     let md5 = md5.ok_or_else(|| format!("MySQL's download page did not show a checksum for {file_name}, so the download was not attempted."))?;
     let series = version.split('.').take(2).collect::<Vec<_>>().join(".");
     let fill = |t: &str| t.replace("{series}", &series).replace("{version}", &version).replace("{file_name}", &file_name);
-    let sources = [("download URL", fill(&setting("mysql_download_url_template", DEFAULT_MYSQL_DOWNLOAD_TEMPLATE))),
+    let sources = [("download URL", fill(&https("mysql_download_url_template", DEFAULT_MYSQL_DOWNLOAD_TEMPLATE))),
                    ("MySQL archive", fill(MYSQL_ARCHIVE_TEMPLATE))];
     let mut tmp = tempfile::tempfile().map_err(|e| e.to_string())?;
     let mut ok = false;
@@ -5500,6 +5647,7 @@ fn open_support_link(_req: Value) -> Result<(), String> {
 fn save_binary(req: Value) -> R {
     let path = req["path"].as_str().unwrap_or("");
     if path.is_empty() { return Ok(json!({"ok":false,"error":"no path"})); }
+    if !take_save_grant(path) { return Ok(json!({"ok":false,"error":"not a path chosen in the Save dialog"})); }
     let bytes: Vec<u8> = req["bytes"].as_array().map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect()).unwrap_or_default();
     match std::fs::write(path, bytes) {
         Ok(_) => Ok(json!({"ok":true})),
@@ -5512,21 +5660,37 @@ fn save_text(req: Value) -> R {
     let path = req["path"].as_str().unwrap_or("");
     let content = req["content"].as_str().unwrap_or("");
     if path.is_empty() { return Ok(json!({"ok":false,"error":"no path"})); }
+    if !take_save_grant(path) { return Ok(json!({"ok":false,"error":"not a path chosen in the Save dialog"})); }
     match std::fs::write(path, content) {
         Ok(_) => Ok(json!({"ok":true})),
         Err(e) => Ok(json!({"ok":false,"error":e.to_string()})),
     }
 }
 
+// Password files (options files, the SSH password) a crash or a kill left in %TEMP%: older than a
+// day, so nothing another running copy of the app still uses.
+fn sweep_secret_temp_files() {
+    let Ok(rd) = std::fs::read_dir(std::env::temp_dir()) else { return };
+    let day = std::time::Duration::from_secs(86_400);
+    for e in rd.flatten() {
+        let n = e.file_name().to_string_lossy().to_string();
+        if !(n.starts_with("nobs-cnf-") || n.starts_with("nobs-ssh-")) { continue; }
+        let old = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map(|a| a > day).unwrap_or(false);
+        if old { let _ = std::fs::remove_file(e.path()); }
+    }
+}
+
 fn main() {
     // ssh asks for an SSH password through the program named in SSH_ASKPASS, and that program is
-    // this one: started again by ssh with the password in its environment (see open_tunnel), it
-    // answers and is gone before any window would open.
+    // this one: started again by ssh with the name of the file that holds the password (see
+    // open_tunnel_on), it answers and is gone before any window would open.
     if std::env::var_os("NOBS_SSH_ASKPASS").is_some() {
         use std::io::Write;
-        let _ = std::io::stdout().write_all(std::env::var("NOBS_SSH_PW").unwrap_or_default().as_bytes());
+        let pw = std::env::var_os("NOBS_SSH_PWFILE").and_then(|f| std::fs::read(f).ok()).unwrap_or_default();
+        let _ = std::io::stdout().write_all(&pw);
         return;
     }
+    std::thread::spawn(sweep_secret_temp_files);
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -5536,12 +5700,17 @@ fn main() {
             // (not in the elevated session CI runs in), and a second copy of the app otherwise
             // joins the first one's browser, whose port is not the one asked for.
             let cfg = app.config().app.windows.first().cloned().ok_or("no window in tauri.conf.json")?;
+            // Debug builds only (the tests run those): an open debugging port lets any program on
+            // the machine drive the page and read what it holds, passwords included.
+            #[cfg_attr(not(debug_assertions), allow(unused_mut))]
             let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?;
+            #[cfg(debug_assertions)]
             if let Some(port) = std::env::var("NOBS_WEBVIEW_DEBUG_PORT").ok().and_then(|p| p.parse::<u16>().ok()) {
                 // wry's own defaults, which this replaces, plus the port.
                 builder = builder.additional_browser_args(&format!(
                     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"));
             }
+            #[cfg(debug_assertions)]
             if let Ok(dir) = std::env::var("NOBS_WEBVIEW_DATA_DIR") {
                 if !dir.is_empty() { builder = builder.data_directory(std::path::PathBuf::from(dir)); }
             }
@@ -5574,7 +5743,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -5947,12 +6116,43 @@ mod tests {
     // gets split - otherwise the "wrapped statement" checked is a fragment, not what will run.
     #[test]
     fn split_off_keyword_ignores_quoted_and_partial_matches() {
-        assert_eq!(split_off_keyword("SET STATEMENT x=1 FOR SELECT 1", "FOR"), Some("SELECT 1".to_string()));
-        assert_eq!(split_off_keyword("SET STATEMENT x='FOR' FOR DELETE FROM t", "FOR"), Some("DELETE FROM t".to_string()));
+        assert_eq!(split_off_keyword("SET STATEMENT x=1 FOR SELECT 1", "FOR", true), Some("SELECT 1".to_string()));
+        assert_eq!(split_off_keyword("SET STATEMENT x='FOR' FOR DELETE FROM t", "FOR", true), Some("DELETE FROM t".to_string()));
         // FORMAT starts with FOR but is not it.
-        assert_eq!(split_off_keyword("ANALYZE FORMAT=JSON SELECT 1", "FOR"), None);
-        assert_eq!(split_off_keyword("SELECT for_id FROM t", "FOR"), None);
-        assert_eq!(split_off_keyword("SELECT 1", "FOR"), None);
+        assert_eq!(split_off_keyword("ANALYZE FORMAT=JSON SELECT 1", "FOR", true), None);
+        assert_eq!(split_off_keyword("SELECT for_id FROM t", "FOR", true), None);
+        assert_eq!(split_off_keyword("SELECT 1", "FOR", true), None);
+    }
+
+    // The gaps a security review found in the read-only check.
+    #[test]
+    fn read_only_security_review_gaps() {
+        // A backslash is not an escape inside backticks: `a\` is the identifier a\ and the FOR
+        // after it is real. In '...' it escapes only without NO_BACKSLASH_ESCAPES.
+        assert_eq!(split_off_keyword("SET STATEMENT `a\\`=1 FOR DELETE FROM t", "FOR", true), Some("DELETE FROM t".to_string()));
+        assert_eq!(split_off_keyword("SET STATEMENT x='\\' FOR DELETE FROM t", "FOR", false), Some("DELETE FROM t".to_string()));
+        assert_eq!(split_off_keyword("SET STATEMENT x='\\' FOR DELETE FROM t", "FOR", true), None);
+        assert!(strip_parens("WITH x AS (SELECT `a\\`) DELETE FROM t", true).contains("DELETE"));
+        assert!(strip_parens("WITH x AS (SELECT '\\') DELETE FROM t", false).contains("DELETE"));
+        // GLOBAL / PERSIST in any assignment, not only the first.
+        assert!(!sql_is_readonly("SET @a = 1, GLOBAL max_connections = 1"));
+        assert!(!sql_is_readonly("SET SESSION wait_timeout = 10, PERSIST max_connections = 1"));
+        assert!(!sql_is_readonly("SET @a = 1, PERSIST_ONLY max_connections = 1"));
+        assert!(!sql_is_readonly("SET RESOURCE GROUP rg FOR 12"));
+        assert!(sql_is_readonly("SET @a = 'GLOBAL', @b = 2"));
+        // EXPLAIN ANALYZE runs what it profiles.
+        assert!(!sql_is_readonly("EXPLAIN ANALYZE DELETE t1 FROM t1 JOIN t2 ON t1.id = t2.id"));
+        assert!(!sql_is_readonly("EXPLAIN ANALYZE FORMAT=TREE UPDATE t1, t2 SET t1.a = 1"));
+        assert!(!sql_is_readonly("DESCRIBE ANALYZE DELETE t1 FROM t1, t2"));
+        assert!(!sql_is_readonly("EXPLAIN ANALYZE SELECT 1 INTO OUTFILE '/tmp/x'"));
+        assert!(sql_is_readonly("EXPLAIN ANALYZE SELECT * FROM t"));
+        assert!(sql_is_readonly("EXPLAIN ANALYZE FORMAT=TREE SELECT * FROM t"));
+        assert!(sql_is_readonly("EXPLAIN DELETE FROM t"));
+        // Every INTO, not only the first.
+        assert!(!sql_is_readonly("SELECT a INTO @x FROM t UNION SELECT b FROM t INTO OUTFILE '/tmp/x'"));
+        assert!(!sql_is_readonly("SELECT 'into' AS a INTO DUMPFILE '/tmp/x'"));
+        assert!(sql_is_readonly("SELECT a INTO @x FROM t"));
+        assert!(sql_is_readonly("SELECT 'INTO OUTFILE' AS a"));
     }
 
 
@@ -8382,8 +8582,15 @@ mod cnf_tests {
         let (_f3, p3) = cnf_file(&conn, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
         let b3 = std::fs::read_to_string(&p3).unwrap();
         assert!(b3.contains("\nloose-init-command=SET NAMES utf8mb4\n"), "a MySQL client says SET NAMES itself, which 5.7 understands:\n{b3}");
-        // A PAM password goes as typed, so MySQL's client may send it only over TLS.
-        assert!(b3.contains("\nloose-enable-cleartext-plugin\n"), "ssl=required allows a PAM sign-in:\n{b3}");
+        // A PAM password goes as typed, so MySQL's client may send it only over TLS that checks the
+        // server, or where the connection says so.
+        assert!(!b3.contains("cleartext"), "ssl=required checks no certificate, so not unless asked:\n{b3}");
+        let mut pam = conn.clone(); pam["clearPw"] = json!(true);
+        let (_f5, p5) = cnf_file(&pam, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
+        assert!(std::fs::read_to_string(&p5).unwrap().contains("\nloose-enable-cleartext-plugin\n"), "ssl=required with clearPw allows a PAM sign-in");
+        let mut ver = conn.clone(); ver["ssl"] = json!("verify-ca");
+        let (_f6, p6) = cnf_file(&ver, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
+        assert!(std::fs::read_to_string(&p6).unwrap().contains("\nloose-enable-cleartext-plugin\n"), "a verify mode allows it without asking");
         let plain = json!({"host":"h","port":"3306","user":"u","ssl":"default"});
         let (_f4, p4) = cnf_file(&plain, &std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())).unwrap();
         assert!(!std::fs::read_to_string(&p4).unwrap().contains("cleartext"), "ssl=default may be plaintext, so it does not");
@@ -8618,7 +8825,7 @@ mod pam_tests {
     fn conn(var: &str, ssl: &str) -> Option<Value> {
         let d = std::env::var(var).ok()?;
         let p: Vec<&str> = d.splitn(4, ':').collect();
-        Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":ssl}))
+        Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":ssl,"clearPw":true}))
     }
 
     #[tokio::test]
@@ -8632,6 +8839,10 @@ mod pam_tests {
         assert!(cipher.map(|x| !x.1.is_empty()).unwrap_or(false), "the password went over a connection without TLS");
         // "default" takes TLS when the server offers it, so it signs in as well.
         build_conn(&conn("NOBS_TEST_PAM", "default").unwrap()).expect("ssl=default signs a PAM account in over TLS");
+        // Over TLS that checks no certificate, only when the connection says so (clearPw).
+        let mut unasked = req.clone(); unasked["clearPw"] = json!(false);
+        let e = build_conn(&unasked).err().unwrap_or_else(|| panic!("ssl=required without clearPw must not send a PAM password"));
+        assert!(e.contains("does not check the server's certificate"), "{e}");
         // Without TLS the password is not sent, and the message says why.
         let e = build_conn(&conn("NOBS_TEST_PAM", "disabled").unwrap()).err().unwrap_or_else(|| panic!("ssl=disabled must not send a PAM password"));
         assert!(e.contains("not encrypted"), "{e}");

@@ -591,7 +591,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
   <select id="ssl" onchange="sslCaToggle()" title="SSL / TLS for this connection&#10;default - Encrypted when the server offers TLS, unencrypted when it does not. The certificate is not checked.&#10;disabled - Never encrypted.&#10;required - Always encrypted - a server without TLS is refused. The certificate is not checked, so it protects against eavesdropping but not against someone posing as the server.&#10;verify - Encrypted, and the certificate is checked against the CA and must name this host.&#10;verify-ca - Encrypted, and the certificate is checked against the CA but not the host name - for the certificate MariaDB or MySQL generated for itself."><option value="default" title="Encrypted when the server offers TLS, unencrypted when it does not. The certificate is not checked.">default</option><option value="disabled" title="Never encrypted.">disabled</option><option value="required" title="Always encrypted - a server without TLS is refused. The certificate is not checked, so it protects against eavesdropping but not against someone posing as the server.">required</option><option value="verify" title="Encrypted, and the certificate is checked against the CA and must name this host.">verify</option><option value="verify-ca" title="Encrypted, and the certificate is checked against the CA but not the host name - for the certificate MariaDB or MySQL generated for itself.">verify-ca</option></select>
-  <span class="fld" id="sslcaWrap" style="display:none">CA <input id="sslca" class="s" style="width:150px" placeholder="CA certificate (.pem)" title="The CA certificate that signed this server's certificate. Needed for &quot;verify&quot; against a server using a private or self-signed certificate - which is what MariaDB and MySQL generate by default, and which no system trust store accepts. Leave empty to verify against the system trust store instead." onkeydown="if(event.key==='Enter')connect()"><button class="sm" title="Browse for the CA certificate file" onclick="browse({title:'Select CA certificate',filter:'*.pem',mode:'file',onPick:pp=>$('sslca').value=pp})">...</button></span>
+  <span class="fld" id="sslcaWrap" style="display:none">CA <input type="checkbox" id="clearpw" hidden><input id="sslca" class="s" style="width:150px" placeholder="CA certificate (.pem)" title="The CA certificate that signed this server's certificate. Needed for &quot;verify&quot; against a server using a private or self-signed certificate - which is what MariaDB and MySQL generate by default, and which no system trust store accepts. Leave empty to verify against the system trust store instead." onkeydown="if(event.key==='Enter')connect()"><button class="sm" title="Browse for the CA certificate file" onclick="browse({title:'Select CA certificate',filter:'*.pem',mode:'file',onPick:pp=>$('sslca').value=pp})">...</button></span>
   <span class="fld"><button class="sm" id="sshBtn" onclick="editSsh()" title="Configure SSH tunnel">SSH</button><input type="hidden" id="sshhost"><input type="hidden" id="sshport"><input type="hidden" id="sshuser"><input type="hidden" id="sshkey"><input type="hidden" id="sshpass"></span>
   <button class="primary" title="Connect to the server with the details above" onclick="connect()">Connect</button><button class="sm" title="Disconnect and lock the UI" onclick="disconnectAsk()">Disconnect</button>
   <span style="flex:1"></span>
@@ -696,8 +696,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none"><span class="dsec">Files</span><span id="impCount" class="muted"></span><span style="flex:1"></span><button onclick="impAddFiles()">Add files...</button><button onclick="impAddFolder()" title="Every .sql file in a folder">Add folder...</button><button onclick="impClear()">Clear</button></div>
  <!-- flex:1, shared with impLog below, so a long list uses a taller or maximized window. -->
  <div id="impList" class="implist"></div>
- <div class="xrow"><span class="xlbl">Into database</span><input id="impDb" placeholder="the one each file names" style="width:300px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="openImpDbPicker()" oninput="renderImpDbPicker()" onblur="setTimeout(()=>{const p=$('impDbPicker');if(p)p.style.display='none';},150)"><label class="ck" title="Create the database first when it does not exist."><input type="checkbox" id="impCreate"> Create it if missing</label></div>
- <div class="xrow"><span class="xlbl">While loading</span><label class="ck" title="Turn foreign key and unique checks off during the import, for tables that come in out of order or refer to each other."><input type="checkbox" id="impFk" checked> Foreign key checks off</label><label class="ck" title="Keep going when a file or statement fails, rather than stopping (mysql --force)."><input type="checkbox" id="impForce"> Carry on after an error</label><label class="ck" title="Needed when the dump holds raw NUL bytes in binary or text columns (the error: ASCII '\0' appeared in the statement). Safe to leave on for any dump that might hold binary data (mysql --binary-mode)."><input type="checkbox" id="impBinary"> Binary mode</label><span class="optsep"></span><label title="mysql --max-allowed-packet. Match or exceed what the dump was exported with - a file made with a larger packet (large rows or BLOBs in extended INSERTs) can otherwise fail with &quot;MySQL server has gone away&quot; against the client's smaller default (16M).">Max packet <input id="impMaxPacket" value="1G" style="width:56px"></label></div>
+ <div class="xrow"><span class="xlbl" title="The database the files are loaded into. A dump made from another database is restored here instead. This is not a sandbox: a statement in the file that names another database or table (other_db.t, USE, GRANT, ...) still does what it says, with your rights. Import only files you trust.">Into database</span><input id="impDb" placeholder="the one each file names" style="width:300px" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onfocus="openImpDbPicker()" oninput="renderImpDbPicker()" onblur="setTimeout(()=>{const p=$('impDbPicker');if(p)p.style.display='none';},150)"><label class="ck" title="Create the database first when it does not exist."><input type="checkbox" id="impCreate"> Create it if missing</label></div>
+ <div class="xrow"><span class="xlbl">While loading</span><label class="ck" title="Turn foreign key and unique checks off during the import, for tables that come in out of order or refer to each other."><input type="checkbox" id="impFk" checked> Foreign key checks off</label><label class="ck" title="Keep going when a file or statement fails, rather than stopping (mysql --force)."><input type="checkbox" id="impForce"> Carry on after an error</label><span class="optsep"></span><label title="mysql --max-allowed-packet. Match or exceed what the dump was exported with - a file made with a larger packet (large rows or BLOBs in extended INSERTs) can otherwise fail with &quot;MySQL server has gone away&quot; against the client's smaller default (16M).">Max packet <input id="impMaxPacket" value="1G" style="width:56px"></label></div>
  <div class="row" style="justify-content:flex-end;flex:none"><button class="go" id="impGoBtn" onclick="runImport()">Import</button><button class="warn" id="impCancelBtn" disabled onclick="cancelJob('imp')">Cancel</button><button onclick="hide('mImport')">Close</button></div>
  <div id="impProgress" style="display:none;margin-top:8px;flex:none">
    <div style="height:6px;border-radius:3px;background:var(--panel2);overflow:hidden"><div id="impBar" style="height:100%;width:40%;background:var(--accent);animation:expmove 1.1s ease-in-out infinite"></div></div>
@@ -871,7 +871,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDumpMy" style="flex:1" placeholder="MySQL's mysqldump.exe - empty: detect a MySQL Server installation"><span class="tchip" id="stc_cfgDumpMy"></span><button onclick="browse({title:'Select MySQL\'s mysqldump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDumpMy').value=pp})">Browse...</button></div>
   </div>
  </div>
- <details class="tooldet"><summary>How the tools are found</summary><div class="setnote">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*, WAMP, XAMPP) &rarr; system PATH.</div></details>
+ <details class="tooldet"><summary>How the tools are found</summary><div class="setnote">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*) &rarr; system PATH. WAMP and XAMPP live in folders under C:\ that any user of the computer can write to, so their tools are used only when picked here.</div></details>
  <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
  </section>
  <section class="setpage" data-p="general">
@@ -959,7 +959,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
 
 <script>
-const TOKEN="__TOKEN__";
+// PowerShell edition: the server's token comes after # in the address the app window is opened with
+// (the part of an address a browser never sends), is kept for this tab so a reload still has it, and
+// is taken out of the address bar. The page itself carries no secret for another program to fetch.
+const TOKEN=(()=>{let t='';try{const m=/[#&]t=([0-9a-f]{32})/.exec(location.hash||'');if(m){t=m[1];sessionStorage.setItem('nobsTok',t);history.replaceState(null,'',location.pathname+location.search);}else t=sessionStorage.getItem('nobsTok')||'';}catch(e){}return t;})();
 // Rows fetched per "page" of chunked query-result pagination - kept in sync with the backend's
 // own default pageSize so the two stay obviously the same number.
 const PAGE_BATCH=1000;
@@ -982,7 +985,7 @@ let curSchema=null, tabs=[], tabSeq=0, activeTab=null;
    NOTE: this text lives inside a PowerShell here-string, so keep it valid JS.
    ============================================================================ */
 const $=id=>document.getElementById(id);window.$=$;
-function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function logLineCls(l){
  if(/^OK\s+with\s+\d+\s+error/i.test(l))return 'warn';
  if(/^OK\b/.test(l))return 'ok';
@@ -1076,7 +1079,7 @@ function accSet(n,c){window._connMeta=window._connMeta||{};const cur=window._con
 function hexA(hex,a){hex=(hex||'').replace('#','');if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');const v=parseInt(hex,16);if(isNaN(v)||hex.length!==6)return '';return 'rgba('+((v>>16)&255)+','+((v>>8)&255)+','+(v&255)+','+a+')';}
 function applyAccent(color){const bar=$('bar');if(!bar)return;if(!color){bar.style.borderTop='';bar.style.borderBottom='';bar.style.boxShadow='';return;}bar.style.borderTop='2px solid '+color;bar.style.borderBottom='';bar.style.boxShadow='';}
 window.curAccent='';
-function getConn(){return {host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,ssl:$('ssl').value,sslCa:$('sslca').value,
+function getConn(){return {host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,
  sshHost:$('sshhost').value,sshPort:$('sshport').value,sshUser:$('sshuser').value,sshKey:$('sshkey').value,sshPassword:$('sshpass').value};}
 // ---- SSH tunnel ----
 // The tunnel's settings ride with the connection form in hidden fields, so everything that reads
@@ -1102,7 +1105,12 @@ async function editSsh(){const res=await inputBox({title:'SSH Tunnel',okText:'OK
 // The CA only does anything for "verify" - the other modes check nothing - so it only appears for
 // that one, rather than sitting there inviting someone to fill in a box that will be ignored.
 function sslCaToggle(){const w=$('sslcaWrap');if(w)w.style.display=(/^verify(-ca)?$/.test($('ssl').value))?'inline-flex':'none';}
-function log(s){const l=$('log');l.textContent+=s+"\n";l.scrollTop=l.scrollHeight;}
+// A password in SQL text shown or kept by the app - the log, a message, the tabs saved for next time -
+// is written as '***': IDENTIFIED BY / AS / USING, PASSWORD('...'), and any ..._PASSWORD = '...' or
+// SET PASSWORD ... = '...'. A quoted value ends at a quote that is not doubled, which is how the app
+// writes one under either sql_mode (strLit doubles quotes; only backslashes differ).
+function sqlNoSecrets(s){return String(s).replace(/(\bidentified\b(?:\s+(?:with|via)\s+[\w$]+)?\s+(?:by|as|using)\s+(?:password\s*)?\(?\s*|\b\w*password\s*(?:=\s*|\(\s*)?|\bset\s+password\b(?:\s+for\s+(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=@]+)(?:\s*@\s*(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=]+))?)?\s*=\s*(?:password\s*\(\s*)?)(['"])(?:\\[\s\S]|(?!\2)[\s\S]|\2\2)*\2/gi,"$1'***'");}
+function log(s){const l=$('log');l.textContent+=sqlNoSecrets(s)+"\n";l.scrollTop=l.scrollHeight;}
 // The output panel's 104px are worth having back when nothing has gone wrong - folded, its header
 // stays, so the log is one click away and new lines still collect behind it. Kept like the
 // sidebar's width, per browser.
@@ -1116,7 +1124,7 @@ try{if(localStorage.getItem('logFolded'))setLogFolded(true);}catch(e){}
 function toast(msg,kind){
   const cls=(kind===true||kind==='err')?'err':(kind==='ok'?'ok':'');
   let box=$('toasts');if(!box){box=document.createElement('div');box.id='toasts';document.body.appendChild(box);}
-  const t=document.createElement('div');t.className='toast'+(cls?' '+cls:'');t.textContent=msg;box.appendChild(t);
+  const t=document.createElement('div');t.className='toast'+(cls?' '+cls:'');t.textContent=sqlNoSecrets(msg);box.appendChild(t);
   // Long enough to read a server error twice over, and a plain message once without hurrying.
   // Hovering holds it: reading a message should not be a race against its own timer.
   const base=toastMs(),left=(cls==='err'?base*2:base);let timer=null;
@@ -2062,7 +2070,7 @@ function paintConnGo(){const go=$('connGo'),s=$('connlist');if(!go||!s)return;
  go.title=same?'Reconnect':'Connect to the connection picked in the list';go.setAttribute('aria-label',same?'Reconnect':'Connect');
  go.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+CONNGO_ICONS[k]+'</svg>';}
 function toggleConnForm(){document.body.classList.toggle('show-connform');}
-function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';$('ssl').value='default';$('sslca').value='';sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
+function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';$('ssl').value='default';$('sslca').value='';$('clearpw').checked=false;sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
 function setPass(pw){const el=$('pass');if(el)el.value=pw;}
 async function pickConnGuarded(){
   if (anyPending() && !(await ask('You have unsaved grid edits open. Switching connections will leave them orphaned. Switch anyway?'))) return;
@@ -2084,7 +2092,7 @@ async function pickConn() {
         $('port').value = r.conn.port;
         $('user').value = r.conn.user;
         $('ssl').value = r.conn.ssl;
-        $('sslca').value = r.conn.sslCa || '';
+        $('sslca').value = r.conn.sslCa || ''; $('clearpw').checked = !!r.conn.clearPw;
         sslCaToggle();
         sshSet(r.conn);
         const _pw = r.conn.password || '';
@@ -2139,6 +2147,7 @@ async function saveConn(){
   {key:'password',label:'Password',type:'password',value:$('pass').value},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:$('ssl').value},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:$('sslca').value},
+  {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:$('clearpw').checked},
   ...sshFields(getConn(),true),
   {key:'color',label:'Accent color (tell servers apart at a glance)',type:'color',value:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6'},
   {key:'env',label:'Environment label (e.g. Production, Dev) - optional',value:m0.env||'',maxlength:40},
@@ -2146,10 +2155,10 @@ async function saveConn(){
   {key:'savepw',label:'Save password (unchecked = type it each time)',type:'checkbox',value:n0?!!$('pass').value:true}
  ]});
  if(!res||!res.name.trim())return;const n=res.name.trim();
- const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});
+ const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});
  if(!r.ok){toast(r.error,true);return;}
  window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
- $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';sslCaToggle();sshSet(sshRes(res));setPass(res.password);
+ $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);
  const pwc=$('pwChip');if(pwc)pwc.style.display=res.password?'inline':'none';
 }
 // Edits a saved connection entirely within its own dialog - host/port/user/password/ssl are
@@ -2168,6 +2177,7 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'password',label:'Password',type:'password',value:g.conn.password||''},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:g.conn.ssl},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:g.conn.sslCa||''},
+  {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:!!g.conn.clearPw},
   ...sshFields(g.conn,true),
   {key:'color',label:'Accent color',type:'color',value:accMap()[n0]||'#3b82f6'},
   {key:'env',label:'Environment label (optional)',value:m0.env||'',maxlength:40},
@@ -2175,16 +2185,16 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'savepw',label:'Save password (uncheck to remove the saved password)',type:'checkbox',value:!!(g.ok&&g.conn.password)}
  ]});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
- const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});if(!r.ok){toast(r.error,true);return;}
+ const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});if(!r.ok){toast(r.error,true);return;}
  if(nn!==n0){await api('/api/conn-delete',{name:n0});}
  window.curAccent=res.color;applyAccent(res.color);await refreshConns();$('connlist').value=nn;applyEnv(nn);
  // If this connection is the one currently loaded into the (largely internal, now rarely
  // shown) inline form, keep it in sync with what was just saved - otherwise a subsequent
  // Connect click would silently use stale values from before the edit.
- if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=res.password?'inline':'none';}
+ if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=res.password?'inline':'none';}
  log('Updated connection: '+nn);}
 async function cloneConn(){const n0=$('connlist').value;
- if(n0){const g=await api('/api/conn-get',{name:n0});if(g.ok){$('host').value=g.conn.host;$('port').value=g.conn.port;$('user').value=g.conn.user;$('ssl').value=g.conn.ssl;$('sslca').value=g.conn.sslCa||'';sslCaToggle();sshSet(g.conn);$('pass').value=g.conn.password;}}
+ if(n0){const g=await api('/api/conn-get',{name:n0});if(g.ok){$('host').value=g.conn.host;$('port').value=g.conn.port;$('user').value=g.conn.user;$('ssl').value=g.conn.ssl;$('sslca').value=g.conn.sslCa||'';$('clearpw').checked=!!g.conn.clearPw;sslCaToggle();sshSet(g.conn);$('pass').value=g.conn.password;}}
  const base=n0||($('user').value+'@'+$('host').value);
  const res=await inputBox({title:'Clone connection',okText:'Clone',fields:[{key:'name',label:'New connection name',value:base+' (copy)',maxlength:60}]});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
@@ -3455,7 +3465,7 @@ function sessionKeyFor(){const cn=$('connlist')?$('connlist').value:'';if(cn)ret
 // The open tabs are the only copy of what is typed in them. When the browser's storage is full the
 // save failed without a word, and after a restart the tabs came back as they were some time ago.
 // The query history - a few large scripts fill it - makes room first; failing that, it is said, once.
-function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.stringify(tabs.map(t=>({title:t.title,sql:($('ed_'+t.id)?$('ed_'+t.id).value:''),db:t.db,table:t.table,
+function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.stringify(tabs.map(t=>({title:t.title,sql:($('ed_'+t.id)?sqlNoSecrets($('ed_'+t.id).value):''),db:t.db,table:t.table,
   // A tab editing a routine, trigger or view stays one: restored as a plain query tab it lost its
   // Apply and the putting back of the old version when the new one fails, and running it on MySQL
   // dropped the routine with nothing to restore it from.
@@ -4531,7 +4541,7 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
-   t.cols.forEach((c,ci)=>{const v=row[c];const cAttr=esc(c).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27');h+='<td class="editable" onclick="insClick(this,\''+id+'\','+ii+',\''+cAttr+'\')" ondblclick="editIns(this,\''+id+'\','+ii+',\''+cAttr+'\')" oncontextmenu="insCellMenu(event,\''+id+'\','+ii+',\''+cAttr+'\')" title="'+esc(v)+'">'+cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
+   t.cols.forEach((c,ci)=>{const v=row[c];const cAttr=esc(c).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r');h+='<td class="editable" onclick="insClick(this,\''+id+'\','+ii+',\''+cAttr+'\')" ondblclick="editIns(this,\''+id+'\','+ii+',\''+cAttr+'\')" oncontextmenu="insCellMenu(event,\''+id+'\','+ii+',\''+cAttr+'\')" title="'+esc(v)+'">'+cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  $('tbody_'+id).innerHTML=h;
  if(wrap&&slice.length){const sampleTr=wrap.querySelector('tbody tr[data-r]');if(sampleTr){const mh=sampleTr.getBoundingClientRect().height;if(mh>4)t._rowH=mh;}}
  updateEditBar(id);}
@@ -5492,7 +5502,15 @@ function pasteRowIntoIns(id,ii){const t=T(id);const vals=singleRowClipboard();if
 function revertChanges(id){const t=T(id);t.pending={upd:{},del:new Set(),ins:[]};renderGrid(id);}
 // preview: build the statements exactly as Apply would, guards and all, and show them instead of
 // running them.
-async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
+// strLit writes a backslash one way or the other by the sql_mode seen when the app connected. In a
+// transaction the statements run in the tab's own session, where "SET sql_mode = ..." may have
+// changed it since - and a literal written for the wrong mode can end in the wrong place: under
+// backslash escapes, the value \ written as '\' swallows the quote and the SQL after it. So that
+// session is asked first, and the literals follow what it says.
+async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const W=typeof window!=='undefined'?window:{};const nbe0=W.noBackslashEscapes;
+ if(t&&sessOf(t)){await sessFree(t);try{const m=await api('/api/query',{sql:'SELECT @@SESSION.sql_mode',session:sessOf(t)});if(m&&m.ok&&m.rows&&m.rows.length)W.noBackslashEscapes=/NO_BACKSLASH_ESCAPES/i.test(String(m.rows[0][0]||''));}catch(e){}}
+ try{return await applyChangesRun(id,preview);}finally{W.noBackslashEscapes=nbe0;}}
+async function applyChangesRun(id,preview){const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
  const bc=await gridBinCols(id);
  const isHex=v=>/^0x[0-9A-Fa-f]*$/.test(String(v));
  const isPlainInt=v=>/^-?\d+$/.test(String(v));
@@ -5783,7 +5801,7 @@ async function insSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id)
 async function dl(text,name){
  const ext=(name.split('.').pop()||'').toLowerCase();const filters=ext?[{name:ext.toUpperCase()+' file',extensions:[ext]}]:undefined;
  // Tauri: native Save As + backend write
- try{if(window.__TAURI__&&window.__TAURI__.dialog&&window.__TAURI__.dialog.save){const p=await window.__TAURI__.dialog.save({defaultPath:name,filters});if(!p)return;const r=await window.__TAURI__.core.invoke('save_text',{req:{path:p,content:text}});if(r&&r.ok===false){toast('Save failed: '+r.error,true);}else{log('Saved: '+p);toast('Saved: '+p,'ok');}return;}}catch(e){toast('Save failed: '+e,true);return;}
+ try{if(window.__TAURI__&&window.__TAURI__.dialog&&window.__TAURI__.dialog.save){const p=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:name,filters}});if(!p)return;const r=await window.__TAURI__.core.invoke('save_text',{req:{path:p,content:text}});if(r&&r.ok===false){toast('Save failed: '+r.error,true);}else{log('Saved: '+p);toast('Saved: '+p,'ok');}return;}}catch(e){toast('Save failed: '+e,true);return;}
  // Chromium browsers (Edge/Chrome): File System Access "Save As"
  try{if(window.showSaveFilePicker){const opts={suggestedName:name};if(ext)opts.types=[{description:ext.toUpperCase()+' file',accept:{'text/plain':['.'+ext]}}];const h=await window.showSaveFilePicker(opts);const w=await h.createWritable();await w.write(text);await w.close();log('Saved: '+name);return;}}catch(e){if(e&&e.name==='AbortError')return;}
  // Fallback: classic download to the default folder
@@ -5797,7 +5815,7 @@ async function dl(text,name){
 // two paths (File System Access, classic download) already accept a Blob natively as-is.
 async function dlBinary(blob,name){
  const ext=(name.split('.').pop()||'').toLowerCase();const filters=ext?[{name:ext.toUpperCase()+' file',extensions:[ext]}]:undefined;
- try{if(window.__TAURI__&&window.__TAURI__.dialog&&window.__TAURI__.dialog.save){const p=await window.__TAURI__.dialog.save({defaultPath:name,filters});if(!p)return;const buf=await blob.arrayBuffer();const bytes=Array.from(new Uint8Array(buf));const r=await window.__TAURI__.core.invoke('save_binary',{req:{path:p,bytes:bytes}});if(r&&r.ok===false){toast('Save failed: '+r.error,true);}else{log('Saved: '+p);toast('Saved: '+p,'ok');}return;}}catch(e){toast('Save failed: '+e,true);return;}
+ try{if(window.__TAURI__&&window.__TAURI__.dialog&&window.__TAURI__.dialog.save){const p=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:name,filters}});if(!p)return;const buf=await blob.arrayBuffer();const bytes=Array.from(new Uint8Array(buf));const r=await window.__TAURI__.core.invoke('save_binary',{req:{path:p,bytes:bytes}});if(r&&r.ok===false){toast('Save failed: '+r.error,true);}else{log('Saved: '+p);toast('Saved: '+p,'ok');}return;}}catch(e){toast('Save failed: '+e,true);return;}
  try{if(window.showSaveFilePicker){const opts={suggestedName:name};if(ext)opts.types=[{description:ext.toUpperCase()+' file',accept:{'image/png':['.'+ext]}}];const h=await window.showSaveFilePicker(opts);const w=await h.createWritable();await w.write(blob);await w.close();log('Saved: '+name);return;}}catch(e){if(e&&e.name==='AbortError')return;}
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
 
@@ -5956,7 +5974,7 @@ function erdFindTable(){
 // that survives filtering always has BOTH ends present - the filter can never itself cause the
 // existing "relationship could not be drawn" diagnostic to misfire.
 window._erdRawData=null;
-window._erdPos={};
+window._erdPos=Object.create(null);
 // Zoom applies a plain CSS transform to the already-rendered SVG - cheap and instant, no
 // re-running the layout algorithm just to change scale. It's ALSO baked into the SVG string
 // erdRender() builds (via window._erdZoom at render time), so the current zoom level survives
@@ -6139,7 +6157,8 @@ function erdRender(){
  const data=window._erdRawData;
  if(!data)return;
  const r=data.r;
- const tables={};
+ // Keyed by table and column names, which can be "constructor" or "__proto__": no prototype.
+ const tables=Object.create(null);
  r.columns.forEach(row=>{
   const tbl=row[0],col=row[1];
   if(!tables[tbl])tables[tbl]={cols:[],pk:new Set()};
@@ -6176,10 +6195,10 @@ function erdRender(){
  // labeled "[PK]"/"[FK]" explicitly (a crow's foot at the table edge tells you A relationship
  // exists, but tracing exactly which ROW it touches gets hard once a table has more than a
  // handful of columns - an explicit label removes the guesswork).
- const fkByTable={};
+ const fkByTable=Object.create(null);
  (r.fks||[]).forEach(row=>{
   const tbl=row[0],col=row[1],refTbl=row[2],refCol=row[3];
-  if(tables[tbl]){if(!fkByTable[tbl])fkByTable[tbl]={};fkByTable[tbl][col]={refTbl,refCol};}
+  if(tables[tbl]){if(!fkByTable[tbl])fkByTable[tbl]=Object.create(null);fkByTable[tbl][col]={refTbl,refCol};}
  });
  function erdRowLabel(tbl,col){
   const isPk=tables[tbl].pk.has(col);
@@ -6205,7 +6224,7 @@ function erdRender(){
  for(let c=0;c<cols;c++){colX[c]=xAcc;xAcc+=colWidths[c]+gapX;}
  let totalW=xAcc-gapX+padX;
 
- const pos={};
+ const pos=Object.create(null);
  names.forEach((n,i)=>{
   const cx=i%cols,cy=Math.floor(i/cols);
   pos[n]={x:colX[cx],cy,w:tables[n].w,h:tables[n].h};
@@ -6222,7 +6241,7 @@ function erdRender(){
  // different set (the "only related" tick, a table's own relations) the untouched tables move to
  // new places while a dragged one stays where it was put, and one lands on top of another. When
  // the set changes the diagram is laid out afresh instead, and the drags are let go.
- {const key=names.join('\u0000');if(window._erdPosKey!==key){window._erdPos={};window._erdPosKey=key;}}
+ {const key=names.join('\u0000');if(window._erdPosKey!==key){window._erdPos=Object.create(null);window._erdPosKey=key;}}
  // If a drag moves a table outside the originally-computed bounds, the diagram's own dimensions
  // expand to keep it fully visible rather than clipping it off.
  names.forEach(n=>{
@@ -6289,7 +6308,7 @@ function erdRender(){
 }
 async function openErd(db){
  $('erdFind').value='';window._erdFocus=null;
- window._erdPos={};
+ window._erdPos=Object.create(null);
  const r=await api('/api/schema-erd',{db});
  if(!r.ok){toast(r.error||'Could not load the database.',true);return;}
  $('erdTitle').textContent='ER diagram - '+db;
@@ -6342,7 +6361,7 @@ async function refreshProcessList(){
   // button at all rather than one that would only ever fail.
   const info=infoIdx>=0?String(row[infoIdx]||'').trim().toLowerCase():'';
   const isSelf=(info==='show full processlist'||info==='show processlist');
-  h+='<td style="padding:4px 6px;border-bottom:1px solid var(--bd2)">'+((pid!=null&&!isSelf)?'<button class="sm warn" onclick="killProcess(\''+esc(pid).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27')+'\')">Kill</button>':'')+'</td>';
+  h+='<td style="padding:4px 6px;border-bottom:1px solid var(--bd2)">'+((pid!=null&&!isSelf)?'<button class="sm warn" onclick="killProcess(\''+esc(pid).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r')+'\')">Kill</button>':'')+'</td>';
   h+='</tr>';
  });
  h+='</tbody></table>';
@@ -6721,7 +6740,7 @@ function acctSettingSql(who,res,a){const out=[],n=k=>Math.max(0,parseInt(res[k],
   out.push('ALTER USER '+who+' '+(res.exp==='never'?'PASSWORD EXPIRE NEVER':res.exp==='days'?'PASSWORD EXPIRE INTERVAL '+days+' DAY':'PASSWORD EXPIRE DEFAULT')+';');
  return out;}
 // Statements that carry a password are logged without it.
-function logNoSecrets(s){log(s.replace(/(BY|PASSWORD\()\s*'(?:[^'\\]|\\.|'')*'/gi,"$1 '***'"));}
+function logNoSecrets(s){log(sqlNoSecrets(s));}
 async function newUser(){const plugins=await authPlugins();
  const res=await inputBox({title:'Create user',okText:'Create',width:'520px',fields:[{key:'user',label:'User name'},{key:'host',label:'Host - % for anywhere',value:'%'},{key:'pw',label:'Password',type:'password'},
   {key:'plugin',label:'Sign-in method',type:'select',options:[{value:'',label:'Server default'},...plugins.map(p=>({value:p,label:p}))],value:''},
@@ -7046,7 +7065,7 @@ function expOptsRestore(){
   el.addEventListener('change',expOptsSave);
  });
 }
-async function openExport(preselect){const r=await api('/api/schemas');const box=$('expDbs');box.innerHTML='';if(r.ok)r.schemas.forEach(s=>{const safe=s.name.replace(/[^A-Za-z0-9]/g,'_');const dbAttr=esc(s.name).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27');box.innerHTML+='<div class="expdbrow"><span class="exptoggle" id="expx_'+safe+'" onclick="expTables(\''+dbAttr+'\',\''+safe+'\')" title="Show tables to exclude">\u25B8</span><label class="ck" style="display:inline-flex"><input type="checkbox" class="expdb" value="'+esc(s.name)+'" onchange="expDbToggle(\''+safe+'\',this.checked)"> '+esc(s.name)+'</label><div class="exptbls" id="expt_'+safe+'" style="display:none"></div></div>';});const ob=$('expOpts'),adv=$('expOptsAdv');
+async function openExport(preselect){const r=await api('/api/schemas');const box=$('expDbs');box.innerHTML='';if(r.ok)r.schemas.forEach(s=>{const safe=s.name.replace(/[^A-Za-z0-9]/g,'_');const dbAttr=esc(s.name).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r');box.innerHTML+='<div class="expdbrow"><span class="exptoggle" id="expx_'+safe+'" onclick="expTables(\''+dbAttr+'\',\''+safe+'\')" title="Show tables to exclude">\u25B8</span><label class="ck" style="display:inline-flex"><input type="checkbox" class="expdb" value="'+esc(s.name)+'" onchange="expDbToggle(\''+safe+'\',this.checked)"> '+esc(s.name)+'</label><div class="exptbls" id="expt_'+safe+'" style="display:none"></div></div>';});const ob=$('expOpts'),adv=$('expOptsAdv');
 const ck=([k,l,d,t,g,f])=>'<label class="ck" title="'+esc(t+(f?'\n(mysqldump '+f+')':''))+'"><input type="checkbox" id="eo_'+k+'" '+(d?'checked':'')+'> '+esc(l)+'</label>';
 ob.innerHTML=EXPOPTS.filter(o=>o[4]==='Include').map(ck).join('');
 adv.innerHTML=['Data','Performance','Compatibility'].map(g=>'<div class="xgrp">'+g+'</div>'+EXPOPTS.filter(o=>o[4]===g).map(ck).join('')).join('');
@@ -7120,7 +7139,7 @@ async function expApplyDumpFlavor(){
   }
  });
 }
-async function expTables(db,safe){const c=$('expt_'+safe);if(!c)return;const cx=$('expx_'+safe);if(c.style.display==='none'){c.style.display='block';if(cx)cx.textContent='\u25BE';if(!c.dataset.loaded){c.innerHTML='<span class="muted" style="font-size:11px">Loading\u2026</span>';const q=await api('/api/query',{sql:'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='+lit(db)+' ORDER BY TABLE_NAME'});if(!q.ok){c.innerHTML='<span class="muted" style="font-size:11px">'+esc(q.error||'Could not list tables')+'</span>';return;}if(!q.rows.length){c.innerHTML='<span class="muted" style="font-size:11px">(no tables)</span>';c.dataset.loaded='1';return;}const dbCk=document.querySelector('.expdb[value="'+db.replace(/"/g,'&quot;')+'"]');const on=dbCk?dbCk.checked:true;let h='<div class="muted" style="font-size:11px;margin:1px 0 3px">Untick a table to exclude it from the export:</div>';q.rows.forEach(r=>{const tn=r[0];h+='<label class="ck" style="font-size:12px"><input type="checkbox" class="exptbl" data-db="'+esc(db)+'" value="'+esc(tn)+'" '+(on?'checked':'')+'> '+esc(tn)+'</label>';});c.innerHTML=h;c.dataset.loaded='1';}}else{c.style.display='none';if(cx)cx.textContent='\u25B8';}}
+async function expTables(db,safe){const c=$('expt_'+safe);if(!c)return;const cx=$('expx_'+safe);if(c.style.display==='none'){c.style.display='block';if(cx)cx.textContent='\u25BE';if(!c.dataset.loaded){c.innerHTML='<span class="muted" style="font-size:11px">Loading\u2026</span>';const q=await api('/api/query',{sql:'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='+lit(db)+' ORDER BY TABLE_NAME'});if(!q.ok){c.innerHTML='<span class="muted" style="font-size:11px">'+esc(q.error||'Could not list tables')+'</span>';return;}if(!q.rows.length){c.innerHTML='<span class="muted" style="font-size:11px">(no tables)</span>';c.dataset.loaded='1';return;}const dbCk=document.querySelector('.expdb[value="'+CSS.escape(db)+'"]');const on=dbCk?dbCk.checked:true;let h='<div class="muted" style="font-size:11px;margin:1px 0 3px">Untick a table to exclude it from the export:</div>';q.rows.forEach(r=>{const tn=r[0];h+='<label class="ck" style="font-size:12px"><input type="checkbox" class="exptbl" data-db="'+esc(db)+'" value="'+esc(tn)+'" '+(on?'checked':'')+'> '+esc(tn)+'</label>';});c.innerHTML=h;c.dataset.loaded='1';}}else{c.style.display='none';if(cx)cx.textContent='\u25B8';}}
 function expDbToggle(safe,on){document.querySelectorAll('#expt_'+safe+' .exptbl').forEach(c=>{c.checked=on;});}
 async function runExport(){const dbs=[...document.querySelectorAll('.expdb:checked')].map(c=>c.value);
 const tables=[...document.querySelectorAll('.exptbl:checked')].map(c=>c.dataset.db+'.'+c.value);
@@ -7461,7 +7480,7 @@ async function cmpCompareRows(ti){
  if(!r.ok){$('cmprNote').textContent='';$('cmprGrid').innerHTML='<div class="muted" style="padding:8px">'+esc(r.error||'Could not compare rows.')+' <a href="#" onclick="cmpCompareRows('+ti+');return false" style="color:var(--accent)">Retry</a></div>';return;}
  _cmprState={table:t.name,pkCols:r.pkCols,columns:r.columns,rows:r.rows.map(row=>({data:row,checked:true})),sourceConnName:sc,sourceDb:sd,targetConnName:tc,targetDb:td,missingTotal:r.missingTotal,truncated:r.truncated,allMissingPks:r.allMissingPks||[],extraTotal:r.extraTotal||0,extraPks:r.extraPks||[],targetTableMissing:targetTableMissing};
  var _cmprCancelNote1=r.cancelled?' (cancelled - only some tables/rows were checked before you stopped it)':'';
- $('cmprNote').innerHTML=r.missingTotal+' row(s) missing on target'+(r.truncated?(' (showing first '+r.rows.length+' for review - <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">insert all '+r.missingTotal+' without reviewing them</a>)'):'')+_cmprCancelNote1+'. Rows are inserted with the SAME '+r.pkCols.join('/')+ ' value(s) as the source (insert-only - existing target rows are never changed).'+cmprExtraNote(r.extraTotal,r.extraPks,r.pkCols);
+ $('cmprNote').innerHTML=r.missingTotal+' row(s) missing on target'+(r.truncated?(' (showing first '+r.rows.length+' for review - <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">insert all '+r.missingTotal+' without reviewing them</a>)'):'')+_cmprCancelNote1+'. Rows are inserted with the SAME '+esc(r.pkCols.join('/'))+ ' value(s) as the source (insert-only - existing target rows are never changed).'+cmprExtraNote(r.extraTotal,r.extraPks,r.pkCols);
  $('cmprRoNote').style.display=r.targetReadonly?'inline':'none';
  cmprRender();
 
@@ -7635,7 +7654,7 @@ async function cmprTopUpAfterInsert(insertedRows){
    _cmprState.rows=[];
  }
  const stillTruncated=_cmprState.allMissingPks.length>_cmprState.rows.length;
- $('cmprNote').innerHTML=_cmprState.missingTotal+' row(s) missing on target'+(stillTruncated?(' (showing next '+_cmprState.rows.length+' for review - <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">insert all '+_cmprState.missingTotal+' without reviewing them</a>)'):'')+'. Rows are inserted with the SAME '+_cmprState.pkCols.join('/')+' value(s) as the source (insert-only - existing target rows are never changed).'+cmprExtraNote(_cmprState.extraTotal,_cmprState.extraPks,_cmprState.pkCols);
+ $('cmprNote').innerHTML=_cmprState.missingTotal+' row(s) missing on target'+(stillTruncated?(' (showing next '+_cmprState.rows.length+' for review - <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">insert all '+_cmprState.missingTotal+' without reviewing them</a>)'):'')+'. Rows are inserted with the SAME '+esc(_cmprState.pkCols.join('/'))+' value(s) as the source (insert-only - existing target rows are never changed).'+cmprExtraNote(_cmprState.extraTotal,_cmprState.extraPks,_cmprState.pkCols);
  cmprRender();
 }
 // Reset every field to its fresh-open default here rather than on Close - Escape closes the
@@ -7657,7 +7676,7 @@ function renderImpDbPicker(){const inp=$('impDb');const f=inp.value.toLowerCase(
  showImpDbList(window._impDbSchemas.filter(n=>!f||n.toLowerCase().includes(f)));}
 function showImpDbList(matches){const p=$('impDbPicker');const inp=$('impDb');if(!p||!inp)return;
  if(!matches.length){p.style.display='none';return;}
- p.innerHTML=matches.map(n=>'<div class="item" onmousedown="event.preventDefault();impDbPick(\''+esc(n).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27')+'\')">'+esc(n)+'</div>').join('');
+ p.innerHTML=matches.map(n=>'<div class="item" onmousedown="event.preventDefault();impDbPick(\''+esc(n).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r')+'\')">'+esc(n)+'</div>').join('');
  const r=inp.getBoundingClientRect();
  p.style.left=r.left+'px';p.style.top=r.bottom+2+'px';p.style.minWidth=r.width+'px';p.style.display='block';}
 function impDbPick(name){$('impDb').value=name;$('impDbPicker').style.display='none';}
@@ -7671,12 +7690,12 @@ function impRender(){const box=$('impList');if(!box)return;const n=_impFiles.len
  const total=_impFiles.reduce((s,f)=>s+(f.size||0),0);$('impCount').textContent=n+' file'+(n===1?'':'s')+(total?', '+fmtBytes(total):'');}
 function impRemove(i){_impFiles.splice(i,1);impRender();}
 function impClear(){_impFiles=[];impRender();}
-async function openImport(){_impFiles=[];impRender();$('impLog').textContent='';$('impCreate').checked=false;$('impFk').checked=true;$('impForce').checked=false;$('impBinary').checked=false;$('impMaxPacket').value='1G';const inp=$('impDb');inp.value=(typeof curSchema!=='undefined'&&curSchema)?curSchema:'';window._impDbSchemas=[];try{const r=await api('/api/schemas');if(r.ok)window._impDbSchemas=r.schemas.map(s=>s.name);}catch(e){}show('mImport');}
+async function openImport(){_impFiles=[];impRender();$('impLog').textContent='';$('impCreate').checked=false;$('impFk').checked=true;$('impForce').checked=false;$('impMaxPacket').value='1G';const inp=$('impDb');inp.value=(typeof curSchema!=='undefined'&&curSchema)?curSchema:'';window._impDbSchemas=[];try{const r=await api('/api/schemas');if(r.ok)window._impDbSchemas=r.schemas.map(s=>s.name);}catch(e){}show('mImport');}
 async function runImport(){const files=_impFiles.map(f=>f.path);if(!files.length){toast('Add at least one file.',true);return;}
  $('impLog').textContent='';
  const jobId=(crypto.randomUUID?crypto.randomUUID():('j'+Date.now()+Math.random()));
  progStart('imp','Importing '+files.length+' file'+(files.length===1?'':'s'),jobId);
- const r=await api('/api/import',{files,targetDb:$('impDb').value.trim(),createDb:$('impCreate').checked,fkOff:$('impFk').checked,force:$('impForce').checked,binaryMode:$('impBinary').checked,maxpacket:$('impMaxPacket').value.trim(),jobId:jobId});
+ const r=await api('/api/import',{files,targetDb:$('impDb').value.trim(),createDb:$('impCreate').checked,fkOff:$('impFk').checked,force:$('impForce').checked,maxpacket:$('impMaxPacket').value.trim(),jobId:jobId});
  progStop('imp');
  if(r.cancelled){log('Import cancelled.');}
  if(!r.ok){showToolError('impLog','mImport',r.error);log('Import error: '+r.error);return;}
@@ -7942,7 +7961,7 @@ function acAccept(id){const ta=acTa||$('ed_'+id);const pos=ta.selectionStart;con
 
 let csvTarget={db:null,table:null};
 async function exportFull(db,name,fmt){fmt=fmt||'csv';const ext=(fmt==='inserts')?'sql':'csv';const defName=name+(fmt==='inserts'?'_inserts.sql':'.csv');
- if(window.__TAURI__&&window.__TAURI__.core){let path;try{path=await window.__TAURI__.dialog.save({defaultPath:defName,filters:[{name:ext.toUpperCase()+' file',extensions:[ext]}]});}catch(e){toast('Save dialog failed: '+e,true);return;}if(!path)return;log('Exporting all rows of '+db+'.'+name+'...');const r=await window.__TAURI__.core.invoke('export_table',{req:{conn:getConn(),db:db,table:name,file:path,format:fmt,nullValue:csvNullMarker()}});if(r&&r.ok){log(r.message);toast(r.message,'ok');}else toast('Export failed: '+(r?r.error:'unknown'),true);return;}
+ if(window.__TAURI__&&window.__TAURI__.core){let path;try{path=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:defName,filters:[{name:ext.toUpperCase()+' file',extensions:[ext]}]}});}catch(e){toast('Save dialog failed: '+e,true);return;}if(!path)return;log('Exporting all rows of '+db+'.'+name+'...');const r=await window.__TAURI__.core.invoke('export_table',{req:{conn:getConn(),db:db,table:name,file:path,format:fmt,nullValue:csvNullMarker()}});if(r&&r.ok){log(r.message);toast(r.message,'ok');}else toast('Export failed: '+(r?r.error:'unknown'),true);return;}
  try{
    const cq=await api('/api/query',{sql:"SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
    const est=(cq.ok&&cq.rows.length&&cq.rows[0][0]!=null)?+cq.rows[0][0]:null;

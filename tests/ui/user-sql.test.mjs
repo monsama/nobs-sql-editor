@@ -32,7 +32,7 @@ function extractFunction(src, name) {
 }
 
 const NAMES = ['strLit', 'lit', 'newUser', 'dropUser', 'grantUser', 'revokeUser', 'lockUser',
-  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'cloneGrantSql', 'sqlBlankStringsAndComments', 'mariaAuthChain',
+  'uRef', 'uName', 'uKey', 'authPlugins', 'identifiedBy', 'acctExpiry', 'acctSettingFields', 'acctSettingSql', 'logNoSecrets', 'sqlNoSecrets', 'cloneGrantSql', 'sqlBlankStringsAndComments', 'mariaAuthChain',
   'srvSince', 'acctHasExpiry', 'acctHasLock'];
 const bundle = NAMES.map(n => extractFunction(html, n)).join('\n');
 
@@ -55,7 +55,7 @@ function harness({ dialog = {}, selected = null, mariadb = false, serverVersion 
     window: { _selUser: selected, _selAcct: selected ? { u, h, role: false } : null, mariadb, serverVersion },
   };
   const keys = Object.keys(env);
-  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,acctSettingFields,cloneGrantSql,mariaAuthChain};`)(
+  const fns = new Function(...keys, `${bundle}\nreturn {newUser,dropUser,grantUser,revokeUser,lockUser,identifiedBy,acctSettingSql,acctSettingFields,cloneGrantSql,mariaAuthChain,sqlNoSecrets};`)(
     ...keys.map(k => env[k]));
   return { sql, fns };
 }
@@ -443,7 +443,7 @@ test('a grid edit with hex mixed into a binary cell is refused before anything i
 test('applyChanges actually calls that screen', () => {
   // The logic above can be perfect and still never run. This pins the wiring: an earlier version
   // of this test checked a restatement of the rule and kept passing with the guard deleted.
-  const body = extractFunction(html, 'applyChanges');
+  const body = extractFunction(html, 'applyChangesRun');
   assert.match(body, /pastedHexColumns\(/, 'applyChanges must screen staged edits before building SQL');
   const callAt = body.indexOf('pastedHexColumns(');
   const sqlAt = body.indexOf('UPDATE ');
@@ -510,7 +510,7 @@ test('row values are written for their column type, and CR survives a script', (
   assert.equal(L.litAs(null, true), 'NULL');
   assert.equal(L.litAs('NULL', false), "'NULL'");
   assert.equal(L.litAs('0x41', null), '0x41', 'with the type unknown it is lit(), as before');
-  const apply = extractFunction(html, 'applyChanges');
+  const apply = extractFunction(html, 'applyChangesRun');
   assert.match(apply, /keyWhere\(t,ri,bc,kt\)/, 'applyChanges finds rows through keyWhere');
   assert.match(extractFunction(html, 'keyWhere'), /litAs\(v,bc\?bc\[ci\]:null\)/, 'which writes row keys by column type');
   assert.match(apply, /return litAs\(v,bc\?bc\[ci\]:null\)/, 'changed cells go through litAs');
@@ -613,4 +613,22 @@ test('a statement with a password is not kept in the history', () => {
   ]) { addHistory(secret); assert.deepEqual(hist(), [], 'kept: ' + secret); }
   addHistory('SELECT 1');
   assert.deepEqual(hist(), ['SELECT 1'], 'an ordinary statement is kept');
+});
+
+// A password in SQL text the app shows or keeps - the log, a message, the tabs saved for next time -
+// is written as '***', under either sql_mode: a value that ends in a backslash included.
+test('passwords are masked wherever SQL is shown or kept', () => {
+  const { fns } = harness();
+  const cases = [
+    ["CREATE USER 'u'@'%' IDENTIFIED BY 'se''cret' REQUIRE NONE;", "CREATE USER 'u'@'%' IDENTIFIED BY '***' REQUIRE NONE;"],
+    [String.raw`ALTER USER 'u'@'%' IDENTIFIED BY 'trail\' ACCOUNT LOCK;`, "ALTER USER 'u'@'%' IDENTIFIED BY '***' ACCOUNT LOCK;"],
+    [String.raw`ALTER USER 'u'@'%' IDENTIFIED BY 'trail\';`, "ALTER USER 'u'@'%' IDENTIFIED BY '***';"],
+    ['CREATE USER u IDENTIFIED WITH mysql_native_password BY "x";', "CREATE USER u IDENTIFIED WITH mysql_native_password BY '***';"],
+    ["CREATE USER u IDENTIFIED VIA ed25519 USING PASSWORD('x');", "CREATE USER u IDENTIFIED VIA ed25519 USING PASSWORD('***');"],
+    ["SET PASSWORD FOR 'u'@'%' = 'newpw';", "SET PASSWORD FOR 'u'@'%' = '***';"],
+    ["CHANGE MASTER TO MASTER_PASSWORD='x', MASTER_USER='r';", "CHANGE MASTER TO MASTER_PASSWORD='***', MASTER_USER='r';"],
+    ["CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u', PASSWORD 'pw')", "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u', PASSWORD '***')"],
+    ["SELECT 'no secret here', password_last_changed FROM mysql.user;", "SELECT 'no secret here', password_last_changed FROM mysql.user;"],
+  ];
+  for (const [sql, want] of cases) assert.equal(fns.sqlNoSecrets(sql), want);
 });

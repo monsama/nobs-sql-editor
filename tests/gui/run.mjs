@@ -81,7 +81,7 @@ async function startApp() {
   server.stdout.on('data', d => { said += d; });
   server.stderr.on('data', d => { said += d; });
   let url = null;
-  for (let i = 0; i < 600 && !url; i++) { const m = /Open:\s+(http:\/\/127\.0\.0\.1:\d+\/)/.exec(said); if (m) url = m[1]; else await sleep(100); }
+  for (let i = 0; i < 600 && !url; i++) { const m = /Open:\s+(http:\/\/127\.0\.0\.1:\d+\/(?:#t=[0-9a-f]+)?)/.exec(said); if (m) url = m[1]; else await sleep(100); }
   if (!url) throw new Error('the PowerShell server did not start:\n' + said);
   const edge = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].map(p => p && join(p, 'Microsoft', 'Edge', 'Application', 'msedge.exe')).find(p => p && existsSync(p));
   if (!edge) throw new Error('Microsoft Edge not found');

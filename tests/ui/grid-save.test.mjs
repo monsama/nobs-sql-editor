@@ -34,12 +34,13 @@ function extractConst(src, name) {
   return src.slice(start, src.indexOf(';\n', start) + 1);
 }
 
-const NAMES = ['applyChanges', 'keyWhere', 'oneRowGuard', 'oneRowGuardMany', 'litAs', 'lit', 'strLit',
+const NAMES = ['applyChanges', 'applyChangesRun', 'keyWhere', 'oneRowGuard', 'oneRowGuardMany', 'litAs', 'lit', 'strLit',
   'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput'];
 const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n');
 
-async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview }) {
+async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview, modeOf }) {
   const sent = [], toasts = [], sessions = [], shown = [];
+  const win = { noBackslashEscapes: false };
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
@@ -48,12 +49,13 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
-    api: async (p, d) => { sent.push(d.sql); sessions.push(d.session); return typeof reply === 'function' ? reply(d.sql) : reply; },
+    api: async (p, d) => { if (d.sql === 'SELECT @@SESSION.sql_mode') return { ok: true, rows: [[modeOf || '']] }; sent.push(d.sql); sessions.push(d.session); return typeof reply === 'function' ? reply(d.sql) : reply; },
     viewText: (title, text) => shown.push({ title, text }),
+    window: win,
   };
   const keys = Object.keys(env);
   const result = await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x', preview);
-  return { sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending };
+  return { win, sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending };
 }
 const guardOf = where => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM `d`.`t` WHERE ' + where + ') <> 1 INTO @nobs_one_row;';
 
@@ -115,6 +117,16 @@ test('a save in a tab with auto-commit off goes into its transaction', async () 
   const one = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'b' } };
   assert.deepEqual((await apply({ ...one, session: 'tx_1' })).sessions, ['tx_1']);
   assert.deepEqual((await apply(one)).sessions, [undefined]);
+});
+
+// A transaction tab's own session may have had its sql_mode changed since the app connected, and a
+// literal written for the wrong mode ends in the wrong place. Apply asks that session.
+test('in a transaction the literals follow that session\'s sql_mode', async () => {
+  const one = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'x\\y' } };
+  assert.match((await apply({ ...one, session: 'tx_1', modeOf: 'STRICT_TRANS_TABLES,NO_BACKSLASH_ESCAPES' })).sql, /SET `v`='x\\y'/);
+  assert.match((await apply({ ...one, session: 'tx_1', modeOf: 'STRICT_TRANS_TABLES' })).sql, /SET `v`='x\\\\y'/);
+  const r = await apply({ ...one, session: 'tx_1', modeOf: 'NO_BACKSLASH_ESCAPES' });
+  assert.equal(r.win.noBackslashEscapes, false, 'and the app-wide setting is back as it was');
 });
 
 test('Show SQL shows exactly what Apply would run, and runs nothing', async () => {
