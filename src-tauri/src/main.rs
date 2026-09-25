@@ -5003,6 +5003,25 @@ fn get_config(_app: tauri::AppHandle) -> R {
     Ok(json!({"ok":true, "config": load_cfg(), "mariadbDownloadUrlDefault": DEFAULT_MARIADB_DOWNLOAD_TEMPLATE}))
 }
 
+// Whether a path Settings is about to save is the client tool its box asks for, and starts: a
+// mistyped path used to be saved without a word and found out at the next export.
+#[tauri::command]
+fn check_tool(req: Value) -> R {
+    let path = req["path"].as_str().unwrap_or("").trim().to_string();
+    let kind = req["kind"].as_str().unwrap_or("mysql");
+    if path.is_empty() { return Ok(json!({"ok":true})); }
+    if !std::path::Path::new(&path).is_file() { return Ok(json!({"ok":true,"error":"there is no file at this path"})); }
+    let stem = std::path::Path::new(&path).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let is_dump = stem.contains("dump");
+    if kind == "mysqldump" && !is_dump { return Ok(json!({"ok":true,"error":"this is not mysqldump.exe or mariadb-dump.exe"})); }
+    if kind == "mysql" && (is_dump || !(stem == "mysql" || stem == "mariadb")) { return Ok(json!({"ok":true,"error":"this is not mysql.exe or mariadb.exe"})); }
+    match tool_version(&path) {
+        Some(v) if v.starts_with("cannot start") => Ok(json!({"ok":true,"error":v})),
+        Some(v) => Ok(json!({"ok":true,"version":v})),
+        None => Ok(json!({"ok":true,"error":"it does not answer as a MySQL or MariaDB client"})),
+    }
+}
+
 #[tauri::command]
 fn save_config(req: Value) -> R {
     let mut cfg = load_cfg();
@@ -5461,7 +5480,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

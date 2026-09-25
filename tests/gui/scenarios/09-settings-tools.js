@@ -34,6 +34,26 @@
   G.eq('and the window still keeps its size', size(), at);
   G.check('the menu marks the page shown', document.querySelector('#mSettings .setnav button.on').dataset.p === 'data', document.querySelector('#mSettings .setnav button.on').dataset.p);
   setPage('tools');
+
+  // Save tries a path before it keeps it: one that is not there, or is the other tool, is refused
+  // with the reason, and Settings stays open with the field marked.
+  const was = $('cfgMysql').value, wasDump = $('cfgDump').value;
+  const said = []; const realToast = toast; toast = (m, bad) => said.push([m, bad]);
+  try {
+    $('cfgMysql').value = 'C:\\no\\such\\folder\\mysql.exe'; await saveSettings();
+    G.check('a path with no file is not saved', $('mSettings').classList.contains('show') && $('cfgMysql').classList.contains('bad') && said.some(([m, b]) => b && /Not saved.*no file/.test(m)), said);
+    // any other program is refused in either box
+    const np = 'C:\\Windows\\System32\\notepad.exe';
+    const n1 = await G.A('/api/check-tool', { path: np, kind: 'mysql' }), n2 = await G.A('/api/check-tool', { path: np, kind: 'mysqldump' });
+    G.check('another program is refused in both boxes', !!n1.error && !!n2.error && !n1.version && !n2.version, [n1, n2]);
+    const st = await G.A('/api/tools-status', {});
+    if (st.mysqldump && st.mysqldump !== '(not found)') {
+      said.length = 0; $('cfgMysql').value = st.mysqldump; await saveSettings();
+      G.check('mysqldump in the mysql box is not saved either', $('cfgMysql').classList.contains('bad') && said.some(([m]) => /not mysql\.exe/.test(m)), said);
+      const ok = await G.A('/api/check-tool', { path: st.mysqldump, kind: 'mysqldump' });
+      G.check('and the real one passes, with its version', ok.ok && !ok.error && /MariaDB|MySQL/.test(ok.version || ''), ok);
+    }
+  } finally { toast = realToast; $('cfgMysql').value = was; $('cfgDump').value = wasDump; $('cfgMysql').classList.remove('bad'); }
   hide('mSettings');
   return G.report();
 })()

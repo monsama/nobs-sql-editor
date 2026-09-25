@@ -540,6 +540,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .setrow .setnote{margin-top:3px}
  .setrc{flex:none;margin-left:auto;display:flex;gap:6px;align-items:center}
  .setrc input[type=checkbox]{width:16px;height:16px;margin:0}
+ /* a path that did not pass the check before Save */
+ #mSettings input.bad{border-color:#e5534b;box-shadow:0 0 0 1px #e5534b}
  .setnote{font-size:11px;line-height:1.45;color:var(--muted);margin-top:6px}
  .setfoot{justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd2)}
 @media (max-width:760px){.toolcards{grid-template-columns:1fr}}
@@ -1615,7 +1617,19 @@ async function refreshToolsStatus(manual,quiet){const el=$('cfgStatus');if(!el)r
  const pe=$('cfgPaths');if(pe)pe.innerHTML='Downloads: '+esc(r.download_dir)+'<br>Config: '+esc(r.config_file);
  if(manual){const bothOk=r.mysql&&r.mysql!=='(not found)'&&r.mysqldump&&r.mysqldump!=='(not found)';toast(bothOk?'Both tools found.':'Still missing one or both tools.',!bothOk);}}catch(e){el.textContent='';}
  finally{if(manual&&icon){icon.classList.remove('spinning');btn.classList.remove('disabled');}}}
-async function saveSettings(){try{const r=await api('/api/save-config',{config:{mysql_bin:$('cfgMysql').value.trim(),mysqldump_bin:$('cfgDump').value.trim(),mysql_bin_mysql:$('cfgMysqlMy').value.trim(),mysqldump_bin_mysql:$('cfgDumpMy').value.trim(),mariadb_download_url_template:$('cfgDownloadUrl').value.trim()}});if(r&&r.ok){log('Saved client-tool paths.');refreshToolsStatus();hide('mSettings');}else toast('Save failed: '+(r?r.error:''),true);}catch(e){toast('Save failed: '+e,true);}}
+// Save tries each path it was given first: a file that is not there, is the other tool, or does not
+// start is outlined with the reason, and nothing is saved until they all work.
+const CFG_TOOLS=[['cfgMysql','mysql','mysql (MariaDB servers)'],['cfgDump','mysqldump','mysqldump (MariaDB servers)'],['cfgMysqlMy','mysql','mysql (MySQL servers)'],['cfgDumpMy','mysqldump','mysqldump (MySQL servers)']];
+async function saveSettings(){
+ const bad=[],found=[];
+ for(const [id,kind,label] of CFG_TOOLS){const el=$(id);if(!el)continue;el.classList.remove('bad');el.removeAttribute('data-err');const p=el.value.trim();if(!p)continue;
+  let r=null;try{r=await api('/api/check-tool',{path:p,kind});}catch(e){}
+  if(!r||!r.ok){bad.push([el,label,(r&&r.error)||'could not be checked']);}else if(r.error){bad.push([el,label,r.error]);}else if(r.version)found.push(label+': '+r.version);}
+ if(bad.length){setPage('tools');bad.forEach(([el,,msg])=>{el.classList.add('bad');el.title=msg;});bad[0][0].focus();
+  toast('Not saved - '+bad.map(([,label,msg])=>label+': '+msg).join('; ')+'.',true);return;}
+ CFG_TOOLS.forEach(([id])=>{const el=$(id);if(el)el.title='';});
+ return saveSettingsNow(found);}
+async function saveSettingsNow(found){try{const r=await api('/api/save-config',{config:{mysql_bin:$('cfgMysql').value.trim(),mysqldump_bin:$('cfgDump').value.trim(),mysql_bin_mysql:$('cfgMysqlMy').value.trim(),mysqldump_bin_mysql:$('cfgDumpMy').value.trim(),mariadb_download_url_template:$('cfgDownloadUrl').value.trim()}});if(r&&r.ok){log('Saved client-tool paths.');toast(found&&found.length?'Saved - '+found.join(', ')+'.':'Saved.','ok');refreshToolsStatus();hide('mSettings');}else toast('Save failed: '+(r?r.error:''),true);}catch(e){toast('Save failed: '+e,true);}}
 // Persists the download URL field first - otherwise editing it and clicking Download directly
 // (without a separate Save click first) would silently use whatever was last saved instead of
 // what's currently typed, since the backend reads the URL from saved config, not this live field.
