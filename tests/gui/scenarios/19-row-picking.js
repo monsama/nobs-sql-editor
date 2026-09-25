@@ -23,6 +23,23 @@
   G.eq('ctrl-click picks single cells', cellsPicked(), ['1:0', '2:1']);
   G.check('and leaves the rows alone', rowsPicked().length === 0, rowsPicked());
   G.check('a picked cell is marked as picked', cell(1, 0).classList.contains('cellpick'), cell(1, 0).className);
+
+  // --- every shown cell of a row picked: the row counts as picked
+  t.selected = new Set(); t.cellSel = new Set(); t._pickSel = null; t._cellAnchor = null; renderBody(i);
+  const last = t.cols.length - 1;
+  click(cell(0, 0), { ctrlKey: true });
+  click(cell(1, last), { ctrlKey: true, shiftKey: true });
+  G.eq('picking all the cells of two rows picks the two rows', rowsPicked(), [0, 1]);
+  G.check('and ticks their checkboxes', box(0).checked && box(1).checked, [box(0).checked, box(1).checked]);
+  click(box(2), {});
+  click(cell(1, 0), { ctrlKey: true });
+  G.eq('dropping one of its cells lets the row go, and a row ticked by hand stays', rowsPicked(), [0, 2]);
+  key('Escape', {});
+  G.check('Esc lets the picked cells go, and the row they made', cellsPicked().length === 0 && String(rowsPicked()) === '2', { cells: cellsPicked(), rows: rowsPicked() });
+  key('Escape', {});
+  G.eq('Esc again unticks the rows', rowsPicked(), []);
+  // back to the cells picked above, for what follows
+  t.selected = new Set(); t.cellSel = new Set(['1:0', '2:1']); t._pickSel = null; t._cellAnchor = '2:1'; renderBody(i);
   click(cell(2, 1), { ctrlKey: true });
   G.eq('ctrl-clicking a cell again drops it', cellsPicked(), ['1:0']);
 

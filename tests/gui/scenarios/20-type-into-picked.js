@@ -48,6 +48,16 @@ INSERT INTO ${DB}.p VALUES (1,'a','a'),(2,'b','b'),(3,'c','c'),(4,'d','d');`);
     G.eq('a history entry is saved to the library', saved && saved.sql, 'SELECT 42');
     openHistory();
     G.check('each history entry offers it', [...$('histList').querySelectorAll('button')].some(b => b.textContent === 'Save to library'), 'no button');
+    // A click on the query - which is where resizing its box ends - used to open it and close the
+    // window. Only Open (or a double-click) opens it now.
+    const entry = $('histList').querySelector('.item');
+    if (entry) {
+      entry.querySelector('code').click();
+      G.check('clicking a history query, as resizing it does, leaves the window open', getComputedStyle($('mHist')).display !== 'none', '');
+      const before = tabs.length;
+      [...entry.querySelectorAll('button')].find(b => b.textContent === 'Open').click();
+      G.check('and Open opens it in a tab', tabs.length === before + 1 && getComputedStyle($('mHist')).display === 'none', tabs.length - before);
+    }
     hide('mHist');
   } finally {
     await G.A('/api/lib-delete', { name: LIB });
