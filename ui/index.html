@@ -1079,7 +1079,9 @@ function accSet(n,c){window._connMeta=window._connMeta||{};const cur=window._con
 function hexA(hex,a){hex=(hex||'').replace('#','');if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');const v=parseInt(hex,16);if(isNaN(v)||hex.length!==6)return '';return 'rgba('+((v>>16)&255)+','+((v>>8)&255)+','+(v&255)+','+a+')';}
 function applyAccent(color){const bar=$('bar');if(!bar)return;if(!color){bar.style.borderTop='';bar.style.borderBottom='';bar.style.boxShadow='';return;}bar.style.borderTop='2px solid '+color;bar.style.borderBottom='';bar.style.boxShadow='';}
 window.curAccent='';
-function getConn(){return {host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,
+// A saved connection's passwords never come to the page: a request names the connection
+// (savedName), and the backend fills them in for the address they were saved for.
+function getConn(){return {savedName:$('connlist')?$('connlist').value:'',host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,
  sshHost:$('sshhost').value,sshPort:$('sshport').value,sshUser:$('sshuser').value,sshKey:$('sshkey').value,sshPassword:$('sshpass').value};}
 // ---- SSH tunnel ----
 // The tunnel's settings ride with the connection form in hidden fields, so everything that reads
@@ -1091,12 +1093,12 @@ function sshPaint(){const b=$('sshBtn');if(!b)return;const h=$('sshhost').value.
  b.title=h?'SSH tunnel: '+h+' (click to change)':'Configure SSH tunnel';}
 // grouped: behind a "Use SSH tunnel" checkbox, for the Save and Edit dialogs, where four
 // fields most connections never use would otherwise sit in the middle of the form.
-function sshFields(c,grouped){c=sshOf(c);const f=[
+function sshFields(c,grouped){const hasSshPw=!!(c&&c.hasSshPassword);c=sshOf(c);const f=[
  {key:'sshHost',label:'SSH host (or a host alias from ~/.ssh/config)',value:c.sshHost,placeholder:'bastion.example.com'},
  {key:'sshPort',label:'SSH port',value:c.sshPort,placeholder:'22'},
  {key:'sshUser',label:'SSH user',value:c.sshUser},
  {key:'sshKey',label:'Private key file (optional - defaults to the SSH agent and ~/.ssh)',type:'file',browseTitle:'Select private key file',placeholder:'e.g. C:\\Users\\me\\.ssh\\id_ed25519',value:c.sshKey},
- {key:'sshPassword',label:'SSH password (only if the server asks for one; a key is better)',type:'password',value:c.sshPassword}];
+ {key:'sshPassword',label:'SSH password (only if the server asks for one; a key is better)',type:'password',value:c.sshPassword,placeholder:hasSshPw?'saved - leave empty to keep it (while host, port and user stay the same)':''}];
  if(!grouped)return f;
  return [{key:'useSsh',label:'Use SSH tunnel',type:'checkbox',value:!!c.sshHost,reveals:'ssh'},...f.map(x=>({...x,group:'ssh'}))];}
 // What a dialog says about SSH: nothing at all when its box is not ticked.
@@ -2095,8 +2097,8 @@ async function pickConn() {
         $('sslca').value = r.conn.sslCa || ''; $('clearpw').checked = !!r.conn.clearPw;
         sslCaToggle();
         sshSet(r.conn);
-        const _pw = r.conn.password || '';
-        setPass(_pw);
+        setPass('');
+        const _pw = !!r.conn.hasPassword;
         window._connMeta = window._connMeta || {};
         window._connMeta[n] = {accent:r.accent||'', env:r.env||'', readonly:!!r.readonly};
         // Persistent, tied only to which connection is currently selected - not to whether
@@ -2144,7 +2146,7 @@ async function saveConn(){
   {key:'host',label:'Host',value:$('host').value},
   {key:'port',label:'Port',value:$('port').value},
   {key:'user',label:'User',value:$('user').value},
-  {key:'password',label:'Password',type:'password',value:$('pass').value},
+  {key:'password',label:'Password',type:'password',value:$('pass').value,placeholder:n0&&(window._connPw||{})[n0]?'saved - leave empty to keep it (while host, port and user stay the same)':''},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:$('ssl').value},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:$('sslca').value},
   {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:$('clearpw').checked},
@@ -2152,14 +2154,14 @@ async function saveConn(){
   {key:'color',label:'Accent color (tell servers apart at a glance)',type:'color',value:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6'},
   {key:'env',label:'Environment label (e.g. Production, Dev) - optional',value:m0.env||'',maxlength:40},
   {key:'ro',label:'Read-only / safe mode (block all writes)',type:'checkbox',value:!!m0.readonly},
-  {key:'savepw',label:'Save password (unchecked = type it each time)',type:'checkbox',value:n0?!!$('pass').value:true}
+  {key:'savepw',label:'Save password (unchecked = type it each time)',type:'checkbox',value:n0?!!($('pass').value||(window._connPw||{})[n0]):true}
  ]});
  if(!res||!res.name.trim())return;const n=res.name.trim();
- const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});
+ const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0||''});
  if(!r.ok){toast(r.error,true);return;}
  window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
  $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);
- const pwc=$('pwChip');if(pwc)pwc.style.display=res.password?'inline':'none';
+ const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[n]?'inline':'none';
 }
 // Edits a saved connection entirely within its own dialog - host/port/user/password/ssl are
 // fields here directly, fetched fresh from the actual saved data, rather than the dialog only
@@ -2174,7 +2176,7 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'host',label:'Host',value:g.conn.host},
   {key:'port',label:'Port',value:g.conn.port},
   {key:'user',label:'User',value:g.conn.user},
-  {key:'password',label:'Password',type:'password',value:g.conn.password||''},
+  {key:'password',label:'Password',type:'password',value:'',placeholder:g.conn.hasPassword?'saved - leave empty to keep it (while host, port and user stay the same)':''},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:g.conn.ssl},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:g.conn.sslCa||''},
   {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:!!g.conn.clearPw},
@@ -2182,23 +2184,23 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'color',label:'Accent color',type:'color',value:accMap()[n0]||'#3b82f6'},
   {key:'env',label:'Environment label (optional)',value:m0.env||'',maxlength:40},
   {key:'ro',label:'Read-only / safe mode (block all writes)',type:'checkbox',value:!!m0.readonly},
-  {key:'savepw',label:'Save password (uncheck to remove the saved password)',type:'checkbox',value:!!(g.ok&&g.conn.password)}
+  {key:'savepw',label:'Save password (uncheck to remove the saved password)',type:'checkbox',value:!!(g.ok&&g.conn.hasPassword)}
  ]});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
- const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw});if(!r.ok){toast(r.error,true);return;}
+ const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0});if(!r.ok){toast(r.error,true);return;}
  if(nn!==n0){await api('/api/conn-delete',{name:n0});}
  window.curAccent=res.color;applyAccent(res.color);await refreshConns();$('connlist').value=nn;applyEnv(nn);
  // If this connection is the one currently loaded into the (largely internal, now rarely
  // shown) inline form, keep it in sync with what was just saved - otherwise a subsequent
  // Connect click would silently use stale values from before the edit.
- if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=res.password?'inline':'none';}
+ if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[nn]?'inline':'none';}
  log('Updated connection: '+nn);}
 async function cloneConn(){const n0=$('connlist').value;
- if(n0){const g=await api('/api/conn-get',{name:n0});if(g.ok){$('host').value=g.conn.host;$('port').value=g.conn.port;$('user').value=g.conn.user;$('ssl').value=g.conn.ssl;$('sslca').value=g.conn.sslCa||'';$('clearpw').checked=!!g.conn.clearPw;sslCaToggle();sshSet(g.conn);$('pass').value=g.conn.password;}}
+ if(n0){const g=await api('/api/conn-get',{name:n0});if(g.ok){$('host').value=g.conn.host;$('port').value=g.conn.port;$('user').value=g.conn.user;$('ssl').value=g.conn.ssl;$('sslca').value=g.conn.sslCa||'';$('clearpw').checked=!!g.conn.clearPw;sslCaToggle();sshSet(g.conn);$('pass').value='';}}
  const base=n0||($('user').value+'@'+$('host').value);
  const res=await inputBox({title:'Clone connection',okText:'Clone',fields:[{key:'name',label:'New connection name',value:base+' (copy)',maxlength:60}]});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
- const r=await api('/api/conn-save',{name:nn,conn:getConn()});if(!r.ok){toast(r.error,true);return;}
+ const r=await api('/api/conn-save',{name:nn,conn:getConn(),keepFrom:n0||''});if(!r.ok){toast(r.error,true);return;}
  if(n0){const c=accMap()[n0];if(c)accSet(nn,c);const m=connMeta()[n0];if(m)connMetaSet(nn,m);}
  await refreshConns();$('connlist').value=nn;window.curAccent=accMap()[nn]||'';applyAccent(window.curAccent);applyEnv(nn);
  log('Cloned connection: '+nn);}

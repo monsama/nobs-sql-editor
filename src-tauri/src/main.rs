@@ -448,6 +448,46 @@ fn ssh_pw_get(name: &str) -> String { keyring::Entry::new(SSH_KEYRING, name).ok(
 fn ssh_pw_set(name: &str, pw: &str) {
     if let Ok(e) = keyring::Entry::new(SSH_KEYRING, name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
 }
+// The page never holds a saved connection's passwords: it names the connection (savedName) and the
+// password and SSH password are filled in here - but only for the address they were saved for. A
+// page that could send savedName "prod" with another host would otherwise have prod's password sent
+// to that host. When they are filled in, the connection's own SSL settings go with them, so the
+// request cannot ask for them over less than the connection was saved with.
+fn endpoint_key(c: &Value) -> (String, u16, String, String, u16, String) {
+    let t = |v: &Value| v.as_str().unwrap_or("").trim().to_lowercase();
+    (t(&c["host"]), port_of(&c["port"], 3306), c["user"].as_str().unwrap_or("").to_string(),
+     t(&c["sshHost"]), port_of(&c["sshPort"], 22), c["sshUser"].as_str().unwrap_or("").trim().to_string())
+}
+fn profile_named(name: &str) -> Option<Value> { load_profiles().into_iter().find(|c| c["name"].as_str() == Some(name)) }
+fn db_pw_get(name: &str) -> String { keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
+fn db_pw_set(name: &str, pw: &str) {
+    if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
+}
+fn resolve_saved(connj: &Value) -> Value {
+    let name = connj["savedName"].as_str().unwrap_or("");
+    if name.is_empty() { return connj.clone(); }
+    resolve_with(connj, profile_named(name).as_ref(), || db_pw_get(name), || ssh_pw_get(name))
+}
+// The decision, apart from where profiles and passwords are kept (so a test can drive it).
+fn resolve_with(connj: &Value, profile: Option<&Value>, db_pw: impl Fn() -> String, ssh_pw: impl Fn() -> String) -> Value {
+    let Some(p) = profile else { return connj.clone() };
+    if endpoint_key(p) != endpoint_key(connj) { return connj.clone(); }
+    let mut c = connj.clone();
+    let mut filled = false;
+    if c["password"].as_str().unwrap_or("").is_empty() {
+        let pw = db_pw();
+        if !pw.is_empty() { c["password"] = json!(pw); filled = true; }
+    }
+    if c["sshPassword"].as_str().unwrap_or("").is_empty() {
+        let pw = ssh_pw();
+        if !pw.is_empty() { c["sshPassword"] = json!(pw); filled = true; }
+    }
+    if filled {
+        c["ssl"] = p["ssl"].clone(); c["sslCa"] = p["sslCa"].clone(); c["sshKey"] = p["sshKey"].clone();
+        c["clearPw"] = json!(p["clearPw"].as_bool().unwrap_or(false));
+    }
+    c
+}
 fn close_tunnels() {
     if let Ok(mut m) = tunnels().lock() { for (_, mut t) in m.drain() { let _ = t.child.kill(); let _ = t.child.wait(); } }
 }
@@ -467,6 +507,8 @@ fn ssh_exe() -> std::path::PathBuf {
 // Where to connect for this database: the tunnel's local end if the connection has an SSH host,
 // otherwise its own host and port.
 fn endpoint(connj: &Value) -> Result<(String, u16), String> {
+    let resolved = resolve_saved(connj);
+    let connj = &resolved;
     let host = connj["host"].as_str().unwrap_or("127.0.0.1").trim().to_string();
     let port = port_of(&connj["port"], 3306);
     let ssh_host = connj["sshHost"].as_str().unwrap_or("").trim().to_string();
@@ -582,6 +624,8 @@ fn open_tunnel_on(local: u16, ssh_host: &str, ssh_port: u16, ssh_user: &str, key
 }
 
 fn build_conn(connj: &Value) -> Result<Conn, String> {
+    let resolved = resolve_saved(connj);
+    let connj = &resolved;
     let (host, port) = endpoint(connj)?;
     let user = connj["user"].as_str().unwrap_or("root").to_string();
     let pass = connj["password"].as_str().unwrap_or("").to_string();
@@ -2277,6 +2321,8 @@ fn server_cert_fingerprint(connj: &Value) -> Result<String, String> {
 // Temp files that hold a password are named so, and one a crash left behind is removed at the next
 // start (sweep_secret_temp_files).
 fn cnf_file_with(connj: &Value, tool: &str, guard: Option<&str>) -> Result<(tempfile::NamedTempFile, String), String> {
+    let resolved = resolve_saved(connj);
+    let connj = &resolved;
     let mut f = tempfile::Builder::new().prefix("nobs-cnf-").suffix(".cnf").tempfile().map_err(|e| e.to_string())?;
     let mut s = String::from("[client]\n");
     // LOAD DATA LOCAL INFILE lets the SERVER ask the client for any file it names. The app never
@@ -3616,9 +3662,10 @@ async fn conn_get(req: Value) -> R {
     let c = load_profiles().into_iter().find(|c| c["name"].as_str() == Some(&name));
     match c {
         Some(c) => {
-            let pass = keyring::Entry::new("NOBSSQL-Desktop", &name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
-            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"clearPw":c["clearPw"].as_bool().unwrap_or(false),"password":pass,
-                "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"sshPassword":ssh_pw_get(&name)},
+            // Whether there are saved passwords, not the passwords (see resolve_saved).
+            Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"clearPw":c["clearPw"].as_bool().unwrap_or(false),
+                "hasPassword":!db_pw_get(&name).is_empty(),
+                "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"hasSshPassword":!ssh_pw_get(&name).is_empty()},
                 "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false)}))
         }
         None => Ok(json!({"ok":false})),
@@ -3632,16 +3679,18 @@ async fn conn_save(req: Value) -> R {
     // savepw defaults to true (matches the PS backend's "quick save preserves the existing password" behavior);
     // savepw:false explicitly removes any saved password for this connection.
     let save_pw = req.get("savepw").and_then(|v| v.as_bool()).unwrap_or(true);
-    if !save_pw {
-        if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", &name) { let _ = e.delete_credential(); }
-    } else if let Some(pw) = conn["password"].as_str() {
-        if !pw.is_empty() {
-            if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", &name) { let _ = e.set_password(pw); }
-        }
-        // empty password on a quick-save with savepw:true -> leave any existing keychain entry untouched
-    }
-    // Saved with the database password, and only when that is: "type it each time" covers both.
-    if conn.get("sshPassword").is_some() { ssh_pw_set(&name, if save_pw { conn["sshPassword"].as_str().unwrap_or("") } else { "" }); }
+    // A password left empty keeps the one saved - under this name, or under keepFrom for a copy or
+    // a rename - but only while the address is the one it was saved for: a saved connection pointed
+    // at another host, port or user has its password typed again, never carried over to it.
+    let keep_from = req["keepFrom"].as_str().filter(|s| !s.is_empty()).unwrap_or(&name).to_string();
+    let same_place = profile_named(&keep_from).map(|p| endpoint_key(&p) == endpoint_key(conn)).unwrap_or(false);
+    let pick = |typed: &str, saved: String| -> String {
+        if !save_pw { String::new() } else if !typed.is_empty() { typed.to_string() } else if same_place { saved } else { String::new() }
+    };
+    let db = pick(conn["password"].as_str().unwrap_or(""), db_pw_get(&keep_from));
+    let ssh = pick(conn["sshPassword"].as_str().unwrap_or(""), ssh_pw_get(&keep_from));
+    db_pw_set(&name, &db);
+    ssh_pw_set(&name, &ssh);
     let before = load_profiles();
     let was_primary = before.iter().find(|c| c["name"].as_str() == Some(name.as_str()))
         .map(|c| c["primary"].as_bool().unwrap_or(false)).unwrap_or(false);
@@ -6122,6 +6171,26 @@ mod tests {
         assert_eq!(split_off_keyword("ANALYZE FORMAT=JSON SELECT 1", "FOR", true), None);
         assert_eq!(split_off_keyword("SELECT for_id FROM t", "FOR", true), None);
         assert_eq!(split_off_keyword("SELECT 1", "FOR", true), None);
+    }
+
+    // A saved connection's passwords are filled in by name, and only for the address they were saved
+    // for, with that connection's own SSL settings.
+    #[test]
+    fn saved_passwords_go_only_where_they_were_saved_for() {
+        let prof = json!({"name":"prod","host":"db.example","port":"3306","user":"app","ssl":"verify-ca","sslCa":"C:/ca.pem","clearPw":false,"sshHost":"","sshPort":"","sshUser":"","sshKey":""});
+        let pw = || "secret".to_string(); let none = || String::new();
+        let asked = json!({"savedName":"prod","host":"DB.example ","port":3306,"user":"app","password":"","ssl":"disabled"});
+        let r = resolve_with(&asked, Some(&prof), pw, none);
+        assert_eq!(r["password"], "secret", "the same address gets the saved password");
+        assert_eq!(r["ssl"], "verify-ca", "and the saved SSL setting, not the one the page sent");
+        for (k, v) in [("host", json!("evil.example")), ("port", json!("3307")), ("user", json!("root")), ("sshHost", json!("jump"))] {
+            let mut other = asked.clone(); other[k] = v;
+            let r = resolve_with(&other, Some(&prof), pw, none);
+            assert_eq!(r["password"], "", "another {k} gets no password");
+        }
+        let typed = json!({"savedName":"prod","host":"db.example","port":"3306","user":"app","password":"typed"});
+        assert_eq!(resolve_with(&typed, Some(&prof), pw, none)["password"], "typed", "a typed password is used as typed");
+        assert_eq!(resolve_with(&asked, None, pw, none)["password"], "", "an unknown name gets nothing");
     }
 
     // The gaps a security review found in the read-only check.

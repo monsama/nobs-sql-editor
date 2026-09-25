@@ -313,7 +313,9 @@ What the app protects, and where its limits are.
 - **Passwords** are kept in the Windows Credential Manager; the temporary option files the command-line
   tools read are private to you and removed after use (and at the next start, if the app was
   killed). A password in SQL the app logs, shows in a message or keeps with your open tabs is
-  written as `'***'`.
+  written as `'***'`. A saved password never reaches the app's page at all: the page names
+  the saved connection and the password is filled in behind it - only for the host, port and user
+  it was saved for. Point a saved connection somewhere else and its password has to be typed again.
 - **The window** loads only the app's own page, under a content security policy that lets it
   load or send nothing elsewhere. Files are written only where you picked them in a Save dialog.
 
