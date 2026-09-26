@@ -15,6 +15,19 @@
     G.eq('and Ctrl+Z brings the text before it back', ed.value, before);
     await clearFilters(t.id); await G.until(() => !t.runningReqId);
 
+    // Another query in the tab - loaded, or typed over the generated one - takes the filters with it.
+    await addFilterClause(t.id, '`id` = 1'); await G.until(() => !t.runningReqId);
+    await addFilterClause(t.id, "`s` = 'a'"); await G.until(() => !t.runningReqId);
+    G.eq('two quick filters are on', t.filterClauses.length, 2);
+    edSetAll(t.id, `SELECT id FROM ${DB}.t ORDER BY id DESC`);
+    G.eq('a query loaded into the tab clears them', t.filterClauses.length, 0);
+    await openRun(t.id); await G.until(() => !t.runningReqId);
+    await addFilterClause(t.id, '`id` = 2'); await G.until(() => !t.runningReqId);
+    ed.value = 'SELECT 1'; ed.dispatchEvent(new Event('input'));
+    G.eq('and so does typing another', t.filterClauses.length, 0);
+    await openRun(t.id); await G.until(() => !t.runningReqId);
+    G.check('the next run is the whole table again', !/WHERE/.test(ed.value), ed.value);
+
     // accepting a suggestion after a backtick
     const q = openTab('q', 'SELECT * FROM `cus', DB, false);
     const qe = $('ed_' + q);

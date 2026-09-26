@@ -3762,6 +3762,10 @@ function markEdited(id){
  if(!t||!ta||!(t.table||t.ddl))return;
  const edited=(ta.value!==(t.genSql||''));
  if(edited!==!!t.sqlEdited){ t.sqlEdited=edited; if(activeTab===id) updateSchemaBadge(id); }
+ // The quick filters belong to the generated query. Written over or replaced by another query,
+ // they are gone with it - they stayed, and "Clear filter (2)" offered to clear what no longer
+ // applied, and the next quick filter brought them back into a query that never had them.
+ if(edited&&t.filterClauses&&t.filterClauses.length){ t.filterClauses=[]; updateFilterBar(id); }
 }
 // The name in an "Unknown database" error, or null. Both servers word it the same way.
 function missingDatabase(err){const m=/Unknown database '([^']+)'/i.exec(String(err==null?'':err));return m?m[1]:null;}
