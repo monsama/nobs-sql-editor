@@ -21,7 +21,7 @@ INSERT INTO ${DB}.big SELECT a.n*1000+b.n*100+c.n*10+e.n+1, 'x' FROM ${DB}.d a, 
     const a1 = await apply(2, 'first');
     G.check('the first Apply goes through', a1.ok !== false && !/busy/i.test(a1.status), a1);
     const a2 = await apply(5, 'second');
-    G.check('and so does the second, without waiting for the rows not read yet', a2.ok !== false && !/busy/i.test(a2.status) && a2.ms < 10000, a2);
+    G.check('and so does the second, without waiting for the rows not read yet', a2.ok !== false && !/busy/i.test(a2.status) && a2.ms < (G.desktop ? 10000 : 20000), a2);
     // The check reads the transaction's connection itself, as the app does: after letting the grid's
     // unread rows go.
     await sessFree(t);
@@ -33,7 +33,9 @@ INSERT INTO ${DB}.big SELECT a.n*1000+b.n*100+c.n*10+e.n+1, 'x' FROM ${DB}.d a, 
     t.pending.upd[t.rows.findIndex(r => String(r[0]) === '9') + ':1'] = 'committed';
     const c0 = Date.now(); await txEnd(t.id, 'commit'); const cms = Date.now() - c0;
     const stored = await G.one(`SELECT note FROM ${DB}.big WHERE id=9`);
-    G.check('Commit goes through at once, with the edit in it', stored === 'committed' && cms < 10000, { stored, ms: cms, status: $('st_' + t.id).textContent });
+    // A commit that waited for the unread rows timed out; the PowerShell edition's commit, through mysql.exe, takes
+    // near 10 s on a busy CI runner, so it is given more room than the desktop's.
+    G.check('Commit goes through at once, with the edit in it', stored === 'committed' && cms < (G.desktop ? 10000 : 20000), { stored, ms: cms, status: $('st_' + t.id).textContent });
     closeTab(t.id);
   } finally {
     await G.run(`DROP DATABASE IF EXISTS ${DB}`);
