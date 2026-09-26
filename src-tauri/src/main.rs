@@ -422,10 +422,14 @@ fn ro_flag(req: &Value) -> bool {
 }
 fn saved_ro(connj: &Value) -> bool {
     if !connj.is_object() { return false; }
+    saved_ro_in(connj, &load_profiles())
+}
+// The decision, apart from where the profiles are kept (so a test can drive it).
+fn saved_ro_in(connj: &Value, profiles: &[Value]) -> bool {
     let s = |v: &Value| v.as_str().map(|x| x.trim().to_lowercase()).or_else(|| v.as_u64().map(|n| n.to_string())).unwrap_or_default();
     let key = |c: &Value| (s(&c["host"]), s(&c["port"]), c["user"].as_str().unwrap_or("").to_string(), s(&c["sshHost"]));
     let k = key(connj);
-    let same: Vec<Value> = load_profiles().into_iter().filter(|c| key(c) == k).collect();
+    let same: Vec<&Value> = profiles.iter().filter(|c| key(c) == k).collect();
     !same.is_empty() && same.iter().all(|c| c["readonly"].as_bool().unwrap_or(false))
 }
 
@@ -9117,6 +9121,18 @@ mod review_tests {
             message: "Access denied for user 'ssl_admin'@'localhost' (using password: YES)".into() });
         assert!(!tls_was_the_problem(&denied), "retried without TLS because the user name says ssl");
         assert!(tls_was_the_problem(&mysql::Error::DriverError(mysql::DriverError::TlsNotSupported)));
+    }
+
+    #[test]
+    fn a_connection_saved_read_only_stays_read_only() {
+        let ro = json!({"host":"db","port":"3306","user":"app","readonly":true});
+        let rw = json!({"host":"db","port":"3306","user":"app","readonly":false});
+        let asked = json!({"host":"DB ","port":3306,"user":"app"});
+        assert!(saved_ro_in(&asked, std::slice::from_ref(&ro)), "every saved connection to it is read-only");
+        assert!(!saved_ro_in(&asked, &[ro.clone(), rw]), "one that is not leaves it to the page");
+        assert!(!saved_ro_in(&json!({"host":"db","port":"3306","user":"root"}), std::slice::from_ref(&ro)), "another account");
+        assert!(!saved_ro_in(&json!({"host":"db","port":"3306","user":"app","sshHost":"jump"}), &[ro]), "through a tunnel is another address");
+        assert!(!saved_ro_in(&asked, &[]), "nothing saved: the page decides");
     }
 
     #[test]

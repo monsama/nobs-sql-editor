@@ -1,6 +1,7 @@
 // A database exported through the dialog imports into another one unchanged - whole, and as
 // structure only followed by data only - and the CSV import dialog stores a file exactly. Uses
-// nobs_gui from 01 and 02, and drops what they made.
+// nobs_gui as 01 and 02 leave it, and drops what they made; run on its own, it makes the two tables
+// itself the way they start there.
 (async () => {
   const DB = 'nobs_gui', IMP = 'nobs_gui_imp', PARTS = 'nobs_gui_parts';
   const FOLDER = G.env.tmp + '/export';
@@ -8,6 +9,11 @@
     const sumGp = db => G.one(`SELECT GROUP_CONCAT(CONCAT_WS('|',id,IFNULL(HEX(t),'N'),IFNULL(HEX(b),'N'),IFNULL(HEX(n),'N'),IFNULL(bits+0,'N'),IFNULL(HEX(l1),'N')) ORDER BY id SEPARATOR ';') FROM ${db}.gp`);
     const sumCg = db => G.one(`SELECT GROUP_CONCAT(CONCAT_WS('|',HEX(id),IFNULL(HEX(t),'N'),IFNULL(HEX(b),'N'),IFNULL(HEX(x),'N')) ORDER BY id SEPARATOR ';') FROM ${db}.cg`);
     await G.run(`DROP DATABASE IF EXISTS ${IMP}`); await G.run(`DROP DATABASE IF EXISTS ${PARTS}`);
+    await G.run(`CREATE DATABASE IF NOT EXISTS ${DB} CHARACTER SET utf8mb4;
+CREATE TABLE IF NOT EXISTS ${DB}.gp (id INT PRIMARY KEY, t TEXT NULL, b VARBINARY(16) NULL, n VARCHAR(10) NULL, bits BIT(8) NULL, l1 VARCHAR(10) CHARACTER SET latin1 NULL);
+INSERT IGNORE INTO ${DB}.gp VALUES (1,'a',0x00FF,'NULL',b'1',CONVERT(x'C3A9' USING utf8mb4)),(2,NULL,X'',NULL,NULL,NULL),(3,'x',NULL,'0x41',NULL,'y');
+CREATE TABLE IF NOT EXISTS ${DB}.cg (id VARBINARY(4) PRIMARY KEY, t TEXT NULL, b VARBINARY(8) NULL, x MEDIUMTEXT NULL);
+INSERT IGNORE INTO ${DB}.cg VALUES (0x01,'NULL',X'',CONCAT('a',CHAR(13),CHAR(10),'b')),(0x02,NULL,0x00,'x'),(X'',CONVERT(x'C3A9' USING utf8mb4),NULL,'');`);
     const gp0 = await sumGp(DB), cg0 = await sumCg(DB);
 
     curSchema = DB;
