@@ -27,7 +27,7 @@ INSERT INTO ${DB}.t VALUES (1);`);
     await G.A('/api/script', { sql: `DROP DATABASE ${DB}` });
     G.take();
     await runSql(t.id, 'SELECT id FROM t');
-    await G.wait(1500);
+    await G.until(() => G.toasts.concat(G.logs).some(m => /no longer exists/i.test(m)), 10000);
     const heard = G.take();
     const said = heard.t.concat(heard.l).join(' | ');
 

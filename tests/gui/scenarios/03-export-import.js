@@ -11,7 +11,7 @@
     const gp0 = await sumGp(DB), cg0 = await sumCg(DB);
 
     curSchema = DB;
-    await openExport(); await G.wait(800);
+    await openExport(); await G.until(() => document.querySelectorAll('.expdb').length > 0, 10000);
     for (const c of document.querySelectorAll('.expdb')) c.checked = (c.value === DB);
     $('expFolder').value = FOLDER; $('expStamp').checked = false; $('expPer').checked = true;
     G.take(); await runExport(); await G.until(() => /OK /.test($('expLog').textContent) || /FAILED/.test($('expLog').textContent), 60000);
@@ -32,7 +32,7 @@
     }
     hide('mExport');
 
-    await openImport(); await G.wait(500);
+    await openImport();
     await impAppend(paths);
     G.eq('the file list shows the file', [...$('impList').querySelectorAll('.impname')].map(e => e.textContent), ['nobs_gui.sql']);
     $('impDb').value = IMP; $('impCreate').checked = true;
@@ -45,7 +45,7 @@
     // Structure only, one file for the database; then data only, a file per table. Imported in
     // that order into a new database, they give back what the whole export did.
     const exportAs = async (what, folder, mode) => {
-      await openExport(); await G.wait(800);
+      await openExport(); await G.until(() => document.querySelectorAll('.expdb').length > 0, 10000);
       for (const c of document.querySelectorAll('.expdb')) c.checked = (c.value === DB);
       $('expFolder').value = folder; $('expStamp').checked = false; $(mode).checked = true;
       $(what).checked = true; expWhatChanged();
@@ -53,7 +53,7 @@
       const log = $('expLog').textContent; hide('mExport');
       return { log, files: ((await G.A('/api/browse', { path: folder, filter: '*.sql', dirsOnly: false })).files || []).map(f => f.path) };
     };
-    await openExport(); await G.wait(800);
+    await openExport(); await G.until(() => document.querySelectorAll('.expdb').length > 0, 10000);
     $('expWhatData').checked = true; expWhatChanged();
     G.check('data only greys what would create or drop', ['routines', 'events', 'createdb', 'adddroptb'].every(k => $('eo_' + k).disabled) && !$('eo_hexblob').disabled, '');
     hide('mExport');
@@ -61,7 +61,7 @@
     G.check('structure only writes its file', st.files.length === 1 && !/FAILED/.test(st.log), st.log);
     const da = await exportAs('expWhatData', FOLDER + '-data', 'expTable');
     G.check('data only writes a file per table', da.files.length >= 2 && !/FAILED/.test(da.log), da);
-    await openImport(); await G.wait(300);
+    await openImport();
     await impAppend(st.files); $('impDb').value = PARTS; $('impCreate').checked = true;
     await runImport(); await G.until(() => /OK /.test($('impLog').textContent) || /FAILED/.test($('impLog').textContent), 60000);
     G.eq('the structure makes the tables, empty', String(await G.one(`SELECT COUNT(*) FROM ${PARTS}.gp`)), '0');

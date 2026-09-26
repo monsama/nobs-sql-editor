@@ -463,6 +463,11 @@ fn db_pw_get(name: &str) -> String { keyring::Entry::new("NOBSSQL-Desktop", name
 fn db_pw_set(name: &str, pw: &str) {
     if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
 }
+// The password a connection is saved with: none when it is not to be saved, the one typed, or else
+// the one saved before - only while the address is the one it was saved for.
+fn kept_password(save_pw: bool, typed: &str, saved: String, same_place: bool) -> String {
+    if !save_pw { String::new() } else if !typed.is_empty() { typed.to_string() } else if same_place { saved } else { String::new() }
+}
 fn resolve_saved(connj: &Value) -> Value {
     let name = connj["savedName"].as_str().unwrap_or("");
     if name.is_empty() { return connj.clone(); }
@@ -2850,6 +2855,22 @@ Clear \"Target database\" to restore each under its own name.",
 
 // The body, split out so a test can drive it without a tauri::AppHandle - resolving the mysql
 // path is the only thing the handle provided.
+// What mysql is started with for one import file.
+// --binary-mode, always: a dump file is data, and without it mysql.exe carries out the client commands
+// in it - MySQL's runs "system <anything>" and "tee <file>" (measured with 8.0 and 8.4), which a file
+// someone sends you can hold. In binary mode both clients refuse every client command but DELIMITER
+// and \C in piped input; a raw NUL goes through too.
+// --max-allowed-packet: export lets you raise mysqldump's, and the client re-importing that file has
+// its own default (16M) - without a matching bump, re-importing fails with "server has gone away".
+// The database as --database=, so a name cannot be read as another option.
+fn import_args(cnf: &str, force: bool, init: Option<&str>, maxpacket: &str, target: &str) -> Vec<String> {
+    let mut a = vec![format!("--defaults-extra-file={}", cnf), "--binary-mode".into(), "--show-warnings".into()];
+    if force { a.push("--force".into()); }
+    if let Some(i) = init { a.push(format!("--init-command={}", i)); }
+    if !maxpacket.is_empty() { a.push(format!("--max-allowed-packet={}", maxpacket)); }
+    if !target.is_empty() { a.push(format!("--database={}", target)); }
+    a
+}
 async fn import_run(req: Value, mbin: String) -> R {
     tokio::task::spawn_blocking(move || {
         let jid = req["jobId"].as_str().unwrap_or("").to_string();
@@ -2875,26 +2896,14 @@ async fn import_run(req: Value, mbin: String) -> R {
         for f in files {
             if job_is_cancelled(&job) { log.push("CANCELLED (remaining files skipped)".into()); cancelled = true; break; }
             if !std::path::Path::new(&f).exists() { log.push(format!("SKIP (missing): {}", f)); continue; }
-            // Warnings are asked for: a dump sets a non-strict sql_mode, so a value too long for its
-            // column, or out of range, is cut and the import carried on - logged as a plain OK.
-            // --binary-mode, always: a dump file is data, and without it mysql.exe carries out the
-            // client commands in it - MySQL's runs "system <anything>" and "tee <file>" (measured with
-            // 8.0 and 8.4), which a file someone sends you can hold. In binary mode both clients refuse
-            // every client command but DELIMITER and \C in piped input; a raw NUL goes through too.
-            let mut args = vec![format!("--defaults-extra-file={}", cnf), "--binary-mode".into(), "--show-warnings".into()];
-            if req["force"].as_bool().unwrap_or(false) { args.push("--force".into()); }
+            // Warnings are asked for (import_args): a dump sets a non-strict sql_mode, so a value too
+            // long for its column, or out of range, is cut and the import carried on - logged as OK.
             // This replaces the options file's init-command, so it repeats its SET NAMES (cnf_file).
-            if req["fkOff"].as_bool().unwrap_or(false) {
+            let fk_init = req["fkOff"].as_bool().unwrap_or(false).then(|| {
                 let first = if client_is_mariadb(&mbin) { guard.as_ref().map(|g| format!("{g}; ")).unwrap_or_default() } else { "SET NAMES utf8mb4; ".to_string() };
-                args.push(format!("--init-command={}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", first));
-            }
-            // Export lets you raise mysqldump's --max-allowed-packet (needed for extended-insert
-            // with large rows/BLOBs), but the mysql client re-importing that exact file has its
-            // own, separate default (16M) - without a matching bump here, re-importing a dump
-            // exported with a larger packet size fails with "MySQL server has gone away".
-            if let Some(mp) = req["maxpacket"].as_str() { if !mp.is_empty() { args.push(format!("--max-allowed-packet={}", mp)); } }
-            // As --database=, so a name cannot be read as another option.
-            if !target.is_empty() { args.push(format!("--database={}", target)); }
+                format!("{}SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0", first)
+            });
+            let args = import_args(&cnf, req["force"].as_bool().unwrap_or(false), fk_init.as_deref(), req["maxpacket"].as_str().unwrap_or(""), &target);
             let short = || std::path::Path::new(&f).file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_else(|| f.clone());
             let names = match dump_db_names(&f) { Ok(n) => n, Err(e) => { log.push(format!("FAILED {} : cannot read the file: {}", short(), e)); continue; } };
             let mut cmd = Command::new(&mbin);
@@ -3684,9 +3693,7 @@ async fn conn_save(req: Value) -> R {
     // at another host, port or user has its password typed again, never carried over to it.
     let keep_from = req["keepFrom"].as_str().filter(|s| !s.is_empty()).unwrap_or(&name).to_string();
     let same_place = profile_named(&keep_from).map(|p| endpoint_key(&p) == endpoint_key(conn)).unwrap_or(false);
-    let pick = |typed: &str, saved: String| -> String {
-        if !save_pw { String::new() } else if !typed.is_empty() { typed.to_string() } else if same_place { saved } else { String::new() }
-    };
+    let pick = |typed: &str, saved: String| kept_password(save_pw, typed, saved, same_place);
     let db = pick(conn["password"].as_str().unwrap_or(""), db_pw_get(&keep_from));
     let ssh = pick(conn["sshPassword"].as_str().unwrap_or(""), ssh_pw_get(&keep_from));
     db_pw_set(&name, &db);
@@ -5295,6 +5302,18 @@ fn tool_path_problem(path: &str, kind: &str) -> Option<&'static str> {
     None
 }
 
+// Why Settings may not save this key with this value, or None when it may.
+fn config_entry_problem(k: &str, v: &str) -> Option<String> {
+    const TOOLS: &[(&str, &str)] = &[("mysql_bin", "mysql"), ("mysqldump_bin", "mysqldump"), ("mysql_bin_mysql", "mysql"), ("mysqldump_bin_mysql", "mysqldump")];
+    if let Some((_, kind)) = TOOLS.iter().find(|(n, _)| *n == k) {
+        if v.is_empty() { return None; }
+        return tool_path_problem(v, kind).map(|e| format!("{k} : {e}"));
+    }
+    if k == "mariadb_download_url_template" {
+        return (!v.is_empty() && !v.starts_with("https://")).then(|| "the download address has to start with https://".to_string());
+    }
+    Some(format!("{k} cannot be set here"))
+}
 #[tauri::command]
 fn save_config(req: Value) -> R {
     let mut cfg = load_cfg();
@@ -5302,17 +5321,10 @@ fn save_config(req: Value) -> R {
     // client on this computer, the download address is https. Anything else in config.json is
     // edited by hand or not at all - a page that could write any key could point the app at any
     // program to run, or at another download page to take a checksum from.
-    const TOOLS: &[(&str, &str)] = &[("mysql_bin", "mysql"), ("mysqldump_bin", "mysqldump"), ("mysql_bin_mysql", "mysql"), ("mysqldump_bin_mysql", "mysqldump")];
     if let Some(m) = req["config"].as_object() {
         for (k, v) in m {
             let s = v.as_str().unwrap_or("").trim().to_string();
-            if let Some((_, kind)) = TOOLS.iter().find(|(n, _)| n == k) {
-                if !s.is_empty() { if let Some(e) = tool_path_problem(&s, kind) { return Ok(json!({"ok":false,"error":format!("{k} : {e}")})); } }
-            } else if k == "mariadb_download_url_template" {
-                if !s.is_empty() && !s.starts_with("https://") { return Ok(json!({"ok":false,"error":"the download address has to start with https://"})); }
-            } else {
-                return Ok(json!({"ok":false,"error":format!("{k} cannot be set here")}));
-            }
+            if let Some(e) = config_entry_problem(k, &s) { return Ok(json!({"ok":false,"error":e})); }
             cfg[k] = json!(s);
         }
     }
@@ -5718,13 +5730,17 @@ fn save_text(req: Value) -> R {
 
 // Password files (options files, the SSH password) a crash or a kill left in %TEMP%: older than a
 // day, so nothing another running copy of the app still uses.
-fn sweep_secret_temp_files() {
-    let Ok(rd) = std::fs::read_dir(std::env::temp_dir()) else { return };
-    let day = std::time::Duration::from_secs(86_400);
+fn debug_port_allowed() -> bool {
+    cfg!(debug_assertions) || std::env::current_exe().ok()
+        .and_then(|e| e.parent().map(|d| d.join("nobs-debug-port.allow").is_file())).unwrap_or(false)
+}
+fn sweep_secret_temp_files() { sweep_secret_files_in(&std::env::temp_dir(), std::time::Duration::from_secs(86_400)); }
+fn sweep_secret_files_in(dir: &std::path::Path, older_than: std::time::Duration) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
     for e in rd.flatten() {
         let n = e.file_name().to_string_lossy().to_string();
         if !(n.starts_with("nobs-cnf-") || n.starts_with("nobs-ssh-")) { continue; }
-        let old = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map(|a| a > day).unwrap_or(false);
+        let old = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).map(|a| a > older_than).unwrap_or(false);
         if old { let _ = std::fs::remove_file(e.path()); }
     }
 }
@@ -5749,19 +5765,19 @@ fn main() {
             // (not in the elevated session CI runs in), and a second copy of the app otherwise
             // joins the first one's browser, whose port is not the one asked for.
             let cfg = app.config().app.windows.first().cloned().ok_or("no window in tauri.conf.json")?;
-            // Debug builds only (the tests run those): an open debugging port lets any program on
-            // the machine drive the page and read what it holds, passwords included.
-            #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+            // Debug builds (the GUI tests run those), or a release build that has been told so by a
+            // file next to its exe - which the upgrade test, driving installed releases, puts there.
+            // Otherwise an open debugging port would let any program on the machine drive the page
+            // and read what it holds, passwords included.
             let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?;
-            #[cfg(debug_assertions)]
-            if let Some(port) = std::env::var("NOBS_WEBVIEW_DEBUG_PORT").ok().and_then(|p| p.parse::<u16>().ok()) {
+            let driven = debug_port_allowed();
+            if let Some(port) = std::env::var("NOBS_WEBVIEW_DEBUG_PORT").ok().and_then(|p| p.parse::<u16>().ok()).filter(|_| driven) {
                 // wry's own defaults, which this replaces, plus the port.
                 builder = builder.additional_browser_args(&format!(
                     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"));
             }
-            #[cfg(debug_assertions)]
             if let Ok(dir) = std::env::var("NOBS_WEBVIEW_DATA_DIR") {
-                if !dir.is_empty() { builder = builder.data_directory(std::path::PathBuf::from(dir)); }
+                if driven && !dir.is_empty() { builder = builder.data_directory(std::path::PathBuf::from(dir)); }
             }
             let w = builder.build()?;
             // WebView2 fills fields in and offers to save passwords on its own, the same as the
@@ -9033,5 +9049,85 @@ mod transfer_hex_tests {
                           ("10.11.8-MariaDB-log", false), ("", false), ("garbage", false)] {
             assert_eq!(mysql_version_has_hex_identified(v), want, "{v}");
         }
+    }
+}
+
+// The small decisions the security review turned on, each on its own.
+#[cfg(test)]
+mod review_tests {
+    use super::*;
+
+    #[test]
+    fn a_tool_is_a_local_mysql_or_mysqldump_exe() {
+        assert_eq!(tool_path_problem(r"C:\x\mysql.exe", "mysql"), None);
+        assert_eq!(tool_path_problem(r"C:\x\mariadb.exe", "mysql"), None);
+        assert_eq!(tool_path_problem(r"C:\x\mariadb-dump.exe", "mysqldump"), None);
+        assert!(tool_path_problem(r"C:\Windows\System32\cmd.exe", "mysql").is_some(), "another program");
+        assert!(tool_path_problem(r"C:\x\mysql.exe", "other").is_some(), "another kind");
+        assert!(tool_path_problem(r"\\nas\share\mysql.exe", "mysql").is_some(), "a network share");
+        assert!(tool_path_problem("//nas/share/mysql.exe", "mysql").is_some(), "a share with slashes");
+        assert!(tool_path_problem(r"C:\x\mysql.bat", "mysql").is_some(), "not an .exe");
+        assert!(tool_path_problem(r"C:\x\mysqldump.exe", "mysql").is_some(), "the dump tool as the client");
+    }
+
+    #[test]
+    fn settings_take_only_their_own_keys() {
+        assert_eq!(config_entry_problem("mysql_bin", r"C:\x\mysql.exe"), None);
+        assert_eq!(config_entry_problem("mysql_bin", ""), None, "emptied: detected again");
+        assert!(config_entry_problem("mysqldump_bin", r"C:\x\cmd.exe").unwrap().starts_with("mysqldump_bin : "));
+        assert_eq!(config_entry_problem("mariadb_download_url_template", "https://mirror.example/{file_name}"), None);
+        assert!(config_entry_problem("mariadb_download_url_template", "http://mirror.example/x").is_some(), "not https");
+        assert!(config_entry_problem("mysql_download_page", "https://evil.example").is_some(), "not a Settings key");
+        assert!(config_entry_problem("anything", "").is_some());
+    }
+
+    #[test]
+    fn a_saved_password_stays_only_with_its_address() {
+        let saved = || "old".to_string();
+        assert_eq!(kept_password(true, "new", saved(), false), "new", "a typed one is saved");
+        assert_eq!(kept_password(true, "", saved(), true), "old", "left empty, same address: kept");
+        assert_eq!(kept_password(true, "", saved(), false), "", "left empty, another address: dropped");
+        assert_eq!(kept_password(false, "new", saved(), true), "", "not to be saved: none");
+    }
+
+    #[test]
+    fn dump_names_come_after_the_end_of_the_options() {
+        let mut a = vec!["--no-data".to_string()];
+        push_names(&mut a, "C:/out.sql", vec!["--result-file=C:/evil".to_string(), "t".to_string()]);
+        assert_eq!(a, ["--no-data", "--result-file=C:/out.sql", "--", "--result-file=C:/evil", "t"]);
+    }
+
+    #[test]
+    fn an_import_runs_in_binary_mode_with_the_database_as_an_option() {
+        let a = import_args("C:/x.cnf", true, Some("SET NAMES utf8mb4"), "1G", "-evil");
+        assert_eq!(a, ["--defaults-extra-file=C:/x.cnf", "--binary-mode", "--show-warnings", "--force",
+                       "--init-command=SET NAMES utf8mb4", "--max-allowed-packet=1G", "--database=-evil"]);
+        assert_eq!(import_args("C:/x.cnf", false, None, "", ""), ["--defaults-extra-file=C:/x.cnf", "--binary-mode", "--show-warnings"]);
+    }
+
+    #[test]
+    fn the_options_file_refuses_load_data_local() {
+        let (_f, p) = cnf_file(&json!({"host":"h","port":"3306","user":"u","ssl":"default"}), "definitely-not-a-real-binary").unwrap();
+        assert!(std::fs::read_to_string(&p).unwrap().contains("\nloose-local-infile=0\n"));
+    }
+
+    #[test]
+    fn a_server_answer_is_never_a_tls_failure() {
+        let denied = mysql::Error::MySqlError(mysql::MySqlError { state: "28000".into(), code: 1045,
+            message: "Access denied for user 'ssl_admin'@'localhost' (using password: YES)".into() });
+        assert!(!tls_was_the_problem(&denied), "retried without TLS because the user name says ssl");
+        assert!(tls_was_the_problem(&mysql::Error::DriverError(mysql::DriverError::TlsNotSupported)));
+    }
+
+    #[test]
+    fn the_sweep_takes_only_old_password_files() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in ["nobs-cnf-a.cnf", "nobs-ssh-b", "other.txt"] { std::fs::write(dir.path().join(n), "x").unwrap(); }
+        sweep_secret_files_in(dir.path(), std::time::Duration::from_secs(3600));
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 3, "a new one is kept - another copy of the app may be using it");
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        sweep_secret_files_in(dir.path(), std::time::Duration::from_secs(1));
+        let left: Vec<String> = std::fs::read_dir(dir.path()).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert_eq!(left, ["other.txt"], "an old one goes, and nothing else");
     }
 }

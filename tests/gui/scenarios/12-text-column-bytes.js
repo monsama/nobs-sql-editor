@@ -45,7 +45,7 @@ INSERT INTO ${DB}.t VALUES (1, 0xFF, 0xFF), (2, 'plain', 0x00FF);`);
       // box), and onSave hands that to setUpd.
       setUpd(t.id, 0, ci, hexCellValueForSave('hex', '0xFE'));
       await applyChanges(t.id);
-      await G.wait(1500);
+      await G.until(() => !t.runningReqId, 20000);
       G.eq('a byte edited as hex is stored as that byte, not as the characters of its hex',
         await stored('c', 1), 'FE');
     }
@@ -57,7 +57,7 @@ INSERT INTO ${DB}.t VALUES (1, 0xFF, 0xFF), (2, 'plain', 0x00FF);`);
     hide('mView');
     setUpd(t2.id, 0, bi, hexCellValueForSave('hex', '0xFE'));
     await applyChanges(t2.id);
-    await G.wait(1500);
+    await G.until(() => !t2.runningReqId, 20000);
     G.eq('a declared binary column stores the bytes it was given', await stored('b', 1), 'FE');
 
     // Bytes that read as text, with CR LF in them, edited in the Text tab: the box shows LF only,

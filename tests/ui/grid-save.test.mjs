@@ -141,3 +141,63 @@ test('Show SQL shows exactly what Apply would run, and runs nothing', async () =
   assert.deepEqual(Object.keys(r.pending.upd), ['0:1'], 'the edit is still pending');
   assert.equal(saved.result, true, 'and Apply itself says it saved');
 });
+
+// Copied cells: the block keeps the shape they were picked in, and a paste puts them back in it.
+const CELL_NAMES = ['pickedCellsGrid', 'cellClipCount', 'pasteCellsFrom', 'pasteCellsInto', 'setUpdMany'];
+const cellBundle = CELL_NAMES.map(n => extractFunction(html, n)).join('\n');
+function cells({ rows, view, sel, clip, gen = [], notNull = [] }) {
+  const t = { cols: ['a', 'b', 'c'], rows, cellSel: new Set(sel || []), pending: { upd: {}, del: new Set(), ins: [] } };
+  const toasts = [], win = { _cellClipboard: clip };
+  const env = { T: () => t, viewIndices: () => view || rows.map((r, i) => i), isGenCol: (id, c) => gen.includes(c), canNull: (id, c) => !notNull.includes(c),
+    renderGrid: () => {}, toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m), window: win };
+  const keys = Object.keys(env);
+  const f = new Function(...keys, cellBundle + '\nreturn {' + CELL_NAMES.join(',') + '};')(...keys.map(k => env[k]));
+  return { t, f, win, toasts };
+}
+const rows3 = [['a0', 'b0', 'c0'], ['a1', null, 'c1'], ['a2', 'b2', 'c2']];
+
+test('cells picked apart keep their places, with gaps between', () => {
+  const { f } = cells({ rows: rows3, sel: ['0:0', '2:2'] });
+  assert.deepEqual(f.pickedCellsGrid('x'), [['a0', undefined, undefined], [undefined, undefined, undefined], [undefined, undefined, 'c2']]);
+});
+
+test('the block follows the rows as shown, not their numbers', () => {
+  const { f } = cells({ rows: rows3, view: [2, 1, 0], sel: ['2:0', '0:0'] });
+  assert.deepEqual(f.pickedCellsGrid('x'), [['a2'], [undefined], ['a0']]);
+});
+
+test('a NULL is copied as NULL, and only picked cells are counted', () => {
+  const { f, win } = cells({ rows: rows3, sel: ['1:1', '0:0'] });
+  win._cellClipboard = f.pickedCellsGrid('x');
+  assert.deepEqual(win._cellClipboard, [['a0', undefined], [undefined, null]]);
+  assert.equal(f.cellClipCount(), 2);
+});
+
+test('a block lands from the cell it is pasted on, gaps leaving cells as they were', () => {
+  const { t, f } = cells({ rows: rows3, clip: [['x', undefined], [undefined, 'y']] });
+  f.pasteCellsFrom('x', 1, 1);
+  assert.deepEqual(t.pending.upd, { '1:1': 'x', '2:2': 'y' });
+});
+
+test('what falls outside the grid is left out, and said so', () => {
+  const { t, f, toasts } = cells({ rows: rows3, clip: [['x', 'y']] });
+  f.pasteCellsFrom('x', 2, 2);
+  assert.deepEqual(t.pending.upd, { '2:2': 'x' });
+  assert.ok(toasts.some(m => /1 copied value falls outside the grid/.test(m)), toasts.join());
+});
+
+test('into picked cells: one value fills them all, as many values go in reading order', () => {
+  const one = cells({ rows: rows3, clip: [['z']] });
+  one.f.pasteCellsInto('x', ['2:0', '0:0']);
+  assert.deepEqual(one.t.pending.upd, { '0:0': 'z', '2:0': 'z' });
+  const many = cells({ rows: rows3, view: [0, 1, 2], clip: [['p', undefined], [undefined, 'q']] });
+  many.f.pasteCellsInto('x', ['2:1', '0:2']);
+  assert.deepEqual(many.t.pending.upd, { '0:2': 'p', '2:1': 'q' });
+});
+
+test('a paste leaves generated columns alone, and NULL out of a column that cannot hold it', () => {
+  const { t, f, toasts } = cells({ rows: rows3, clip: [[null, null, null]], gen: ['b'], notNull: ['c'] });
+  f.pasteCellsFrom('x', 0, 0);
+  assert.deepEqual(t.pending.upd, { '0:0': null });
+  assert.ok(toasts.some(m => /generated column/.test(m)) && toasts.some(m => /cannot hold NULL/.test(m)), toasts.join());
+});

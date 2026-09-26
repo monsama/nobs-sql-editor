@@ -13,11 +13,12 @@ INSERT INTO ${S}.cg VALUES (0x01,'NULL',X'',CONCAT('a',CHAR(13),CHAR(10),'b')),(
 INSERT INTO ${T}.cg VALUES (0x01,'null',X'',CONCAT('a',CHAR(13),CHAR(10),'b')),(0x02,'',0x00,'x'),(0x09,'extra',NULL,NULL);`);
     const sum = db => G.one(`SELECT GROUP_CONCAT(CONCAT_WS('|',HEX(id),IFNULL(HEX(CONVERT(t USING utf8mb4)),'N'),IFNULL(HEX(b),'N'),IFNULL(HEX(x),'N')) ORDER BY id SEPARATOR ';') FROM ${db}.cg WHERE id <> 0x09`);
 
-    await openCompare(); await G.wait(800);
-    $('cmpSrcConn').value = PROF; await cmpLoadDbs('src'); await G.wait(400);
-    $('cmpTgtConn').value = PROF; await cmpLoadDbs('tgt'); await G.wait(400);
+    // Each step is awaited; where something still arrives after it, the check waits for that.
+    await openCompare();
+    $('cmpSrcConn').value = PROF; await cmpLoadDbs('src');
+    $('cmpTgtConn').value = PROF; await cmpLoadDbs('tgt');
     $('cmpSrcDb').value = S; $('cmpTgtDb').value = T;
-    await runCompare(); await G.wait(1500);
+    await runCompare(); await G.until(() => _cmpFindTableIndex('cg') >= 0, 20000);
     const ti = _cmpFindTableIndex('cg');
     // The target database is latin1, so its text columns differ from the source's.
     G.check('the table is found, its text columns differing in character set', ti >= 0 && _cmpTables[ti].status === 'diff' && _cmpTables[ti].sql.every(s => /CHARACTER SET utf8mb4/.test(s.stmt)), ti >= 0 ? _cmpTables[ti] : 'not found');
@@ -28,8 +29,8 @@ INSERT INTO ${T}.cg VALUES (0x01,'null',X'',CONCAT('a',CHAR(13),CHAR(10),'b')),(
     };
     G.eq('rows: 2 missing, 1 extra, 2 changed (NULL vs empty, NULL vs null)', await rows(), [2, 1, 2]);
     G.take();
-    await cmprApply(); await G.wait(1500);
-    await cmprDiffApply(); await G.wait(2500);
+    await cmprApply(); await G.until(() => G.toasts.some(m => /Inserted 2 row/.test(m)), 20000);
+    await cmprDiffApply(); await G.until(() => G.toasts.some(m => /Updated 2 row/.test(m)), 20000);
     const applied = G.take().t;
     G.check('copying and updating is reported', applied.some(m => /Inserted 2 row/.test(m)) && applied.some(m => /Updated 2 row/.test(m)), applied);
     G.eq('the target now holds exactly the source values', await sum(T), await sum(S));

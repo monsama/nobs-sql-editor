@@ -22,11 +22,11 @@ INSERT INTO ${DB2}.t VALUES ('only2', 'two');`);
     G.check('a later page is exact too', late && late[ni] === 'late' + N + 'nul', late);
 
     t.pending.upd[nulRow + ':' + vi] = 'edited';
-    await applyChanges(t.id); await G.wait(2000);
+    await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
     G.eq('an edit changes that row and not the one with a space', await G.q(`SELECT HEX(k), v FROM ${DB}.t WHERE k IN (CONCAT('a',CHAR(0),'b'), 'a b') ORDER BY k`), [['610062', 'edited'], ['612062', 'space']]);
     t = tabs[tabs.length - 1]; await G.until(() => t.pending && !t.runningReqId);
     t.pending.del.add(t.rows.findIndex(r => r[ki] === 'a' + N + 'b'));
-    await applyChanges(t.id); await G.wait(2000);
+    await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
     G.eq('a delete too', await G.q(`SELECT HEX(k), v FROM ${DB}.t WHERE k IN (CONCAT('a',CHAR(0),'b'), 'a b') ORDER BY k`), [['612062', 'space']]);
 
     t = await G.runIn(`SELECT k, UPPER(v) AS v FROM ${DB}.t WHERE v = 'space' OR k = 'r0001'`, DB);

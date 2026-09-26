@@ -42,7 +42,12 @@ jobs:
             ConvertFrom-Json | Sort-Object { [datetime]$_.publishedAt } -Descending | ForEach-Object tagName)
           $to = if ($env:INPUT_TO) { $env:INPUT_TO } else { $tags[0] }
           $at = [array]::IndexOf($tags, $to)
-          $from = if ($env:INPUT_FROM) { $env:INPUT_FROM } elseif ($at -ge 0 -and $at + 1 -lt $tags.Count) { $tags[$at + 1] } else { '' }
+          # 1.5.1 and 1.5.2 open no debugging port in a release build, so this test cannot drive them;
+          # from 1.5.3 on, the file the install steps put beside the exe opens it. An upgrade from
+          # either of them is tested from 1.5.0 instead.
+          $undriven = @('v1.5.1', 'v1.5.2')
+          $older = if ($at -ge 0) { @($tags | Select-Object -Skip ($at + 1) | Where-Object { $undriven -notcontains $_ }) } else { @() }
+          $from = if ($env:INPUT_FROM) { $env:INPUT_FROM } elseif ($older.Count) { $older[0] } else { '' }
           if (-not $from -or -not $to) { throw "Could not tell which releases to use (from '$from', to '$to')." }
           "Upgrading from $from to $to"
           "FROM_TAG=$from", "TO_TAG=$to", "FROM_VERSION=$($from.TrimStart('v'))", "TO_VERSION=$($to.TrimStart('v'))" | Add-Content $env:GITHUB_ENV
@@ -79,6 +84,9 @@ jobs:
           $exe = $out[0].Substring($out[0].IndexOf(' ') + 1)
           if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { throw "the installed exe was not found ('$exe')" }
           "APP_EXE=$exe" | Add-Content $env:GITHUB_ENV
+          # A release build opens its debugging port - which this test drives it through - only with
+          # this file beside it (see debug_port_allowed in main.rs).
+          New-Item -ItemType File -Force -Path (Join-Path (Split-Path -Parent $exe) 'nobs-debug-port.allow') | Out-Null
 
       - name: Save data with the old release
         shell: pwsh
@@ -101,6 +109,9 @@ jobs:
           $exe = $out[0].Substring($out[0].IndexOf(' ') + 1)
           if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { throw "the installed exe was not found ('$exe')" }
           "APP_EXE=$exe" | Add-Content $env:GITHUB_ENV
+          # A release build opens its debugging port - which this test drives it through - only with
+          # this file beside it (see debug_port_allowed in main.rs).
+          New-Item -ItemType File -Force -Path (Join-Path (Split-Path -Parent $exe) 'nobs-debug-port.allow') | Out-Null
 
       - name: Check the data with the new release
         shell: pwsh
@@ -127,6 +138,7 @@ jobs:
         shell: pwsh
         run: |
           $exe = $env:APP_EXE
+          Remove-Item -LiteralPath (Join-Path (Split-Path -Parent $exe) 'nobs-debug-port.allow') -Force -ErrorAction SilentlyContinue
           $out = @(./tests/upgrade/installer.ps1 -Action uninstall)
           $out
           if ($out.Count) { throw 'still installed' }

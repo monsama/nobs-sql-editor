@@ -168,9 +168,11 @@ try {
   // without opening the log. See the exit code at the end.
   ranAScenario = true;
 
+  const timings = [];
   const files = readdirSync(join(here, 'scenarios')).filter(f => f.endsWith('.js') && (!only || f.includes(only))).sort();
   for (const f of files) {
     console.log(`\n-- ${f} --`);
+    const began = Date.now();
     const tabsBefore = await page.evaluate('tabs.map(t=>t.id)');
     // A scenario stopped by "Server unavailable" - the page's request to the app's own server did
     // not get an answer - is run once more, and only once, after that server answers again. It
@@ -205,7 +207,11 @@ try {
         await page.evaluate(`(()=>{const keep=new Set(${JSON.stringify(tabsBefore)});[...tabs].forEach(t=>{if(!keep.has(t.id))closeTab(t.id);});G.toasts.length=0;return true;})()`).catch(() => {});
       }
     }
+    timings.push([f, Date.now() - began]);
   }
+  // Where the time goes, so a scenario that has grown slow is seen rather than put up with.
+  const slow = [...timings].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  console.log(`\n  took ${(timings.reduce((a, t) => a + t[1], 0) / 1000).toFixed(0)} s; slowest: ${slow.map(([f, ms]) => f.replace(/\.js$/, '') + ' ' + (ms / 1000).toFixed(1) + ' s').join(', ')}`);
   page.close();
 } catch (e) {
   failed++; console.log(`  FAIL  ${e.message}`);

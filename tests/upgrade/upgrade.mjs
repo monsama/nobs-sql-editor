@@ -104,8 +104,10 @@ try {
     const list = await ev(`api('/api/conn-list')`);
     const item = (list.items || []).find(c => c.name === PROFILE);
     check('the connection is still there, with its password', item && item.hasPassword && item.host === host && String(item.port) === String(port), list);
+    // From 1.5.2 the page is told only that a password is saved, never the password; connecting
+    // with it (below) is what shows it is the right one.
     const got = await ev(`api('/api/conn-get',{name:${js(PROFILE)}})`);
-    check('the saved password is unchanged', got.ok && got.conn.password === pass, got.ok ? 'a different password' : got);
+    check('the saved password is still saved', got.ok && (got.conn.hasPassword === true || got.conn.password === pass), got.ok ? 'no saved password' : got);
     const connected = await ev(`(async()=>{await refreshConns();$('connlist').value=${js(PROFILE)};await pickConn();await connect();
       for(let i=0;i<300&&!/Connected/.test($('connStatus').textContent);i++)await new Promise(r=>setTimeout(r,100));
       return $('connStatus').textContent;})()`);

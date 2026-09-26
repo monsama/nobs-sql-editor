@@ -20,14 +20,14 @@ INSERT INTO ${DB}.x (id,a,secret) VALUES (1,5,'hidden');`);
 
     let t = await G.openTable(DB, 'f');
     t.pending.upd[t.rows.findIndex(r => r[0] === '1.1') + ':1'] = 'edited';
-    G.take(); await applyChanges(t.id); await G.wait(1500);
+    G.take(); await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
     G.eq('a row with a FLOAT key is saved', [await G.q(`SELECT v FROM ${DB}.f ORDER BY k`), G.take().t], [[['edited'], ['b']], ['Applied 1 change(s).']]);
 
     t = await G.openTable(DB, 'ts');
     const same = t.rows.filter(r => r[1] !== 'july').map(r => r[0]);
     if (same[0] === same[1]) {
       t.pending.upd[t.rows.findIndex(r => r[1] === 'summer') + ':1'] = 'changed';
-      G.take(); await applyChanges(t.id); await G.wait(1500);
+      G.take(); await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
       const told = G.take().t;
       G.check('an ambiguous TIMESTAMP key is refused, nothing changes', refused(told) && JSON.stringify(await G.q(`SELECT v FROM ${DB}.ts ORDER BY v`)) === '[["july"],["summer"],["winter"]]', told);
     } else {
@@ -35,14 +35,14 @@ INSERT INTO ${DB}.x (id,a,secret) VALUES (1,5,'hidden');`);
     }
     t = await G.openTable(DB, 'ts');
     t.pending.upd[t.rows.findIndex(r => r[1] === 'july') + ':1'] = 'july2';
-    G.take(); await applyChanges(t.id); await G.wait(1500);
+    G.take(); await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
     G.eq('an ordinary TIMESTAMP key is saved', G.take().t, ['Applied 1 change(s).']);
 
     t = await G.openTable(DB, 'd');
     t.pending.upd[t.rows.findIndex(r => r[0] === '1') + ':1'] = 'uno';
     t.pending.upd[t.rows.findIndex(r => r[0] === '2') + ':1'] = 'dos';
     await G.run(`DELETE FROM ${DB}.d WHERE id=2`);
-    G.take(); await applyChanges(t.id); await G.wait(1500);
+    G.take(); await applyChanges(t.id); await G.until(() => !t.runningReqId, 20000);
     const told = G.take().t;
     G.check('a row deleted in the meantime stops the save, and nothing is changed',
       refused(told) && JSON.stringify(await G.q(`SELECT id, v FROM ${DB}.d`)) === '[["1","one"]]', told);
