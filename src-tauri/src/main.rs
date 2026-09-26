@@ -5710,10 +5710,18 @@ fn app_info(app: tauri::AppHandle) -> R {
     Ok(json!({"ok":true, "name": pi.name, "version": pi.version.to_string()}))
 }
 
+// Quit closes the windows first, then ends the app. Ending it with a window still open left WebView2
+// unloading while its window class was in use, and Chromium logged "Failed to unregister class
+// Chrome_WidgetWin_0. Error = 1412" on every Quit (closing with the X never did). destroy() skips the
+// close request: the page has already asked about unsaved work before it calls these.
+fn exit_app(app: &tauri::AppHandle) {
+    for w in app.webview_windows().values() { let _ = w.destroy(); }
+    app.exit(0);
+}
 #[tauri::command]
-fn quit_app(app: tauri::AppHandle) { app.exit(0); }
+fn quit_app(app: tauri::AppHandle) { exit_app(&app); }
 #[tauri::command]
-fn quit(app: tauri::AppHandle) { app.exit(0); }
+fn quit(app: tauri::AppHandle) { exit_app(&app); }
 
 // Opens the Buy Me a Coffee link in the OS's default browser, not this app's own webview -
 // deliberately takes no argument and hardcodes the exact URL rather than accepting one from the

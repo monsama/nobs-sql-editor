@@ -217,7 +217,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 .grid th input[type=checkbox],.grid td input[type=checkbox]{vertical-align:middle;margin:0;display:inline-block}
  table.grid th:first-child,table.grid td:first-child{text-align:center;padding-left:2px;padding-right:2px} table.grid input[type=checkbox]{margin:0;vertical-align:middle}
  table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} /* While a block is being dragged the browser must not also be selecting the text under it. */
- .dragsel{user-select:none;-webkit-user-select:none}
+ .dragsel,body.gridpicking{user-select:none;-webkit-user-select:none}
  /* A picked cell: enough to see which ones are in, without hiding what is written in them. */
  table.grid tbody td.cellpick{background:color-mix(in srgb,var(--accent) 22%,transparent);box-shadow:inset 0 0 0 1px var(--accent)}
  table.grid tbody td.hit{background:var(--hit)} input.gsearch.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -889,7 +889,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="setbody">
  <section class="setpage on" data-p="tools">
  <h4 class="setpt">Client tools</h4>
- <div class="setpd">Export and Import use the MySQL/MariaDB command-line tools. They are not bundled - point to an existing install, or download them automatically. Running SQL, including multi-statement scripts with DELIMITER, does not need them.</div>
+ <div class="setpd">Export and Import use the MySQL/MariaDB command-line tools. They are not bundled: select an existing installation or download them. Running SQL, including multi-statement scripts with DELIMITER, does not require them.</div>
  <div class="toolsum"><span id="cfgStatus" class="muted"></span><span class="cplink" id="cfgRecheckBtn" title="Re-run detection without closing this window - useful right after installing the tools elsewhere" onclick="refreshToolsStatus(true)"><span id="cfgRecheckIcon">&#8635;</span> Recheck</span></div>
  <div class="toolcards">
   <div class="toolcard" id="cfgCardMaria">
@@ -916,40 +916,39 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <h4 class="setpt">General</h4>
   <div class="setgroup">Updates</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Check for a new version at startup</div><div class="setnote">Asks GitHub for the latest release and shows a notice in the top bar with a link. Nothing is downloaded or installed.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Check now</div><div class="setnote">The same question, asked right away.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates at startup</div><div class="setnote">Checks GitHub for a newer release when the app starts and shows a notice in the toolbar. Nothing is downloaded or installed automatically.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates</div><div class="setnote">Checks GitHub for a newer release now.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
   </div>
   <div class="setgroup">Notifications</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Keep a message on screen for</div><div class="setnote">The messages in the bottom right corner. An error stays twice as long as the rest; hovering one holds it, and a click dismisses it.</div></div><div class="setrc"><select id="cfgToastMs" onchange="setToastMs(this.value)"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Notification duration</div><div class="setnote">How long notifications stay in the bottom-right corner. Errors stay twice as long; hovering keeps a notification open, and clicking dismisses it.</div></div><div class="setrc"><select id="cfgToastMs" onchange="setToastMs(this.value)"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></div></div>
   </div>
   <div class="setgroup">Appearance and help</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Light or dark, remembered on this computer.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Editor text size</div><div class="setnote">The SQL editor. Ctrl + mouse wheel in the editor changes it as well.</div></div><div class="setrc"><select id="setEdFs" onchange="uiSizeSet('ed',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option><option value="19">19 px</option><option value="20">20 px</option><option value="21">21 px</option><option value="22">22 px</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Results text size</div><div class="setnote">The rows of every result grid.</div></div><div class="setrc"><select id="setGridFs" onchange="uiSizeSet('grid',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Code font</div><div class="setnote">The SQL editor, and SQL and logs wherever they are shown. Only fonts this computer has are listed.</div></div><div class="setrc"><select id="setEdFont" onchange="uiFontSet('ed',this.value)"></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Results font</div><div class="setnote">The rows of every result grid; by default the interface font.</div></div><div class="setrc"><select id="setGridFont" onchange="uiFontSet('grid',this.value)"></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Interface font</div><div class="setnote">Menus, lists, buttons and dialogs.</div></div><div class="setrc"><select id="setUiFont" onchange="uiFontSet('ui',this.value)"></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Interface zoom</div><div class="setnote" id="setZoomNote">Everything in the window, larger or smaller, as Ctrl + and Ctrl - in a browser.</div></div><div class="setrc"><select id="setZoom" onchange="uiZoomSet(this.value)"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100% (default)</option><option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Fonts, text sizes and zoom</div><div class="setnote">Back to the default fonts, 13 px in the editor and the results, and 100%.</div></div><div class="setrc"><button class="sm" onclick="uiSizesReset()">Reset to defaults</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Keyboard shortcuts</div><div class="setnote">Every shortcut in the editor, the grids and the dialogs.</div></div><div class="setrc"><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Show</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Light or dark. Saved on this computer.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Editor text size</div><div class="setnote">Font size in the SQL editor. Ctrl + mouse wheel in the editor also changes it.</div></div><div class="setrc"><select id="setEdFs" onchange="uiSizeSet('ed',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option><option value="19">19 px</option><option value="20">20 px</option><option value="21">21 px</option><option value="22">22 px</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Results text size</div><div class="setnote">Font size in result grids.</div></div><div class="setrc"><select id="setGridFs" onchange="uiSizeSet('grid',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Code font</div><div class="setnote">Used in the SQL editor and wherever SQL or logs are shown. Only fonts installed on this computer are listed.</div></div><div class="setrc"><select id="setEdFont" onchange="uiFontSet('ed',this.value)"></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Results font</div><div class="setnote">Used in result grids. Defaults to the interface font.</div></div><div class="setrc"><select id="setGridFont" onchange="uiFontSet('grid',this.value)"></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Interface font</div><div class="setnote">Used in menus, lists, buttons and dialogs.</div></div><div class="setrc"><select id="setUiFont" onchange="uiFontSet('ui',this.value)"></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Interface zoom</div><div class="setnote" id="setZoomNote">Scales the entire window, like Ctrl + and Ctrl - in a browser.</div></div><div class="setrc"><select id="setZoom" onchange="uiZoomSet(this.value)"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100% (default)</option><option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Default appearance</div><div class="setnote">Restores the layout, theme, fonts, text sizes, zoom and notification duration to their defaults. Connections, the query library, history and pinned tables are not affected.</div></div><div class="setrc"><button class="sm" onclick="resetAppearance()">Restore defaults</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Keyboard shortcuts</div><div class="setnote">All shortcuts for the editor, result grids and dialogs.</div></div><div class="setrc"><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Show</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">About</div><div class="setnote">Version, license and project information.</div></div><div class="setrc"><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div></div>
   </div>
  </section>
  <section class="setpage" data-p="data">
   <h4 class="setpt">Local data</h4>
-  <div class="setpd">What this app keeps on this computer. Your databases are not touched by anything here.</div>
-  <div class="setgroup">Where it is kept</div>
+  <div class="setpd">Data this app stores on this computer. Nothing here changes your databases.</div>
+  <div class="setgroup">Storage locations</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Settings</div><div class="setnote"><span id="cfgPathConfig" class="setpath"></span><br>The client tool paths and the other settings on this page, in config.json.</div></div><div class="setrc"><button class="sm" onclick="openFolder('config')">Open folder</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Downloaded client tools</div><div class="setnote"><span id="cfgPathTools" class="setpath"></span><br>Where Download puts mysql and mysqldump. Tools you point to yourself stay where they are.</div></div><div class="setrc"><button class="sm" onclick="openFolder('tools')">Open folder</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Settings</div><div class="setnote"><span id="cfgPathConfig" class="setpath"></span><br>Client tool paths and the other settings in this window, stored in config.json.</div></div><div class="setrc"><button class="sm" onclick="openFolder('config')">Open folder</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Downloaded client tools</div><div class="setnote"><span id="cfgPathTools" class="setpath"></span><br>Where the app stores mysql and mysqldump when it downloads them. Tools you select yourself are not moved.</div></div><div class="setrc"><button class="sm" onclick="openFolder('tools')">Open folder</button></div></div>
   </div>
   <div class="setgroup">Clear and reset</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Overview cache</div><div class="setnote">The database overview is kept for five minutes, so reopening it is instant. Refresh reads it from the server again.</div></div><div class="setrc"><button class="sm needsconn" title="Clear the database overview cache and reload" onclick="clearOverviewCache()">Refresh</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Layout</div><div class="setnote">Puts the sidebar, the panels, the folded groups, the theme and the message timing back to how the app starts. Saved connections, the query library, history and pinned tables are left alone.</div></div><div class="setrc"><button class="sm" onclick="resetLayout()">Reset the layout</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">All app data</div><div class="setnote">Deletes the saved connections with their passwords, the query library, history, session tabs, caches and settings. This cannot be undone.</div></div><div class="setrc"><button class="sm warn" onclick="clearAllData()">Clear all app data</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Clear overview cache</div><div class="setnote">The database overview is cached for five minutes so that it opens instantly. Clearing the cache reloads it from the server.</div></div><div class="setrc"><button class="sm" title="Clear the database overview cache (and reload it, when connected)" onclick="clearOverviewCache()">Clear cache</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Clear all app data</div><div class="setnote">Deletes saved connections and their passwords, the query library, history, session tabs, caches, and all layout, appearance and other preferences. Only the client tool paths are kept. This cannot be undone.</div></div><div class="setrc"><button class="sm warn" onclick="clearAllData()">Clear all data</button></div></div>
   </div>
  </section>
  </div>
@@ -1640,13 +1639,14 @@ if(localStorage.getItem('theme')!=='light')document.body.classList.add('dark');
 
 // context menu
 function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k)continue;if(k.indexOf('overviewCache')===0||k.indexOf('tableSizes')===0){keys.push(k);}else if(includeAll&&['session','history','connmeta','accents','theme'].indexOf(k)>=0){keys.push(k);}}keys.forEach(k=>localStorage.removeItem(k));return keys.length;}
-// What the app remembers about how it is arranged, as opposed to what the user has saved in it.
-// A window someone has folded, dragged and hidden their way into can be hard to talk back out of,
-// and "Clear all app data" is far too big a hammer: it takes the connections with it.
-const LAYOUT_KEYS=['sideW','sideFolded','logFolded','objCollapsed','theme','toastMs'];
-async function resetLayout(){
- if(!(await ask('Put the layout back to how the app starts?\n\nThe sidebar, the panels, the folded groups, the theme and how long messages stay are reset. Connections, the library, history and pinned tables are not touched.')))return;
- LAYOUT_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+// What the app remembers about how it looks and is arranged, as opposed to what the user has saved in
+// it. A window someone has folded, dragged, zoomed and restyled their way into can be hard to talk
+// back out of, and "Clear all app data" is far too big a hammer: it takes the connections with it.
+// One reset for all of it - the layout, the theme and the message timing here, the fonts, text sizes
+// and zoom through uiSizesReset(). A setting added to Appearance belongs in one of the two.
+const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','objCollapsed','theme','toastMs'];
+async function resetAppearance(){
+ if(!(await ask('Restore the default appearance?\n\nThe layout, theme, fonts, text sizes, zoom and notification duration are reset to their defaults. Connections, the query library, history and pinned tables are not affected.')))return;
  // What is on screen now, without waiting for a restart.
  try{setSideFolded(false);}catch(e){}
  try{setLogFolded(false);}catch(e){}
@@ -1655,10 +1655,22 @@ async function resetLayout(){
  document.querySelectorAll('[id^="ew_"]').forEach(ew=>{ew.style.height='';});
  if(document.body.classList.contains('dark')!==true){try{toggleTheme();}catch(e){}}
  if($('cfgToastMs'))$('cfgToastMs').value='6000';
+ // the Databases / Objects divider, and either list folded away
+ try{sideSplitReset();}catch(e){}
+ // Forgotten after the screen is put back, which stores what it shows: nothing is left to hold
+ // today's defaults, so a default changed later reaches this app too.
+ APPEARANCE_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+ await uiSizesReset(true);
  renderObjects();
- toast('The layout is back to how the app starts.','ok');
+ toast('Default appearance restored.'+(window.__TAURI__?'':' The zoom takes effect the next time the app starts.'),'ok');
 }
-async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis permanently deletes:\n\u2022 saved connections (host / user / password)\n\u2022 the query library\n\u2022 caches, accent colors, environment labels, history and session tabs.\n\nThis cannot be undone.')))return;const n=_clearKeys(true);try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}log('Cleared '+n+' local entr'+(n===1?'y':'ies')+' + saved connections + library. Reloading...');setTimeout(()=>location.reload(),500);}
+// Everything the app keeps, gone: what it stores in the page (history, session tabs, caches, pins, and
+// every preference - layout, theme, fonts, sizes, export options), the saved connections and the
+// library, and the zoom. Only the client tool paths stay, so Export and Import still work after it.
+async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis permanently deletes:\n\u2022 saved connections and their passwords\n\u2022 the query library\n\u2022 history, session tabs and caches\n\u2022 layout, appearance and all other preferences\n\nThe client tool paths are kept. This cannot be undone.')))return;
+ let n=0;try{n=localStorage.length;localStorage.clear();}catch(e){}
+ try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}try{await uiZoomSet(1,true);}catch(e){}
+ log('Cleared '+n+' local entr'+(n===1?'y':'ies')+', the saved connections and the library. Reloading...');setTimeout(()=>location.reload(),500);}
 function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));}
 async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
@@ -1747,7 +1759,7 @@ async function saveSettings(){
   let r=null;try{r=await api('/api/check-tool',{path:p,kind});}catch(e){}
   if(!r||!r.ok){bad.push([el,label,(r&&r.error)||'could not be checked']);}else if(r.error){bad.push([el,label,r.error]);}else if(r.version)found.push(label+': '+r.version);}
  if(bad.length){setPage('tools');bad.forEach(([el,,msg])=>{el.classList.add('bad');el.title=msg;});bad[0][0].focus();
-  toast('Not saved - '+bad.map(([,label,msg])=>label+': '+msg).join('; ')+'.',true);return;}
+  toast('Not saved: '+bad.map(([,label,msg])=>label+': '+msg).join('; ')+'.',true);return;}
  CFG_TOOLS.forEach(([id])=>{const el=$(id);if(el)el.title='';});
  return saveSettingsNow(found);}
 async function saveSettingsNow(found){try{const r=await api('/api/save-config',{config:{mysql_bin:$('cfgMysql').value.trim(),mysqldump_bin:$('cfgDump').value.trim(),mysql_bin_mysql:$('cfgMysqlMy').value.trim(),mysqldump_bin_mysql:$('cfgDumpMy').value.trim(),mariadb_download_url_template:$('cfgDownloadUrl').value.trim()}});if(r&&r.ok){log('Saved client-tool paths.');toast(found&&found.length?'Saved - '+found.join(', ')+'.':'Saved.','ok');refreshToolsStatus();hide('mSettings');}else toast('Save failed: '+(r?r.error:''),true);}catch(e){toast('Save failed: '+e,true);}}
@@ -1859,19 +1871,19 @@ function uiSizesApply(){const r=document.documentElement.style;r.setProperty('--
   if(s){if(!s.options.length)s.innerHTML='<option value="">'+F.none+'</option>'+F.list.filter(fontInstalled).map(n=>'<option value="'+esc(n)+'" style="font-family:'+esc(uiFontStack(n))+'">'+esc(n)+'</option>').join('');
    s.value=f;if(s.value!==f)s.value='';}});
  if(typeof tabs!=='undefined')tabs.forEach(t=>{try{syncHl(t.id);}catch(e){}});}
-async function uiZoomSet(z){z=Math.max(0.5,Math.min(2,+z||1));const r=await api('/api/save-config',{config:{ui_zoom:String(z)}});
+async function uiZoomSet(z,quiet){z=Math.max(0.5,Math.min(2,+z||1));const r=await api('/api/save-config',{config:{ui_zoom:String(z)}});
  if(!r||!r.ok){toast('The zoom was not saved: '+((r&&r.error)||''),true);return;}
- if(window.__TAURI__){try{await window.__TAURI__.core.invoke('set_zoom',{req:{zoom:z}});}catch(e){toast('Zoom: '+e,true);}
+ if(window.__TAURI__){try{await window.__TAURI__.core.invoke('set_zoom',{req:{zoom:z}});}catch(e){toast('Could not apply the zoom: '+e,true);}
   // The window's size in the page's units changed with it: an open dialog is centred again, rather
   // than left where the old size put it.
   setTimeout(()=>document.querySelectorAll('.modal.floating.show').forEach(m=>{floatCenterX(m.id);floatCenterY(m.id);}),120);}
- else toast('Saved - the zoom applies from the next start of the app.','ok');}
+ else if(!quiet)toast('Saved. The zoom takes effect the next time the app starts.','ok');}
 // The fonts: the code's, the results' and the interface's, each one of a short list of common ones,
 // offered only when this computer has it, and kept on this computer as the sizes are.
 const UI_MONO=['Cascadia Code','Cascadia Mono','Consolas','JetBrains Mono','Fira Code','Source Code Pro','Lucida Console','Courier New'],UI_SANS=['Segoe UI','Calibri','Tahoma','Verdana','Arial'];
-const UI_FONTS={ed:{key:'edFont',css:'--mono',sel:'setEdFont',list:UI_MONO,none:'Default (Cascadia Code)'},
- grid:{key:'gridFont',css:'--gridff',sel:'setGridFont',list:UI_SANS.concat(UI_MONO),none:'Same as the interface'},
- ui:{key:'uiFont',css:'--uiff',sel:'setUiFont',list:UI_SANS,none:'Default (Segoe UI)'}};
+const UI_FONTS={ed:{key:'edFont',css:'--mono',sel:'setEdFont',list:UI_MONO,none:'Default'},
+ grid:{key:'gridFont',css:'--gridff',sel:'setGridFont',list:UI_SANS.concat(UI_MONO),none:'Same as interface'},
+ ui:{key:'uiFont',css:'--uiff',sel:'setUiFont',list:UI_SANS,none:'Default'}};
 // Whether a font is there: text in it measures differently from the fallback it would otherwise get,
 // against at least one of three fallbacks (a font can match one of them to the pixel).
 function fontInstalled(name){const c=fontInstalled.c||(fontInstalled.c=document.createElement('canvas').getContext('2d')),s='mmmmmmmmmmlli1WQ@#';
@@ -1879,11 +1891,11 @@ function fontInstalled(name){const c=fontInstalled.c||(fontInstalled.c=document.
 function uiFontStack(n){return '"'+n+'",'+(UI_MONO.includes(n)?'Consolas,monospace':'"Segoe UI",sans-serif');}
 function uiFontGet(k){try{const v=localStorage.getItem(UI_FONTS[k].key)||'';return UI_FONTS[k].list.includes(v)?v:'';}catch(e){return '';}}
 function uiFontSet(k,v){try{if(v&&UI_FONTS[k].list.includes(v))localStorage.setItem(UI_FONTS[k].key,v);else localStorage.removeItem(UI_FONTS[k].key);}catch(e){}uiSizesApply();}
-// Fonts, text sizes and zoom back to how the app comes.
-async function uiSizesReset(){try{['edFontSize','gridFontSize'].concat(Object.values(UI_FONTS).map(F=>F.key)).forEach(k=>localStorage.removeItem(k));}catch(e){}uiSizesApply();
- const s=$('setZoom');if(s)s.value='1';await uiZoomSet(1);log('Fonts, text sizes and zoom are back to their defaults.');}
+// Fonts, text sizes and zoom back to how the app comes - part of resetAppearance().
+async function uiSizesReset(quiet){try{['edFontSize','gridFontSize'].concat(Object.values(UI_FONTS).map(F=>F.key)).forEach(k=>localStorage.removeItem(k));}catch(e){}uiSizesApply();
+ const s=$('setZoom');if(s)s.value='1';await uiZoomSet(1,quiet);}
 function uiZoomShow(c){const s=$('setZoom');if(!s)return;const z=+(c&&c.ui_zoom)||1;s.value=String(z);if(s.value!==String(z))s.value='1';
- const n=$('setZoomNote');if(n)n.textContent='Everything in the window, larger or smaller, as Ctrl + and Ctrl - in a browser.'+(window.__TAURI__?'':' From the next start of the app.');}
+ const n=$('setZoomNote');if(n)n.textContent='Scales the entire window, like Ctrl + and Ctrl - in a browser.'+(window.__TAURI__?'':' Takes effect the next time the app starts.');}
 uiSizesApply();
 
 // syntax highlight (single-pass tokenizer)
@@ -2176,8 +2188,8 @@ function watchBar(row){if(!row||row.classList.contains('fitbar'))return;row.clas
 function watchTopBar(){watchBar($('barTop'));wireConnList();if(_barRO)new ResizeObserver(syncConnTags).observe($('connTags'));if(_barMO)new MutationObserver(()=>refit($('barTop'),true)).observe(document.body,{attributes:true,attributeFilter:['class']});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchTopBar);else watchTopBar();
 function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const n=$('connlist').value,hasPw=!!(window._connPw&&window._connPw[n]);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],hasPw&&['Clear saved password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with other details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items,{local:true});}
-async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n){setPass('');passSavedMark(false);}dropActiveIfSaved(n,'The saved password of the connection you were on was removed');}else toast(r.error||'Failed',true);}
-async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Failed',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
+async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will need to enter it the next time you connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n){setPass('');passSavedMark(false);}dropActiveIfSaved(n,'The saved password of the connection you were on was removed');}else toast(r.error||'Could not remove the saved password.',true);}
+async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Could not set the default connection.',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
 async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
   // Just the name: the environment and READ-ONLY are the tag beside it, in the box and in its
   // list (openConnList), and repeating them made the entry read as part of the name.
@@ -2211,7 +2223,7 @@ function setPass(pw){const el=$('pass');if(el)el.value=pw;}
 // The top bar's password box, for a connection whose password is saved (and so not in the page).
 function passSavedMark(on){const el=$('pass');if(!el)return;el.classList.toggle('pwsaved',!!on);el.placeholder=on?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'';}
 async function pickConnGuarded(){
-  if (anyPending() && !(await ask('You have unsaved grid edits open. Switching connections will leave them orphaned. Switch anyway?'))) return;
+  if (anyPending() && !(await ask('You have unsaved grid edits. After switching connections they can no longer be saved. Switch anyway?'))) return;
   return pickConn();
 }
 // pickConn(): loads a saved connection's details into the FORM ONLY when you pick it - this
@@ -2300,8 +2312,8 @@ function cdVals(){const g=id=>$(id).value,ssh=$('cd_useSsh').checked;
   clearPw:$('cd_clearpw').checked&&g('cd_ssl')!=='disabled',useSsh:ssh,sshHost:ssh?g('cd_sshHost').trim():'',sshPort:ssh?g('cd_sshPort').trim():'',sshUser:ssh?g('cd_sshUser').trim():'',
   sshKey:ssh?g('cd_sshKey').trim():'',sshPassword:ssh?g('cd_sshPass'):'',color:$('cd_color').value,env:g('cd_env'),ro:$('cd_ro').checked,savepw:$('cd_savepw').checked};}
 function cdClose(res){hide('mConn');const c=_cd;_cd=null;if(c)c.resolve(res);}
-function cdOk(){const v=cdVals();if(!v.name.trim()){toast('Give the connection a name.',true);$('cd_name').focus();return;}
- if(!v.host){toast('Give the server\'s host.',true);$('cd_host').focus();return;}cdClose(v);}
+function cdOk(){const v=cdVals();if(!v.name.trim()){toast('Enter a name for the connection.',true);$('cd_name').focus();return;}
+ if(!v.host){toast('Enter the server host.',true);$('cd_host').focus();return;}cdClose(v);}
 // Tries the values in the dialog - a saved password left untouched included, for the address it was
 // saved for (resolve_saved) - without saving or connecting anything.
 async function cdTest(){if(!_cd)return;const v=cdVals(),m=$('cdMsg'),b=$('cdTestBtn');m.className='cdmsg';m.textContent='Testing...';b.disabled=true;
@@ -2373,7 +2385,7 @@ async function delConn(){const n=$('connlist').value;if(!n)return;if(!(await ask
 // connect(): open the connection, then load the schema sidebar.
 async function connect() {window._connFormTouched=true;window._newConnPrev=null;
   if (anyPending()) {
-    if (!(await ask('You have unsaved grid edits open. Connecting will leave them orphaned. Continue?'))) return;
+    if (!(await ask('You have unsaved grid edits. After connecting they can no longer be saved. Continue?'))) return;
   }
   // If a saved connection is selected but no password is typed, load its details first
   // (so you can just pick a connection and hit Connect). A typed password is respected.
@@ -2666,7 +2678,7 @@ async function txEnd(id,action){const t=T(id);if(!t||!t.txOn)return;
  await sessFree(t);closeCursorFor(t);
  const m=action==='commit'?'Committed.':'Rolled back.';
  if(t.txSession){const r=await api('/api/session-end',{session:t.txSession,action});
-  if(!r.ok){toast(r.error||'That did not work.',true);if(r.lost){t.txDirty=false;txPaint(id);}return;}}
+  if(!r.ok){toast(r.error||(action==='commit'?'Commit failed.':'Rollback failed.'),true);if(r.lost){t.txDirty=false;txPaint(id);}return;}}
  t.txDirty=false;t.txLog=[];txPaint(id);log(m+' ('+t.title+')');toast(m);
  if(t.table)await openRun(id);else if(t.curRun&&t.cols&&t.cols.length&&txReadsOnly(t.curRun))await runSql(id,t.curRun);
  const st=$('st_'+id);if(st){st.className='status';st.textContent=m;}}
@@ -3332,7 +3344,7 @@ async function newTrigger(db,table){
   :('-- Fill in the trigger body, then click "Apply (recreate)".\nDROP TRIGGER IF EXISTS '+qid(db)+'.'+qid(name)+';\nDELIMITER $$\nCREATE TRIGGER '+qid(db)+'.'+qid(name)+'\n'+res.timing+' '+res.event+' ON '+qid(db)+'.'+qid(table)+'\nFOR EACH ROW\nBEGIN\n\n  -- your logic here\n\nEND$$\nDELIMITER ;\n');
  openTab('trigger: '+name,body,db,false,null,{type:'trigger',db,name});
 }
-async function dropSchema(db){if(!(await ask('DROP DATABASE '+db+' ? Deletes ALL its data.')))return;if(await exec('DROP DATABASE '+qid(db),'Dropped database')){[...tabs].forEach(t=>{if(t.db===db&&t.table)closeTab(t.id);});loadSchemas();$('objects').innerHTML='';}}
+async function dropSchema(db){if(!(await ask('DROP DATABASE '+db+'?\n\nThis permanently deletes the database and ALL its data and cannot be undone.')))return;if(await exec('DROP DATABASE '+qid(db),'Dropped database')){[...tabs].forEach(t=>{if(t.db===db&&t.table)closeTab(t.id);});loadSchemas();$('objects').innerHTML='';}}
 async function dropObject(db,type,name){const kw={table:'TABLE',view:'VIEW',sequence:'SEQUENCE',procedure:'PROCEDURE',function:'FUNCTION',trigger:'TRIGGER',event:'EVENT'}[type];if(!(await ask('DROP '+kw+' '+db+'.'+name+'?\n\nThis permanently removes the '+type+' and cannot be undone.')))return;if(await exec('DROP '+kw+' IF EXISTS '+qid(db)+'.'+qid(name),'Dropped '+type+' '+db+'.'+name)){[...tabs].forEach(t=>{if(t.db===db&&t.table===name)closeTab(t.id);});loadObjects(db);}}
 async function truncateTable(db,name){if(!(await ask('TRUNCATE TABLE '+db+'.'+name+'?\n\nThis permanently deletes ALL rows and cannot be undone.')))return;if(await exec('TRUNCATE TABLE '+qid(db)+'.'+qid(name),'Truncated '+db+'.'+name)){invalidateTableCache(db,name);[...tabs].forEach(t=>{if(t.table===name&&t.db===db)openRun(t.id);});}}
 async function renameTable(db,name){const res=await inputBox({title:'Rename table',okText:'Rename',fields:[{key:'name',label:'New table name',value:name}]});if(!res||!res.name.trim()||res.name.trim()===name)return;if(await exec('RENAME TABLE '+qid(db)+'.'+qid(name)+' TO '+qid(db)+'.'+qid(res.name.trim()),'Renamed')){[...tabs].forEach(t=>{if(t.db===db&&t.table===name)closeTab(t.id);});loadObjects(db);}}
@@ -3360,7 +3372,7 @@ async function duplicateTable(db,name){
   try{const fk=await api('/api/query',{sql:'SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='+lit(db)+' AND TABLE_NAME='+lit(name)});
    const nfk=(fk&&fk.ok&&fk.rows.length)?+fk.rows[0][0]:0;
    if(nfk>0){const m=newName+' has none of the '+nfk+' foreign key'+(nfk===1?'':'s')+' of '+name+': a copied table never gets them. Add them in the DDL if the copy needs them.';toast(m,true);log(m);}}catch(e){}}
- else{toast(r.error||'Duplicate failed',true);}
+ else{toast(r.error||'Could not duplicate the table.',true);}
 }
 async function maint(db,name,op){const kw=op==='OPTIMIZE'?'OPTIMIZE TABLE':op==='ANALYZE'?'ANALYZE TABLE':op==='CHECK'?'CHECK TABLE':'REPAIR TABLE';const r=await api('/api/query',{sql:kw+' '+qid(db)+'.'+qid(name)});if(r.ok&&r.rows&&r.rows.length){log(op+': '+r.rows.map(x=>x.join(' | ')).join(' ; '));}else if(r.ok){log(op+' OK');}else{log(op+' error: '+r.error);}}
 async function genTemplate(db,name){const r=await api('/api/query',{sql:"SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" ORDER BY ORDINAL_POSITION"});if(!r.ok||!r.rows.length){toast('Could not read columns.',true);return;}const cols=r.rows.map(x=>x[0]);const tbl=qid(db)+'.'+qid(name);const cl=cols.map(qid).join(', ');const vals=cols.map(()=>'?').join(', ');const sets=cols.map(c=>qid(c)+' = ?').join(',\n  ');const sql='-- SELECT\nSELECT '+cl+'\nFROM '+tbl+'\nWHERE 1=1\nLIMIT 100;\n\n-- INSERT\nINSERT INTO '+tbl+' ('+cl+')\nVALUES ('+vals+');\n\n-- UPDATE\nUPDATE '+tbl+' SET\n  '+sets+'\nWHERE /* key */ ;';openTab(name+' templates',sql,db,false,null);}
@@ -3402,7 +3414,7 @@ async function openDdl(db,type,name){const r=await api('/api/ddl',{db,type,name}
  // MySQL answers with no definition at all when the account may run or alter a routine but not read
  // it. What was built from that - DROP, then a CREATE with nothing in it - dropped the routine on
  // Apply, reported "Applied OK" and had nothing to put back.
- if(!String(r.ddl==null?'':r.ddl).trim()){toast('The server did not show the definition of '+name+' - this account may not read it, so it cannot be edited here.',true);return;}
+ if(!String(r.ddl==null?'':r.ddl).trim()){toast('The server did not return the definition of '+name+'. This account may not have permission to read it, so it cannot be edited here.',true);return;}
  let body=r.ddl;
  // A trigger that is not first among its table's triggers for the same event goes back in the same
  // place. Recreating it put it last: SHOW CREATE TRIGGER does not say FOLLOWS, so a trigger that
@@ -3949,7 +3961,7 @@ function formatSql(sql){
 // nothing here knows where a routine body starts or ends. The text is replaced as an edit, so
 // Ctrl+Z brings the original back.
 function formatTabSql(id){const ta=$('ed_'+id);
- if(/^[ \t]*delimiter[ \t]/im.test(ta.value)){toast('A script with DELIMITER lines is not formatted - the routine bodies in it would be.',true);return;}
+ if(/^[ \t]*delimiter[ \t]/im.test(ta.value)){toast('Scripts with DELIMITER lines are not formatted, because formatting would change the routine bodies.',true);return;}
  const next=formatSql(ta.value);if(next===ta.value)return;
  ta.focus();ta.select();let ok=false;try{ok=document.execCommand('insertText',false,next);}catch(e){}
  if(!ok||ta.value!==next)ta.value=next;
@@ -5112,7 +5124,7 @@ function viewText(title,text,opts){opts=opts||{};$('vTitle').textContent=title;c
 if(opts.onSave)add('Save','go',async()=>{
  if(opts.hexText&&_vHexState){
   if(_vHexState.mode==='hex'&&normalizeHexInput(ta.value)===null){
-   toast('That is not a usable hex value. Expected hex digits, optionally 0x-prefixed, an even number of them - spaces and line breaks are fine.',true);return;
+   toast('Not a valid hex value. Enter an even number of hex digits, optionally prefixed with 0x; spaces and line breaks are ignored.',true);return;
   }
   if(_vHexState.mode==='text'&&looksLikePastedHex(ta.value)){
    const whole=normalizeHexInput(ta.value);
@@ -5380,6 +5392,19 @@ function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
  // would otherwise streak from wherever the caret last was to the cell that was clicked.
  if(e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();dropTextSelection();}
  window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null};}
+// The press becomes a cell selection: the cells picked so far kept (Ctrl) or let go, and no text
+// selected anywhere on the page while it lasts.
+// A press in a result cell picks cells, never text: the browser's own selection is not let start
+// there. Cleared after the fact it came back on the next move, ran from the cell into the rest of the
+// window, and could stay behind when the button was let go. The cell's editor and any other text box
+// select text as always.
+document.addEventListener('selectstart',e=>{const n=e.target&&(e.target.nodeType===1?e.target:e.target.parentElement);
+ if(n&&n.closest&&n.closest('[id^="res_"] table.grid td')&&!n.closest('input,textarea,[contenteditable="true"]'))e.preventDefault();});
+function gridDragBegin(d,t){d.moved=true;
+ if(!d.add)t.cellSel.clear();
+ d.base=new Set(t.cellSel);
+ const wrap=$('res_'+d.id);if(wrap)wrap.classList.add('dragsel');
+ document.body.classList.add('gridpicking');dropTextSelection();}
 function dropTextSelection(){if(!window.getSelection)return;
  try{const s=window.getSelection();if(s&&!s.isCollapsed)s.removeAllRanges();}catch(_){}}
 function gridDragOver(e,id,ri,ci){const d=window._gridDrag;
@@ -5387,16 +5412,46 @@ function gridDragOver(e,id,ri,ci){const d=window._gridDrag;
  if(!d||d.id!==id||(e.buttons!==undefined&&!(e.buttons&1)))return;
  if(!d.moved&&d.ri===ri&&d.ci===ci)return;
  const t=T(id);if(!t.cellSel)t.cellSel=new Set();
- if(!d.moved){d.moved=true;
-  if(!d.add)t.cellSel.clear();
-  d.base=new Set(t.cellSel);
-  const wrap=$('res_'+id);if(wrap)wrap.classList.add('dragsel');
-  if(window.getSelection)try{window.getSelection().removeAllRanges();}catch(_){}}
- t.cellSel=new Set(d.base);
+ if(!d.moved)gridDragBegin(d,t);
+ t.cellSel=new Set(d.base);d.lastCi=ci;
  cellBlock(id,d.ri,d.ci,ri,ci).forEach(k=>t.cellSel.add(k));
  t._cellAnchor=d.ri+':'+d.ci;
  paintCellPick(id);}
-function gridDragEnd(){const d=window._gridDrag;if(!d)return;window._gridDrag=null;
+// Dragging a selection to an edge of the results scrolls them, as in a spreadsheet - the further past
+// the edge, the faster - and the cell under the pointer, held inside the results, joins the block the
+// way any cell the pointer passes does. It stopped at the edge, so a block longer than the window
+// could not be picked by dragging.
+let _gridAuto=null,_gridAutoPt=null;
+function gridAutoBox(w){const r=w.getBoundingClientRect(),head=(w.querySelector('thead')||{}).offsetHeight||0;
+ return {top:r.top+w.clientTop+head,bottom:r.top+w.clientTop+w.clientHeight,left:r.left+w.clientLeft,right:r.left+w.clientLeft+w.clientWidth};}
+document.addEventListener('mousemove',e=>{const d=window._gridDrag;
+ // Leaving the cell the press began on, in any direction, is a selection - also where no other cell
+ // is passed on the way (from the last row straight down, out of the results). Left to the browser,
+ // that drag selected text from the cell into the rest of the window.
+ if(d&&!d.moved&&(e.buttons&1)){const c=gridCellEl(d.id,d.ri,d.ci),t=T(d.id);
+  if(c&&t){const r=c.getBoundingClientRect();
+   if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){if(!t.cellSel)t.cellSel=new Set();gridDragBegin(d,t);
+    t.cellSel=new Set(d.base);t.cellSel.add(d.ri+':'+d.ci);d.lastCi=d.ci;t._cellAnchor=d.ri+':'+d.ci;paintCellPick(d.id);}}}
+ if(d&&d.moved)dropTextSelection();
+ if(!d||!d.moved||!(e.buttons&1)){gridAutoStop();return;}
+ const w=$('res_'+d.id);if(!w)return;const b=gridAutoBox(w),E=24;
+ const dy=e.clientY<b.top+E?e.clientY-(b.top+E):e.clientY>b.bottom-E?e.clientY-(b.bottom-E):0;
+ const dx=e.clientX<b.left+E?e.clientX-(b.left+E):e.clientX>b.right-E?e.clientX-(b.right-E):0;
+ _gridAutoPt={x:e.clientX,y:e.clientY,dx,dy};
+ if((dx||dy)&&!_gridAuto)_gridAuto=requestAnimationFrame(gridAutoStep);});
+function gridAutoStep(){_gridAuto=null;const d=window._gridDrag,p=_gridAutoPt;if(!d||!p||(!p.dx&&!p.dy))return;
+ const w=$('res_'+d.id);if(!w)return;
+ const step=v=>v?Math.sign(v)*Math.min(40,Math.ceil(Math.abs(v)/3)+2):0;
+ w.scrollTop+=step(p.dy);w.scrollLeft+=step(p.dx);
+ const b=gridAutoBox(w),x=Math.min(Math.max(p.x,b.left+2),b.right-2),y=Math.min(Math.max(p.y,b.top+2),b.bottom-2);
+ // Over the row's own controls (tick box, edit, delete) rather than a value: that row's cell in the
+ // column the block last reached.
+ const el=document.elementFromPoint(x,y),tr=el&&el.closest&&el.closest('tr[data-r]');
+ if(tr&&w.contains(tr)){let td=el.closest('td');if(!td||!td.getAttribute('onmouseover'))td=gridCellEl(d.id,+tr.dataset.r,d.lastCi!=null?d.lastCi:d.ci);
+  if(td)td.dispatchEvent(new MouseEvent('mouseover',{bubbles:true,buttons:1}));}
+ _gridAuto=requestAnimationFrame(gridAutoStep);}
+function gridAutoStop(){if(_gridAuto)cancelAnimationFrame(_gridAuto);_gridAuto=null;_gridAutoPt=null;}
+function gridDragEnd(){gridAutoStop();document.body.classList.remove('gridpicking');const d=window._gridDrag;if(!d)return;window._gridDrag=null;
  const wrap=$('res_'+d.id);if(wrap)wrap.classList.remove('dragsel');
  if(d.moved){
   // The click that ends a drag is not a click on a cell - it must not open one.
@@ -5696,7 +5751,7 @@ function copyText(text,okMsg,alsoTry){
  return clipWrite(text,alsoTry).then(st=>{ if(st==='ok')log(okMsg); return st; });
 }
 function copyRow(id,ri){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(vals.map(v=>v===null?'':v).join('\t'),'Copied 1 row (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
-function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
 // "Copy row" and the selection copy keep a single row and a list apart, since pasting several
 // rows only makes sense as new rows, never as an overwrite of one target row - but a single-row
 // paste shouldn't care which command put that one row there, and whichever copy came last is the
@@ -5721,16 +5776,16 @@ function rowsClipboard(){if(window._rowsClipboard&&window._rowsClipboard.length)
 function pasteRowsOver(id){const t=T(id);
  if(!t.pk||!t.pending){toast('This result is not editable (no primary key).',true);return;}
  const src=rowsClipboard();const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));
- if(!src||!src.length){toast('Copy some rows first, then tick the same number of rows to overwrite.',true);return;}
- if(!idxs.length){toast('No rows selected. Tick the rows you want to overwrite.',true);return;}
- if(src.length!==idxs.length){toast('You copied '+src.length+' row(s) but ticked '+idxs.length+' - overwrite needs the same number of each.',true);return;}
+ if(!src||!src.length){toast('Copy rows first, then select the same number of rows to overwrite.',true);return;}
+ if(!idxs.length){toast('No rows selected. Select the rows to overwrite first.',true);return;}
+ if(src.length!==idxs.length){toast('You copied '+src.length+' row(s) but selected '+idxs.length+'. Overwriting needs the same number of rows.',true);return;}
  if(src.some(v=>v.length!==t.cols.length)){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}
  idxs.forEach((ri,k)=>{const vals=src[k];t.cols.forEach((c,ci)=>{if(t.pk.indexOf(c)>=0||isGenCol(id,c))return;
   const v=vals[ci],key=ri+':'+ci;
   if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;});});
  renderGrid(id);
  log('Pasted '+src.length+' copied row(s) over the '+idxs.length+' selected row(s) (primary key column(s) left unchanged). Review and click Apply to commit.');}
-function pasteRowsAsNew(id){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}const rowsData=rowsClipboard();if(!rowsData||!rowsData.length){toast('Copy some rows first (tick them, then "Copy 2 selected rows"), then paste them as new rows.',true);return;}const bad=rowsData.find(vals=>vals.length!==t.cols.length);if(bad){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}rowsData.forEach(vals=>{const obj={};t.cols.forEach((c,ci)=>{if(!isGenCol(id,c))obj[c]=vals[ci];});t.pending.ins.push(obj);});renderGrid(id);log('Pasted '+rowsData.length+' row(s) as new rows. Review and click Apply to commit.');}
+function pasteRowsAsNew(id){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}const rowsData=rowsClipboard();if(!rowsData||!rowsData.length){toast('Copy rows first (select them and use Copy selected rows), then paste them as new rows.',true);return;}const bad=rowsData.find(vals=>vals.length!==t.cols.length);if(bad){toast('Copied row(s) have a different number of columns than this table. Cannot paste.',true);return;}rowsData.forEach(vals=>{const obj={};t.cols.forEach((c,ci)=>{if(!isGenCol(id,c))obj[c]=vals[ci];});t.pending.ins.push(obj);});renderGrid(id);log('Pasted '+rowsData.length+' row(s) as new rows. Review and click Apply to commit.');}
 function copyColumn(id,ci){const t=T(id);const vals=t.rows.map((row,ri)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:row[ci];});copyText(vals.map(v=>v===null?'':v).join('\n'),'Copied '+vals.length+' value(s) from column "'+t.cols[ci]+'".').then(st=>{if(st!=='failed')tsvShapeHint(vals.map(v=>[v]),'an empty line');});}
 // The comparisons are built when picked, with the value written for the column's type (see litAs):
 // lit() alone turned an empty binary value into the text '0x' and a text value like 0x41 into a
@@ -5790,7 +5845,7 @@ async function rowForm(id,ri){const t=T(id);if(t.pending&&t.table)await colMeta(
  show('mRowForm');}
 function rfSave(){if(!_rf)return;const t=T(_rf.id),ri=_rf.ri;if(!t.pending){hide('mRowForm');_rf=null;toast('This result is not editable (no primary key detected) - nothing was saved.',true);return;}t.cols.forEach((c,ci)=>{const ta=$('rf_'+ci);if(!ta||ta.dataset.touched!=='1')return;const orig=t.rows[ri][ci];const v=(ta.dataset.null==='1')?null:keepLineEnds(orig,ta.value);const key=ri+':'+ci;if(v===orig){if(t.pending&&key in t.pending.upd)delete t.pending.upd[key];}else{if(v===null&&!canNull(_rf.id,t.cols[ci])){/* a key or NOT NULL column is not given NULL */}else if(t.pending){t.pending.upd[key]=v;}}});hide('mRowForm');renderGrid(_rf.id);_rf=null;}
 function toggleDel(id,ri){const t=T(id);if(t.pending.del.has(ri))t.pending.del.delete(ri);else t.pending.del.add(ri);renderGrid(id);}
-function deleteSel(id){const t=T(id);if(!t.pk){toast('This result is not editable (no primary key).',true);return;}const ids=[...(t.selected||[])];if(!ids.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}ids.forEach(ri=>t.pending.del.add(ri));renderGrid(id);log(ids.length+' row(s) marked for deletion - click Apply to commit.');}
+function deleteSel(id){const t=T(id);if(!t.pk){toast('This result is not editable (no primary key).',true);return;}const ids=[...(t.selected||[])];if(!ids.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}ids.forEach(ri=>t.pending.del.add(ri));renderGrid(id);log(ids.length+' row(s) marked for deletion - click Apply to commit.');}
 function addRow(id){const t=T(id);t.pending.ins.push({});renderGrid(id);}
 function delIns(id,ii){const t=T(id);t.pending.ins.splice(ii,1);renderGrid(id);}
 async function editIns(td,id,ii,col){clearTimeout(clickTimer);const t=T(id);const cur=t.pending.ins[ii][col];
@@ -6065,7 +6120,7 @@ function zipStore(files){const enc=new TextEncoder(),parts=[],cen=[];let off=0;
 // Exports with no streaming path in the backend. A table tab gives every row of the table, read the
 // way the CSV export reads one; a query gives the rows the grid holds; selOnly the ticked rows.
 async function exportRowsAs(id,fmt,selOnly){const t=T(id);if(!t||!t.cols)return;let cols=t.cols,rows;
- if(selOnly){rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}}
+ if(selOnly){rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}}
  else if(wholeTableShown(t)){const info=await tableColumnsInfo(t.db,t.table);if(!info){toast('Could not read the columns of '+t.db+'.'+t.table+'.',true);return;}
   const q=await api('/api/query',{sql:'SELECT '+info.map(c=>qid(c.name)).join(',')+' FROM '+qid(t.db)+'.'+qid(t.table),db:t.db});if(!q.ok){toast(q.error,true);return;}cols=q.columns;rows=q.rows;}
  else{const a=await allResultRows(id);if(!a)return;cols=a.cols;rows=a.rows;}
@@ -6075,7 +6130,7 @@ async function exportRowsAs(id,fmt,selOnly){const t=T(id);if(!t||!t.cols)return;
  else await dlBinary(new Blob([bXLSX(cols,rows)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),base+'.xlsx');
  log('Exported '+rows.length+' row(s) to '+({json:'JSON',md:'Markdown',xlsx:'Excel'})[fmt]+'.');
  if(fmt==='xlsx'&&(_xlsxLoss.cut||_xlsxLoss.ctrl)){const m='The Excel file is not an exact copy: '+[_xlsxLoss.cut&&(_xlsxLoss.cut+' value(s) longer than Excel\'s 32,767 characters were cut'),_xlsxLoss.ctrl&&(_xlsxLoss.ctrl+' value(s) lost control characters Excel cannot store')].filter(Boolean).join(', and ')+'. CSV or JSON keep them whole.';toast(m,true);log(m);}}
-async function copyJson(id,selOnly){const t=T(id);if(!t.cols)return;const a=selOnly?{cols:t.cols,rows:selRows(id)}:await allResultRows(id);if(!a)return;const rows=a.rows;if(selOnly&&!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}
+async function copyJson(id,selOnly){const t=T(id);if(!t.cols)return;const a=selOnly?{cols:t.cols,rows:selRows(id)}:await allResultRows(id);if(!a)return;const rows=a.rows;if(selOnly&&!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}
  copyText(bJSON(a.cols,rows),'Copied '+rows.length+(selOnly?' selected':'')+' row(s) (JSON).');}
 function selRows(id){const t=T(id);return viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri)).map(ri=>t.rows[ri]);}
 async function copyGrid(id){const t=T(id);if(!t.cols)return;const a=await allResultRows(id);if(!a)return;copyText(bTSV(a.cols,a.rows),'Copied '+a.rows.length+' rows (TSV).').then(st=>{if(st!=='failed')tsvShapeHint(a.rows,'the text NULL');});}
@@ -6093,11 +6148,11 @@ function saveUserTransferFile(){const v=$('utResult').value;if(!v){toast('Nothin
 async function copyCsv(id){const t=T(id);if(!t.cols)return;const a=await allResultRows(id);if(!a)return;const cols=a.cols,rows=a.rows;
  copyText(bCSV(cols,rows),'Copied '+rows.length+' rows (CSV).').then(st=>{if(st!=='failed')csvNullHint(rows);});}
 async function copyMd(id){const t=T(id);if(!t.cols)return;const a=await allResultRows(id);if(!a)return;copyText(bMD(a.cols,a.rows),'Copied '+a.rows.length+' rows (Markdown).');}
-function copyMdSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}copyText(bMD(t.cols,rows),'Copied '+rows.length+' selected row(s) (Markdown).');}
+function copyMdSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}copyText(bMD(t.cols,rows),'Copied '+rows.length+' selected row(s) (Markdown).');}
 function toggleSel(id,ri,ch){const t=T(id);if(!t.selected)t.selected=new Set();if(ch)t.selected.add(ri);else t.selected.delete(ri);updateEditBar(id);}
 function selAll(id,ch){const t=T(id);if(!t.selected)t.selected=new Set();const view=viewIndices(id);view.forEach(ri=>{if(ch)t.selected.add(ri);else t.selected.delete(ri);});renderBody(id);updateEditBar(id);}
-function copySel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}copyText(bTSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (TSV).').then(st=>{if(st!=='failed')tsvShapeHint(rows,'the text NULL');});}
-function copySelCsv(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}copyText(bCSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (CSV).').then(st=>{if(st!=='failed')csvNullHint(rows);});}
+function copySel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}copyText(bTSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (TSV).').then(st=>{if(st!=='failed')tsvShapeHint(rows,'the text NULL');});}
+function copySelCsv(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}copyText(bCSV(t.cols,rows),'Copied '+rows.length+' selected row(s) (CSV).').then(st=>{if(st!=='failed')csvNullHint(rows);});}
 async function csvGrid(id){const t=T(id);if(!t.cols)return;if(wholeTableShown(t)){exportFull(t.db,t.table,'csv');return;}const a=await allResultRows(id);if(!a)return;dl(bCSV(a.cols,a.rows),(t.table||'result')+'.csv');csvMarkerClash(a.rows);log('Exported '+a.rows.length+' row(s) to CSV.');}
 // Rows as INSERT statements - for Export and for Copy alike. A result bound to one table is written
 // into that table, without its generated columns, which cannot be given a value; each value as its
@@ -6110,10 +6165,10 @@ async function insGrid(id){const t=T(id);if(!t.cols)return;if(wholeTableShown(t)
  dl(await insertsText(id,a.cols,a.rows),(t.table||'result')+'_inserts.sql');log('Exported '+a.rows.length+' row(s) as INSERTs.');}
 // Copy as INSERTs: the same statements as the export, onto the clipboard.
 async function copyInserts(id,selOnly){const t=T(id);if(!t.cols)return;const a=selOnly?{cols:t.cols,rows:selRows(id)}:await allResultRows(id);if(!a)return;
- if(selOnly&&!a.rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}
+ if(selOnly&&!a.rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}
  copyText(await insertsText(id,a.cols,a.rows),'Copied '+a.rows.length+(selOnly?' selected':'')+' row(s) as INSERTs.');}
-function csvSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}dl(bCSV(t.cols,rows),(t.table||'result')+'_selected.csv');csvMarkerClash(rows);log('Exported '+rows.length+' selected row(s) to CSV.');}
-async function insSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Tick the checkboxes on the rows you want.',true);return;}
+function csvSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}dl(bCSV(t.cols,rows),(t.table||'result')+'_selected.csv');csvMarkerClash(rows);log('Exported '+rows.length+' selected row(s) to CSV.');}
+async function insSel(id){const t=T(id);if(!t.cols)return;const rows=selRows(id);if(!rows.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}
  dl(await insertsText(id,t.cols,rows),(t.table||'result')+'_selected_inserts.sql');log('Exported '+rows.length+' selected row(s) as INSERTs.');}
 async function dl(text,name){
  const ext=(name.split('.').pop()||'').toLowerCase();const filters=ext?[{name:ext.toUpperCase()+' file',extensions:[ext]}]:undefined;
@@ -6773,8 +6828,8 @@ async function changePassword(){const v=window._selUser;if(!v){toast('Select an 
   const chain=cu.ok&&cu.rows.length?mariaAuthChain(String(cu.rows[0][0]),res.pw):null;if(chain)ident=chain;}
  const sql="ALTER USER "+strLit(u)+"@"+strLit(h)+" "+ident+";";
  const r=await api('/api/exec',{sql:sql});
- if(r.ok){log('Password changed for '+u+'@'+h+'.');toast('Password changed for '+u+'@'+h+'.','ok');}else{toast('Failed: '+(r.error||'unknown'),true);}}
-async function dropUser(){const a=window._selAcct;if(!a)return;const what=a.role?'DROP ROLE':'DROP USER';if(!(await ask(what+' '+uName(a)+' ?')))return;if(await exec(what+' '+uRef(a),a.role?'Dropped role':'Dropped user'))openUsers();}
+ if(r.ok){log('Password changed for '+u+'@'+h+'.');toast('Password changed for '+u+'@'+h+'.','ok');}else{toast('Could not change the password: '+(r.error||'unknown error'),true);}}
+async function dropUser(){const a=window._selAcct;if(!a)return;const what=a.role?'DROP ROLE':'DROP USER';if(!(await ask(what+' '+uName(a)+'?')))return;if(await exec(what+' '+uRef(a),a.role?'Dropped role':'Dropped user'))openUsers();}
 async function grantUser(){const v=window._selUser;if(!v){toast('Select an account first.',true);return;}const[u,h]=v.split('\x01');const res=await grantRevokeDialog('grant');if(!res||!res.g.trim())return;
  const sql="GRANT "+res.g.trim()+" TO "+uRef(window._selAcct)+(res.wgo?' WITH GRANT OPTION':'');
  if(await exec(sql,'Granted')){await exec('FLUSH PRIVILEGES','Flush');showGrants();}}
@@ -6930,10 +6985,10 @@ function usersSelect(u,h){window._selAcct=_uaccts.find(a=>a.u===u&&a.h===h)||nul
 // A new name or host for the account. RENAME USER keeps its privileges, roles and settings; a
 // MariaDB role cannot be renamed.
 async function acctRename(){const a=window._selAcct;if(!a)return;
- if(a.role&&window.mariadb){toast('MariaDB cannot rename a role - create one with the new name and give it instead.',true);return;}
+ if(a.role&&window.mariadb){toast('MariaDB cannot rename roles. Create a role with the new name and grant it instead.',true);return;}
  const res=await inputBox({title:'Rename '+uName(a),okText:'Rename',width:'460px',fields:[{key:'user',label:a.role?'Role name':'User name',value:a.u},{key:'host',label:'Host - % for anywhere',value:a.h}]});
  if(!res)return;const u=String(res.user||'').trim(),h=String(res.host||'').trim()||'%';
- if(!u){toast('The name cannot be empty.',true);return;}if(u===a.u&&h===a.h){toast('Nothing to change.');return;}
+ if(!u){toast('The name cannot be empty.',true);return;}if(u===a.u&&h===a.h){toast('There are no changes to apply.');return;}
  const sql='RENAME USER '+uRef(a)+' TO '+strLit(u)+'@'+strLit(h)+';';
  const r=await api('/api/script',{sql});if(!r.ok){toast(r.error,true);return;}
  log(sql);toast('Renamed to '+u+'@'+h+'.','ok');await usersLoad();usersSelect(u,h);}
@@ -7017,13 +7072,13 @@ async function privApply(){const s=privSqlFor();if(!s.length)return;const r=awai
  if(!r.ok){toast(r.error,true);return;}log(s.join('\n'));toast('Privileges changed.','ok');await privLoad();await usersReloadKeep();}
 
 // ---- roles ----
-async function roleCreate(){if(!_uRoleSupport){toast('This server has no roles - they came with MySQL 8.0 and MariaDB 10.0.5.',true);return;}
+async function roleCreate(){if(!_uRoleSupport){toast('This server does not support roles (available from MySQL 8.0 and MariaDB 10.0.5).',true);return;}
  const res=await inputBox({title:'Create role',okText:'Create',fields:[{key:'n',label:'Role name'}]});if(!res||!res.n.trim())return;const n=res.n.trim();
  if(await exec('CREATE ROLE '+(window.mariadb?qid(n):strLit(n)+'@'+strLit('%')),'Created role '+n)){await usersLoad();usersSelect(n,window.mariadb?'':'%');}}
 // Which roles an account has, and which one is active when it signs in.
 async function rolesEdit(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
- if(!_uRoleSupport){toast('This server has no roles - they came with MySQL 8.0 and MariaDB 10.0.5.',true);return;}
- const roles=_uaccts.filter(r=>r.role&&r!==a);if(!roles.length){toast('There are no roles yet - make one with Create role.',true);return;}
+ if(!_uRoleSupport){toast('This server does not support roles (available from MySQL 8.0 and MariaDB 10.0.5).',true);return;}
+ const roles=_uaccts.filter(r=>r.role&&r!==a);if(!roles.length){toast('No roles exist yet. Create one with Create role.',true);return;}
  const cur=a.defaults.length>1?'__all__':a.defaults.length?String(roles.indexOf(a.defaults[0])):'';
  const fields=roles.map((r,i)=>({key:'r'+i,label:uName(r),type:'checkbox',value:a.roles.includes(r),
   title:'Give '+uName(r)+' to '+uName(a)+'. Its privileges count while the role is active: the default role is active from sign-in, the others after SET ROLE.'}));
@@ -7033,7 +7088,7 @@ async function rolesEdit(){const a=window._selAcct;if(!a){toast('Select an accou
  const who=uRef(a),out=[];
  roles.forEach((r,i)=>{const has=a.roles.includes(r),want=!!res['r'+i];if(want&&!has)out.push('GRANT '+uRef(r)+' TO '+who+';');if(!want&&has)out.push('REVOKE '+uRef(r)+' FROM '+who+';');});
  const d=res.def,defRole=d&&d!=='__all__'?roles[+d]:null;
- if(defRole&&!res['r'+d]){toast('The default role has to be one of the roles the account has.',true);return;}
+ if(defRole&&!res['r'+d]){toast('The default role must be one of the roles granted to the account.',true);return;}
  if(d!==cur)out.push(window.mariadb?'SET DEFAULT ROLE '+(defRole?uRef(defRole):'NONE')+' FOR '+who+';':'SET DEFAULT ROLE '+(d==='__all__'?'ALL':defRole?uRef(defRole):'NONE')+' TO '+who+';');
  if(!out.length)return;const r=await api('/api/script',{sql:out.join('\n')});if(!r.ok){toast(r.error,true);return;}
  log(out.join('\n'));toast('Roles changed.','ok');await usersReloadKeep();}
@@ -7085,7 +7140,7 @@ async function newUser(){const plugins=await authPlugins();
  const r=await api('/api/script',{sql:s.join('\n')});if(!r.ok){toast(r.error,true);return;}
  logNoSecrets(s.join('\n'));toast('Created '+u+'@'+h+'.','ok');await usersLoad();usersSelect(u,h);}
 async function acctEdit(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
- if(a.role){toast('A role does not sign in, so it has no account settings.',true);return;}
+ if(a.role){toast('Roles cannot sign in, so they have no account settings.',true);return;}
  const plugins=await authPlugins();if(a.plugin&&!plugins.includes(a.plugin))plugins.unshift(a.plugin);
  const res=await inputBox({title:'Account settings of '+uName(a),okText:'Apply',width:'520px',fields:[
   {key:'plugin',label:'Sign-in method - to change it, give a password as well',type:'select',options:plugins.map(p=>({value:p,label:p})),value:a.plugin},
@@ -7094,9 +7149,9 @@ async function acctEdit(){const a=window._selAcct;if(!a){toast('Select an accoun
  if(!res)return;const who=uRef(a),out=acctSettingSql(who,res,a);
  // MariaDB's IDENTIFIED BY switches the account to its default plugin, so the plugin is always named there.
  if(res.pw)out.unshift('ALTER USER '+who+' '+identifiedBy(res.plugin!==a.plugin||window.mariadb?res.plugin:'',res.pw)+';');
- else if(res.plugin!==a.plugin){toast('Changing the sign-in method needs the password as well.',true);return;}
+ else if(res.plugin!==a.plugin){toast('Changing the sign-in method also requires the password.',true);return;}
  if('locked' in res&&res.locked!==a.locked)out.push('ALTER USER '+who+' ACCOUNT '+(res.locked?'LOCK':'UNLOCK')+';');
- if(!out.length){toast('Nothing to change.');return;}
+ if(!out.length){toast('There are no changes to apply.');return;}
  const r=await api('/api/script',{sql:out.join('\n')});if(!r.ok){toast(r.error,true);return;}
  logNoSecrets(out.join('\n'));toast('Account settings changed.','ok');await usersReloadKeep();}
 
@@ -7118,7 +7173,7 @@ async function acctRequireSpecified(a,who){if(a.ssl!=='SPECIFIED')return [];
  const [iss,sub,ci]=q.rows[0],parts=[iss&&'ISSUER '+strLit(iss),sub&&'SUBJECT '+strLit(sub),ci&&'CIPHER '+strLit(ci)].filter(Boolean);
  return parts.length?['ALTER USER '+who+' REQUIRE '+parts.join(' AND ')+';']:['ALTER USER '+who+' REQUIRE X509;'];}
 async function acctClone(){const a=window._selAcct;if(!a){toast('Select an account first.',true);return;}
- if(a.role){toast('Clone makes accounts - select an account rather than a role.',true);return;}
+ if(a.role){toast('Only accounts can be cloned. Select an account, not a role.',true);return;}
  const res=await inputBox({title:'Clone '+uName(a),okText:'Clone',fields:[{key:'user',label:'New user name',value:a.u+'_copy'},{key:'host',label:'Host',value:a.h},{key:'pw',label:'Password for the new account',type:'password'}]});
  if(!res||!res.user.trim())return;const u=res.user.trim(),h=res.host.trim()||'%',who=strLit(u)+'@'+strLit(h);
  const g=await api('/api/query',{sql:'SHOW GRANTS FOR '+uRef(a)});if(!g.ok){toast(g.error,true);return;}
@@ -7519,7 +7574,7 @@ async function cmpToggleTablePicker(){const box=$('cmpTablesBox');
    if(!sc||!tc||!sd||!td){toast('Pick a connection and database on both sides first.',true);return;}
    box.style.display='block';box.innerHTML='<div class="muted">Loading tables\u2026</div>';
    const r=await api('/api/compare-tables',{sourceConnName:sc,sourceDb:sd,targetConnName:tc,targetDb:td});
-   if(!r.ok){box.innerHTML='';toast(r.error||'Could not list tables',true);return;}
+   if(!r.ok){box.innerHTML='';toast(r.error||'Could not list the tables.',true);return;}
    if(!r.tables.length){box.innerHTML='<div class="muted">No tables found on either side.</div>';return;}
    let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><a href="#" onclick="cmpSetAllTables(true);return false" style="font-size:11px;color:var(--accent)">All</a> / <a href="#" onclick="cmpSetAllTables(false);return false" style="font-size:11px;color:var(--accent)">None</a><input id="cmpTableSearch" type="text" placeholder="filter tables\u2026" oninput="cmpFilterTablePicker()" style="flex:1;font-size:11px;margin-left:6px"></div>';
    h+='<div id="cmpTableList">';
@@ -7653,7 +7708,7 @@ async function cmpCloseAndCancel(){
  hide('mCompare');
 }
 async function runCompare(){
- if(_cmpRequestId){toast('A comparison is already running - wait for it to finish or click Cancel first.',true);return;}
+ if(_cmpRequestId){toast('A comparison is already running. Wait for it to finish or click Cancel.',true);return;}
  const sc=$('cmpSrcConn').value,tc=$('cmpTgtConn').value,sd=$('cmpSrcDb').value,td=$('cmpTgtDb').value;
  if(!sc||!tc||!sd||!td){toast('Pick a connection and database on both sides.',true);return;}
  if(sc===tc&&sd===td){if(!(await ask('Source and target are the SAME connection and database ('+sc+' / '+sd+').\n\nComparing them will always show no differences. Continue anyway?')))return;}
@@ -7664,7 +7719,7 @@ async function runCompare(){
  if(tblEls.length){payload.tables=[...tblEls].filter(c=>c.checked).map(c=>c.value);}
  const r=await api('/api/compare-schemas',payload,_cmpAbortCtrl.signal);
  _cmpRequestId=null;_cmpAbortCtrl=null;
- if(!r.ok){$('cmpResults').innerHTML='<div class="muted">'+esc(r.error||'Compare failed')+' <a href="#" onclick="runCompare();return false" style="color:var(--accent)">Retry</a></div>';toast(r.error||'Compare failed',true);return;}
+ if(!r.ok){$('cmpResults').innerHTML='<div class="muted">'+esc(r.error||'Compare failed')+' <a href="#" onclick="runCompare();return false" style="color:var(--accent)">Retry</a></div>';toast(r.error||'Comparison failed.',true);return;}
  _cmpTables=r.tables;$('cmpRoNote').style.display=r.targetReadonly?'inline':'none';const _sb=$('cmpResultSearch');if(_sb)_sb.value='';cmpRenderResults();
  // The dialog opens compact (just enough for the pickers and Run button, see cmpResults' default
  // box height) since there's nothing to show yet - once a comparison actually returns tables, grow
@@ -7682,7 +7737,7 @@ async function applyCompare(){const stmts=cmpSelectedStatements();if(!stmts.leng
  if(!(await ask('Run '+stmts.length+' statement(s) against the TARGET database ('+$('cmpTgtDb').value+')?\n\nThis cannot be undone. Use Preview SQL first if you have not already.')))return;
  $('cmpLog').textContent='Applying\u2026';
  const r=await api('/api/compare-apply',{targetConnName:$('cmpTgtConn').value,targetDb:$('cmpTgtDb').value,statements:stmts});
- if(!r.ok){$('cmpLog').textContent='';toast(r.error||'Apply failed',true);return;}
+ if(!r.ok){$('cmpLog').textContent='';toast(r.error||'Apply failed.',true);return;}
  $('cmpLog').innerHTML=logLinesHtml(r.log);
  log('Compare: applied '+stmts.length+' statement(s) to '+$('cmpTgtConn').value+'.');
  await runCompare();}
@@ -7747,7 +7802,7 @@ function cmpRowScanCancel(){
  cmprCancelCurrent();
 }
 async function cmpScanRowDiffs(){
- if(_cmprRequestId||_cmpRowScanRunning){toast('An operation is already running - wait for it to finish or stop it first.',true);return;}
+ if(_cmprRequestId||_cmpRowScanRunning){toast('An operation is already running. Wait for it to finish or stop it.',true);return;}
  if(!_cmpTables)return;
  if(!_cmpRowScanStarted){_cmpRowScanStarted=true;cmpRenderResults();} // reveal every table's "rows…" link now that a scan has actually been requested
  const scanTables=_cmpTables; // if re-running the comparison swaps this out mid-scan, stop rather than write into stale/renumbered rows
@@ -7792,7 +7847,7 @@ async function cmpScanRowDiffs(){
  cmpRowScanSetStatus(checked,targets.length,differ,true);
 }
 async function cmpCompareRows(ti){
- if(_cmprRequestId||_cmpRowScanRunning){toast('A row comparison is already running - wait for it to finish or click Cancel/Stop first.',true);return;}
+ if(_cmprRequestId||_cmpRowScanRunning){toast('A row comparison is already running. Wait for it to finish or click Cancel or Stop.',true);return;}
  const t=_cmpTables[ti];
  const sc=$('cmpSrcConn').value,tc=$('cmpTgtConn').value,sd=$('cmpSrcDb').value,td=$('cmpTgtDb').value;
  if(sc===tc&&sd===td){if(!(await ask('Source and target are the SAME connection and database ('+sc+' / '+sd+').\n\nComparing them will always show no differences. Continue anyway?')))return;}
@@ -7885,7 +7940,7 @@ async function cmprDiffApply(){
  if(!(await ask('Update '+updates.length+' row(s) in '+_cmprDiffState.table+' on the TARGET database to match the source?\n\nThis OVERWRITES the differing columns on those target rows and cannot be undone.')))return;
  $('cmprLog').textContent='Updating\u2026';
  const r=await api('/api/compare-rows-apply-diff',{targetConnName:_cmprDiffState.targetConnName,targetDb:_cmprDiffState.targetDb,table:_cmprDiffState.table,pkCols:_cmprDiffState.pkCols,updates:updates});
- if(!r.ok){$('cmprLog').textContent='';toast(r.error||'Update failed',true);return;}
+ if(!r.ok){$('cmprLog').textContent='';toast(r.error||'Update failed.',true);return;}
  log('Compare: updated rows in '+_cmprDiffState.table+' on '+_cmprDiffState.targetConnName+'.');
  const tableName=_cmprDiffState.table,ti=_cmpFindTableIndex(tableName);
  if(ti>=0){await cmpCompareRows(ti);}
@@ -7934,15 +7989,15 @@ function cmprUpdateSummary(){if(!_cmprState){$('cmprSummary').textContent='';ret
 function cmprSetAll(on){if(!_cmprState)return;_cmprState.rows.forEach(r=>r.checked=on);cmprRender();}
 async function cmprInsertAll(){
  if(!_cmprState)return;
- if(_cmprState.targetTableMissing){toast('The target table doesn\'t exist yet - create it first (via the structure comparison\'s "details"), then come back to insert rows.',true);return;}
- if(_cmprRequestId){toast('An operation is already running - wait for it to finish or click Cancel first.',true);return;}
+ if(_cmprState.targetTableMissing){toast('The target table does not exist yet. Create it first (from the structure comparison\'s "details"), then insert the rows.',true);return;}
+ if(_cmprRequestId){toast('An operation is already running. Wait for it to finish or click Cancel.',true);return;}
  const total=_cmprState.missingTotal||0;
  if(!(await ask('Insert ALL '+total+' missing row(s) into '+_cmprState.table+' on the TARGET database, WITHOUT reviewing them individually first?\n\nThis uses the SAME '+_cmprState.pkCols.join('/')+' value(s) as the source (insert-only) and cannot be undone.')))return;
  const rid=_cmpNewRequestId();_cmprRequestId=rid;_cmprAbortCtrl=new AbortController();
  $('cmprLog').innerHTML='Inserting all '+total+' row(s)\u2026 <a href="#" onclick="cmprCancelCurrent();return false" style="color:var(--accent)">Cancel</a>';
  const r=await api('/api/compare-rows-insert-all',{sourceConnName:_cmprState.sourceConnName,sourceDb:_cmprState.sourceDb,targetConnName:_cmprState.targetConnName,targetDb:_cmprState.targetDb,table:_cmprState.table,requestId:rid},_cmprAbortCtrl.signal);
  _cmprRequestId=null;_cmprAbortCtrl=null;
- if(!r.ok){$('cmprLog').innerHTML=esc(r.error||'Insert failed')+' <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">Retry</a>';toast(r.error||'Insert failed',true);return;}
+ if(!r.ok){$('cmprLog').innerHTML=esc(r.error||'Insert failed')+' <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">Retry</a>';toast(r.error||'Insert failed.',true);return;}
  if(r.cancelled){$('cmprLog').innerHTML='Cancelled ('+(r.inserted||0)+' row(s) inserted before the cancel are already in the target). <a href="#" onclick="cmprInsertAll();return false" style="color:var(--accent)">Retry</a>';return;}
  const tableName=_cmprState.table,ti=_cmpFindTableIndex(tableName);
  // Deliberately NOT auto-refreshing here: for a large table this just re-runs the same
@@ -7954,14 +8009,14 @@ async function cmprInsertAll(){
 function _cmprPkKey(pkArr){return pkArr.map(v=>String(v)).join('\u0001');}
 async function cmprApply(){
  if(!_cmprState)return;
- if(_cmprState.targetTableMissing){toast('The target table doesn\'t exist yet - create it first (via the structure comparison\'s "details"), then come back to insert rows.',true);return;}
+ if(_cmprState.targetTableMissing){toast('The target table does not exist yet. Create it first (from the structure comparison\'s "details"), then insert the rows.',true);return;}
  const insertedRows=_cmprState.rows.filter(r=>r.checked);
  const rows=insertedRows.map(r=>r.data);
  if(!rows.length){toast('No rows selected.',true);return;}
  if(!(await ask('Insert '+rows.length+' row(s) into '+_cmprState.table+' on the TARGET database, using the same '+_cmprState.pkCols.join('/')+' value(s) as the source?\n\nThis cannot be undone.')))return;
  $('cmprLog').textContent='Inserting\u2026';
  const r=await api('/api/compare-rows-apply',{targetConnName:_cmprState.targetConnName,targetDb:_cmprState.targetDb,table:_cmprState.table,columns:_cmprState.columns,rows:rows});
- if(!r.ok){$('cmprLog').textContent='';toast(r.error||'Insert failed',true);return;}
+ if(!r.ok){$('cmprLog').textContent='';toast(r.error||'Insert failed.',true);return;}
  log('Compare: inserted rows into '+_cmprState.table+' on '+_cmprState.targetConnName+'.');
  await cmprTopUpAfterInsert(insertedRows);
  toast('Inserted '+rows.length+' row(s) into '+_cmprState.table+'.');
@@ -7982,7 +8037,7 @@ async function cmprTopUpAfterInsert(insertedRows){
  if(nextBatch.length){
    $('cmprLog').textContent='Loading next '+nextBatch.length+' row(s) to review\u2026';
    const rr=await api('/api/compare-rows-fetch-by-pk',{sourceConnName:_cmprState.sourceConnName,sourceDb:_cmprState.sourceDb,table:_cmprState.table,pkCols:_cmprState.pkCols,pks:nextBatch});
-   if(!rr.ok){$('cmprLog').textContent='';toast(rr.error||'Could not load the next batch - try Refresh.',true);_cmprState.rows=[];cmprRender();return;}
+   if(!rr.ok){$('cmprLog').textContent='';toast(rr.error||'Could not load the next batch. Try Refresh.',true);_cmprState.rows=[];cmprRender();return;}
    _cmprState.rows=rr.rows.map(row=>({data:row,checked:true}));
    $('cmprLog').textContent='';
  } else {
@@ -8073,7 +8128,7 @@ async function brNative(opts,td){
  const ext=String(opts.filter||'').replace(/^\*\./,'');
  const filters=ext&&ext!=='*'?[{name:ext.toUpperCase()+' files',extensions:[ext]},{name:'All files',extensions:['*']}]:[];
  let r;try{r=await td.open({title:opts.title,directory:opts.mode==='folder',multiple:opts.mode==='files',defaultPath:opts.start||undefined,filters});}
- catch(e){toast('The Windows dialog could not open: '+e,true);return;}
+ catch(e){toast('Could not open the Windows dialog: '+e,true);return;}
  if(r==null||(Array.isArray(r)&&!r.length))return;
  const paths=(Array.isArray(r)?r:[r]).map(p=>typeof p==='string'?p:(p&&p.path)||String(p));
  opts.onPick(opts.mode==='files'?paths:paths[0]);}
@@ -8300,7 +8355,7 @@ function acAccept(id){const ta=acTa||$('ed_'+id);const pos=ta.selectionStart;con
 
 let csvTarget={db:null,table:null};
 async function exportFull(db,name,fmt){fmt=fmt||'csv';const ext=(fmt==='inserts')?'sql':'csv';const defName=name+(fmt==='inserts'?'_inserts.sql':'.csv');
- if(window.__TAURI__&&window.__TAURI__.core){let path;try{path=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:defName,filters:[{name:ext.toUpperCase()+' file',extensions:[ext]}]}});}catch(e){toast('Save dialog failed: '+e,true);return;}if(!path)return;log('Exporting all rows of '+db+'.'+name+'...');const r=await window.__TAURI__.core.invoke('export_table',{req:{conn:getConn(),db:db,table:name,file:path,format:fmt,nullValue:csvNullMarker()}});if(r&&r.ok){log(r.message);toast(r.message,'ok');}else toast('Export failed: '+(r?r.error:'unknown'),true);return;}
+ if(window.__TAURI__&&window.__TAURI__.core){let path;try{path=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:defName,filters:[{name:ext.toUpperCase()+' file',extensions:[ext]}]}});}catch(e){toast('Could not open the Save dialog: '+e,true);return;}if(!path)return;log('Exporting all rows of '+db+'.'+name+'...');const r=await window.__TAURI__.core.invoke('export_table',{req:{conn:getConn(),db:db,table:name,file:path,format:fmt,nullValue:csvNullMarker()}});if(r&&r.ok){log(r.message);toast(r.message,'ok');}else toast('Export failed: '+(r&&r.error?r.error:'unknown error'),true);return;}
  try{
    const cq=await api('/api/query',{sql:"SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
    const est=(cq.ok&&cq.rows.length&&cq.rows[0][0]!=null)?+cq.rows[0][0]:null;
@@ -8379,7 +8434,7 @@ let _update=null;
 // clicked. An error is given twice as long, as it always was.
 function toastMs(){try{const v=parseInt(localStorage.getItem('toastMs')||'',10);return isNaN(v)?6000:Math.max(0,v);}catch(e){return 6000;}}
 function setToastMs(v){try{localStorage.setItem('toastMs',String(parseInt(v,10)||0));}catch(e){}
- toast(+v?('Messages now stay '+(+v/1000)+' seconds.'):'Messages now stay until dismissed.','ok');}
+ toast(+v?('Notifications now stay for '+(+v/1000)+' seconds.'):'Notifications now stay until dismissed.','ok');}
 function updateCheckOn(){try{return localStorage.getItem('updateCheck')!=='off';}catch(e){return true;}}
 function setUpdateCheck(on){try{localStorage.setItem('updateCheck',on?'on':'off');}catch(e){}if(!on){const el=$('updNote');if(el)el.style.display='none';}}
 async function checkForUpdate(manual){

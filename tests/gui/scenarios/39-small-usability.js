@@ -20,6 +20,46 @@
     if (box) box.blur(); await G.wait(50); t.pending.upd = {}; renderGrid(t.id);
     closeTab(t.id);
 
+    // a drag past the bottom of the results scrolls them, and the block grows with it
+    await G.run(`CREATE TABLE ${DB}.tall (id INT PRIMARY KEY, v VARCHAR(10)); INSERT INTO ${DB}.tall SELECT i, CONCAT('v',i) FROM (SELECT a.d*100+b.d*10+c.d+1 AS i FROM (SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) a, (SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) b, (SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) c) n WHERE i<=300;`);
+    const tl = await G.openTable(DB, 'tall'), V = tl.cols.indexOf('v'), wrap = $('res_' + tl.id);
+    G.check('the results are taller than their window', wrap.scrollHeight > wrap.clientHeight + 200, [wrap.scrollHeight, wrap.clientHeight]);
+    tl.cellSel = new Set();
+    gridDragStart({ button: 0, target: gridCellEl(tl.id, 0, V), ctrlKey: false, shiftKey: false, metaKey: false, preventDefault() {} }, tl.id, 0, V);
+    gridDragOver({ buttons: 1 }, tl.id, 1, V);
+    const wb = wrap.getBoundingClientRect(), mm = y => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: wb.left + 60, clientY: y, buttons: 1 }));
+    mm(wb.bottom + 40); await G.wait(600);
+    const top1 = wrap.scrollTop, picked1 = tl.cellSel.size;
+    G.check('dragging past the bottom scrolls the results', top1 > 100, top1);
+    // the pointer is over the rows' delete column here, not a value: the block still grows, in its own column
+    G.check('and picks the cells it scrolls to, in the column it started in', picked1 > 10 && [...tl.cellSel].every(k => +k.split(':')[1] === V), picked1);
+    mm(wb.top + wb.height / 2); await G.wait(200);
+    const top2 = wrap.scrollTop; await G.wait(300);
+    G.eq('back inside, it stops', wrap.scrollTop, top2);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    mm(wb.bottom + 40); await G.wait(300);
+    G.eq('and once let go, the edge does nothing', wrap.scrollTop, top2);
+
+    // from the last row straight down, out of the results, without passing another cell
+    wrap.scrollTop = wrap.scrollHeight; await G.wait(300);
+    const lastRi = +[...wrap.querySelectorAll('tr[data-r]')].pop().dataset.r, lastTd = gridCellEl(tl.id, lastRi, V);
+    tl.cellSel = new Set(); getSelection().removeAllRanges();
+    gridDragStart({ button: 0, target: lastTd, ctrlKey: false, shiftKey: false, metaKey: false, preventDefault() {} }, tl.id, lastRi, V);
+    // what the browser does on its own when a press in text is dragged: a selection from there
+    const rg = document.createRange(); rg.setStart(lastTd, 0); rg.setEnd(document.body, document.body.childNodes.length); getSelection().addRange(rg);
+    const lr = lastTd.getBoundingClientRect();
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: lr.left + 5, clientY: wb.bottom + 60, buttons: 1 }));
+    G.eq('leaving the last row downwards picks that cell', [...tl.cellSel], [lastRi + ':' + V]);
+    G.check('and selects no text on the page', getSelection().isCollapsed && document.body.classList.contains('gridpicking'), getSelection().toString().slice(0, 80));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    G.check('letting go gives text selection back to the page', !document.body.classList.contains('gridpicking'));
+    // the browser is not let start a text selection in a result cell at all - only in text boxes
+    const sel0 = (n) => { const ev = new Event('selectstart', { bubbles: true, cancelable: true }); n.dispatchEvent(ev); return ev.defaultPrevented; };
+    G.check('no text selection starts in a result cell', sel0(lastTd.firstChild || lastTd) && sel0(lastTd));
+    const edTa = document.querySelector('textarea.editor') || document.querySelector('input');
+    G.check('but it does in a text box', edTa && !sel0(edTa));
+    closeTab(tl.id);
+
     // New, then New again or Esc
     const before = { list: $('connlist').value, host: $('host').value, user: $('user').value, pass: $('pass').value };
     newConn();
@@ -107,6 +147,46 @@
     if (G.desktop) await G.until(() => Math.abs(devicePixelRatio - dpr0) < 0.01, 3000);
     const cfg1 = await G.A('/api/get-config');
     G.check('Reset to defaults: 13 px both, and 100%', uiSizeGet('ed') === 13 && uiSizeGet('grid') === 13 && String(cfg1.config.ui_zoom) === '1', [uiSizeGet('ed'), uiSizeGet('grid'), cfg1.config.ui_zoom]);
+
+    // Restore defaults (Default appearance): everything about how the app looks and is arranged, in one go - and nothing it
+    // remembers about that survives it (a setting added to Appearance and left out of the reset fails here)
+    const keys = () => { const k = []; for (let i = 0; i < localStorage.length; i++) k.push(localStorage.key(i)); return k; };
+    const before0 = new Set(keys());
+    const lightBefore = !document.body.classList.contains('dark');
+    if (!lightBefore) toggleTheme();
+    uiSizeSet('ed', 17); uiSizeSet('grid', 15);
+    const f1 = offered('setEdFont')[0], f2 = offered('setUiFont')[0];
+    if (f1) { uiFontSet('ed', f1); uiFontSet('grid', f1); } if (f2) uiFontSet('ui', f2);
+    localStorage.setItem('sideW', '420'); $('side').style.width = '420px'; localStorage.setItem('toastMs', '2000');
+    setSideFolded(true); setLogFolded(true); sideFold('objects');
+    await uiZoomSet(1.1);
+    await resetAppearance();
+    const left = keys().filter(k => !before0.has(k) && !/^(session|history|overviewCache|tableSizes|pinned_)/.test(k));
+    G.eq('nothing it remembers about the look is left over', left, []);
+    G.check('the theme is dark again, the sidebar open at its width, the lists and the log unfolded',
+      document.body.classList.contains('dark') && $('side').style.width === '280px' && !document.body.classList.contains('side-folded') && getComputedStyle($('objects')).display !== 'none' && getComputedStyle($('schemas')).display !== 'none' && $('log').style.display !== 'none',
+      { dark: document.body.classList.contains('dark'), w: $('side').style.width, body: document.body.className });
+    G.eq('the fonts and sizes are the defaults', [uiSizeGet('ed'), uiSizeGet('grid'), uiFontGet('ed'), uiFontGet('grid'), uiFontGet('ui')], [13, 13, '', '', '']);
+    G.eq('and the zoom is 100%', String((await G.A('/api/get-config')).config.ui_zoom), '1');
+    if (lightBefore) toggleTheme();
+    // every row in Settings has its control, connected or not (the Overview cache button used to hide)
+    document.body.classList.add('disconnected');
+    const bare = [...$('mSettings').querySelectorAll('.setpage .setrow')].filter(r => { const c = r.querySelector('.setrc'); return c && c.children.length && ![...c.querySelectorAll('button,select,input')].some(x => getComputedStyle(x).display !== 'none'); }).map(r => r.querySelector('.setrt').textContent);
+    document.body.classList.remove('disconnected');
+    G.eq('no Settings row loses its control when disconnected', bare, []);
+
+    // Clear all app data: everything the page stores goes, preferences included, with the connections,
+    // the library and the zoom - the calls are caught here, so the test's own connections stay
+    const saved = {}; for (const k of keys()) saved[k] = localStorage.getItem(k);
+    localStorage.setItem('sideW', '400'); localStorage.setItem('edFont', 'Consolas'); localStorage.setItem('nobsExpOpts', '{}');
+    const realApi = api, realTimeout = window.setTimeout, calls = [];
+    api = async (path, p) => { calls.push(path + (p && p.config ? ' ' + JSON.stringify(p.config) : '')); return { ok: true }; };
+    window.setTimeout = (f, ms) => ms === 500 ? 0 : realTimeout(f, ms); // the reload after it
+    try { await clearAllData(); } finally { api = realApi; window.setTimeout = realTimeout; }
+    G.eq('Clear all app data leaves nothing in the page\'s storage', keys(), []);
+    G.eq('and clears the connections and the library, and the zoom', calls, ['/api/conn-clear', '/api/lib-clear', '/api/save-config {"ui_zoom":"1"}']);
+    for (const k in saved) localStorage.setItem(k, saved[k]);
+    if (G.desktop) await G.until(() => Math.abs(devicePixelRatio - dpr0) < 0.01, 3000);
     if (+zoom0 && +zoom0 !== 1) await uiZoomSet(+zoom0);
     hide('mSettings'); closeTab(zq); G.take();
 
