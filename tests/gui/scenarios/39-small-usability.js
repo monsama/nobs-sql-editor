@@ -54,6 +54,36 @@
     G.eq('F9 runs it', T(k).rows.map(r => String(r[0])), ['1']);
     closeTab(k);
 
+    // text sizes and the zoom (Settings -> General)
+    const zq = openTab('sizes', 'SELECT 1', DB, false);
+    await openSettings(); const zoom0 = $('setZoom').value;
+    uiSizeSet('ed', 18);
+    G.eq('the editor text size applies to the editor and its colouring alike', [getComputedStyle($('ed_' + zq)).fontSize, getComputedStyle($('hl_' + zq)).fontSize], ['18px', '18px']);
+    G.eq('and is remembered', localStorage.getItem('edFontSize'), '18');
+    $('ed_' + zq).dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true, deltaY: -100 }));
+    G.eq('Ctrl + wheel in the editor changes that setting', uiSizeGet('ed'), 19);
+    uiSizeSet('grid', 16);
+    G.eq('the results text size applies to the grids', getComputedStyle(document.documentElement).getPropertyValue('--gridfs').trim(), '16px');
+    G.eq('Settings shows them', [$('setEdFs').value, $('setGridFs').value], ['19', '16']);
+    const dpr0 = devicePixelRatio;
+    await uiZoomSet(1.25);
+    const cfgZ = await G.A('/api/get-config');
+    G.eq('the zoom is saved', String(cfgZ.config && cfgZ.config.ui_zoom), '1.25');
+    if (G.desktop) {
+      await G.until(() => devicePixelRatio > dpr0 * 1.2, 3000);
+      G.check('and the desktop window zooms at once', Math.abs(devicePixelRatio / dpr0 - 1.25) < 0.02, { before: dpr0, after: devicePixelRatio });
+      await openSettings(); await G.wait(200);
+      const bx = $('mSettings').querySelector('.box').getBoundingClientRect();
+      G.check('with Settings centred again', Math.abs((bx.left + bx.width / 2) - innerWidth / 2) < 30, { left: bx.left, width: bx.width, window: innerWidth });
+    }
+    const bad = await G.A('/api/save-config', { config: { ui_zoom: '9' } });
+    G.check('a zoom out of range is refused', bad.ok === false, bad);
+    await uiSizesReset(); if (G.desktop) await G.until(() => Math.abs(devicePixelRatio - dpr0) < 0.01, 3000);
+    const cfg1 = await G.A('/api/get-config');
+    G.check('Reset to defaults: 13 px both, and 100%', uiSizeGet('ed') === 13 && uiSizeGet('grid') === 13 && String(cfg1.config.ui_zoom) === '1', [uiSizeGet('ed'), uiSizeGet('grid'), cfg1.config.ui_zoom]);
+    if (+zoom0 && +zoom0 !== 1) await uiZoomSet(+zoom0);
+    hide('mSettings'); closeTab(zq); G.take();
+
     // a folded list opens when its divider is dragged
     const sp = $('sideSplit'), sc = $('schemas'), ob = $('objects');
     const y0 = sp.getBoundingClientRect().top + 5;

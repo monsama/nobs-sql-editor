@@ -66,9 +66,15 @@ async function startApp() {
   if (app === 'desktop') {
     // Its own WebView2 data folder, so a copy of the app already open (whose browser a second one
     // would otherwise join) and your saved tabs stay out of it; and the debugging port, which the
-    // app opens when asked to (see main() in src-tauri/src/main.rs).
+    // app opens when asked to (see main() in src-tauri/src/main.rs). And a data folder of its own
+    // (NOBS_TEST_DATA_DIR, debug builds only): the scenarios save and delete connections and
+    // change settings, and none of that belongs in the user's app data. The config is copied in,
+    // so the client tools configured there are used.
+    const data = join(tmp, 'desktop-data'), realCfg = join(process.env.APPDATA || '', 'NOBSSQL-Desktop', 'config.json');
+    mkdirSync(join(data, 'NOBSSQL-Desktop'), { recursive: true });
+    if (existsSync(realCfg)) copyFileSync(realCfg, join(data, 'NOBSSQL-Desktop', 'config.json'));
     const p = spawn(target, [], {
-      env: { ...process.env, NOBS_WEBVIEW_DEBUG_PORT: String(cdpPort), NOBS_WEBVIEW_DATA_DIR: join(tmp, 'webview') },
+      env: { ...process.env, NOBS_WEBVIEW_DEBUG_PORT: String(cdpPort), NOBS_WEBVIEW_DATA_DIR: join(tmp, 'webview'), NOBS_TEST_DATA_DIR: data },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     p.stdout.on('data', d => { appOutput += d; });
@@ -221,8 +227,8 @@ try {
   children.reverse().forEach(killTree);
   // The browser's profile is about 12 MB, and a killed browser lets go of its files a moment after
   // it is gone - one try half a second later failed nearly every time and left a folder per run.
-  // Tried for up to ten seconds; what still cannot go is swept by the next run (see sweepOld).
-  for (let i = 0; i < 20 && existsSync(tmp); i++) {
+  // Tried for up to twenty seconds; what still cannot go is swept by the next run (see sweepOld).
+  for (let i = 0; i < 40 && existsSync(tmp); i++) {
     await sleep(500);
     try { rmSync(tmp, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }); } catch { /* still held */ }
   }

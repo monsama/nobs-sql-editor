@@ -447,10 +447,21 @@ fn tunnels() -> &'static Mutex<std::collections::HashMap<String, Tunnel>> {
     MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
 // A saved connection's SSH password, kept in the OS keychain beside its database password.
-const SSH_KEYRING: &str = "NOBSSQL-Desktop-SSH";
-fn ssh_pw_get(name: &str) -> String { keyring::Entry::new(SSH_KEYRING, name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
+// Where the app keeps its settings, saved connections and downloaded tools, and the credential store's
+// names for its passwords. A debug build run by the GUI tests (NOBS_TEST_DATA_DIR) keeps all of it
+// apart: the tests save and delete connections and change settings, and a run cut short left that in
+// the user's own app data.
+fn test_data_dir() -> Option<std::path::PathBuf> {
+    if !cfg!(debug_assertions) { return None; }
+    std::env::var_os("NOBS_TEST_DATA_DIR").filter(|v| !v.is_empty()).map(std::path::PathBuf::from)
+}
+fn config_base() -> std::path::PathBuf { test_data_dir().unwrap_or_else(|| dirs::config_dir().unwrap_or(std::env::temp_dir())) }
+fn local_base() -> std::path::PathBuf { test_data_dir().map(|d| d.join("local")).unwrap_or_else(|| dirs::data_local_dir().or_else(dirs::config_dir).unwrap_or(std::env::temp_dir())) }
+fn keyring_service() -> &'static str { if test_data_dir().is_some() { "NOBSSQL-Desktop-Test" } else { "NOBSSQL-Desktop" } }
+fn ssh_keyring() -> &'static str { if test_data_dir().is_some() { "NOBSSQL-Desktop-SSH-Test" } else { "NOBSSQL-Desktop-SSH" } }
+fn ssh_pw_get(name: &str) -> String { keyring::Entry::new(ssh_keyring(), name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
 fn ssh_pw_set(name: &str, pw: &str) {
-    if let Ok(e) = keyring::Entry::new(SSH_KEYRING, name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
+    if let Ok(e) = keyring::Entry::new(ssh_keyring(), name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
 }
 // The page never holds a saved connection's passwords: it names the connection (savedName) and the
 // password and SSH password are filled in here - but only for the address they were saved for. A
@@ -463,9 +474,9 @@ fn endpoint_key(c: &Value) -> (String, u16, String, String, u16, String) {
      t(&c["sshHost"]), port_of(&c["sshPort"], 22), c["sshUser"].as_str().unwrap_or("").trim().to_string())
 }
 fn profile_named(name: &str) -> Option<Value> { load_profiles().into_iter().find(|c| c["name"].as_str() == Some(name)) }
-fn db_pw_get(name: &str) -> String { keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
+fn db_pw_get(name: &str) -> String { keyring::Entry::new(keyring_service(), name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default() }
 fn db_pw_set(name: &str, pw: &str) {
-    if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
+    if let Ok(e) = keyring::Entry::new(keyring_service(), name) { if pw.is_empty() { let _ = e.delete_credential(); } else { let _ = e.set_password(pw); } }
 }
 // The password a connection is saved with: none when it is not to be saved, the one typed, or else
 // the one saved before - only while the address is the one it was saved for.
@@ -1492,11 +1503,11 @@ fn sql_lit(s: &str) -> String {
 }
 // ---------- mysql / mysqldump CLI resolution ----------
 fn config_file() -> std::path::PathBuf {
-    let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
+    let mut p = config_base();
     p.push("NOBSSQL-Desktop"); std::fs::create_dir_all(&p).ok(); p.push("config.json"); p
 }
 fn log_line(msg: &str) {
-    let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
+    let mut p = config_base();
     p.push("NOBSSQL-Desktop"); let _ = std::fs::create_dir_all(&p); p.push("log.txt");
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&p) {
         use std::io::Write as _;
@@ -1510,12 +1521,12 @@ fn load_cfg() -> Value {
 // sign-in and sign-out on a network with roaming profiles, and a hundred megabytes of programs has
 // no business there. Settings stay in the roaming one, where settings belong.
 fn tools_dir() -> std::path::PathBuf {
-    let mut p = dirs::data_local_dir().or_else(dirs::config_dir).unwrap_or(std::env::temp_dir());
+    let mut p = local_base();
     p.push("NOBSSQL-Desktop"); p.push("bin"); p
 }
 // Where downloads went before - tools already there keep working from the paths saved for them.
 fn tools_dir_old() -> std::path::PathBuf {
-    let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
+    let mut p = config_base();
     p.push("NOBSSQL-Desktop"); p.push("bin"); p
 }
 fn ver_key(s: &str) -> Vec<u64> {
@@ -3640,7 +3651,7 @@ fn csv_import_columns(csv_cols: &[String], table_cols: &[String]) -> Result<Vec<
 
 // ---------- connection profiles (config file + OS keychain) ----------
 fn conn_path() -> std::path::PathBuf {
-    let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
+    let mut p = config_base();
     p.push("NOBSSQL-Desktop"); std::fs::create_dir_all(&p).ok(); p.push("connections.json"); p
 }
 fn load_profiles() -> Vec<Value> {
@@ -3659,7 +3670,7 @@ async fn conn_list(_req: Value) -> R {
     // logs or uses the returned secret itself for anything beyond that.
     let items: Vec<Value> = load_profiles().into_iter().map(|c| {
         let name = c["name"].as_str().unwrap_or("");
-        let has_password = keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).is_some();
+        let has_password = keyring::Entry::new(keyring_service(), name).ok().and_then(|e| e.get_password().ok()).is_some();
         json!({
             "name": c["name"], "host": c["host"], "port": c["port"], "user": c["user"], "ssl": c["ssl"],
             "sslCa": c["sslCa"], "clearPw": c["clearPw"].as_bool().unwrap_or(false), "sshHost": c["sshHost"], "sshPort": c["sshPort"], "sshUser": c["sshUser"], "sshKey": c["sshKey"],
@@ -3721,7 +3732,7 @@ async fn conn_save(req: Value) -> R {
 #[tauri::command]
 async fn conn_delete(req: Value) -> R {
     let name = req["name"].as_str().unwrap_or("").to_string();
-    if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", &name) { let _ = e.delete_credential(); }
+    if let Ok(e) = keyring::Entry::new(keyring_service(), &name) { let _ = e.delete_credential(); }
     ssh_pw_set(&name, "");
     let list: Vec<Value> = load_profiles().into_iter().filter(|c| c["name"].as_str() != Some(&name)).collect();
     save_profiles(&list);
@@ -3748,7 +3759,7 @@ async fn conn_primary(req: Value) -> R {
 async fn conn_clear(_req: Value) -> R {
     for c in load_profiles() {
         if let Some(name) = c["name"].as_str() {
-            if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", name) { let _ = e.delete_credential(); }
+            if let Ok(e) = keyring::Entry::new(keyring_service(), name) { let _ = e.delete_credential(); }
             ssh_pw_set(name, "");
         }
     }
@@ -3768,7 +3779,7 @@ struct ColumnDef { name: String, ctype: String, nullable: String, default: Optio
 fn resolve_saved_conn(name: &str) -> Result<(Value, bool), String> {
     let c = load_profiles().into_iter().find(|c| c["name"].as_str() == Some(name))
         .ok_or_else(|| "Connection not found.".to_string())?;
-    let pass = keyring::Entry::new("NOBSSQL-Desktop", name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
+    let pass = keyring::Entry::new(keyring_service(), name).ok().and_then(|e| e.get_password().ok()).unwrap_or_default();
     // Saved connections are what Compare uses, and Compare reads TIMESTAMP values as text on one
     // server and writes that text on the other. Each server reads it in its own session time zone,
     // so between servers in different zones every copied TIMESTAMP moved by the difference (Zurich
@@ -4831,7 +4842,7 @@ async fn compare_apply(req: Value) -> R {
 // Saved-query library (favorites), mirrors the PowerShell version's Load-Lib/Save-Lib -
 // a flat JSON array of {name, sql, schema, ts} stored alongside connections.json.
 fn lib_path() -> std::path::PathBuf {
-    let mut p = dirs::config_dir().unwrap_or(std::env::temp_dir());
+    let mut p = config_base();
     p.push("NOBSSQL-Desktop"); std::fs::create_dir_all(&p).ok(); p.push("library.json"); p
 }
 fn load_lib() -> Vec<Value> {
@@ -5306,6 +5317,17 @@ fn tool_path_problem(path: &str, kind: &str) -> Option<&'static str> {
     None
 }
 
+fn ui_zoom_of(v: &str) -> Option<f64> { v.trim().parse::<f64>().ok().filter(|z| (0.5..=2.0).contains(z)) }
+// The window's zoom, as Ctrl + and Ctrl - in a browser: everything scales, so the layout holds and
+// every position the page works out from the mouse still matches.
+#[tauri::command]
+fn set_zoom(app: tauri::AppHandle, req: Value) -> R {
+    use tauri::Manager;
+    let z = req["zoom"].as_f64().filter(|z| (0.5..=2.0).contains(z)).ok_or("the zoom has to be a number from 0.5 to 2")?;
+    let w = app.get_webview_window("main").ok_or("no window")?;
+    w.set_zoom(z).map_err(|e| e.to_string())?;
+    Ok(json!({"ok":true}))
+}
 // Why Settings may not save this key with this value, or None when it may.
 fn config_entry_problem(k: &str, v: &str) -> Option<String> {
     const TOOLS: &[(&str, &str)] = &[("mysql_bin", "mysql"), ("mysqldump_bin", "mysqldump"), ("mysql_bin_mysql", "mysql"), ("mysqldump_bin_mysql", "mysqldump")];
@@ -5315,6 +5337,10 @@ fn config_entry_problem(k: &str, v: &str) -> Option<String> {
     }
     if k == "mariadb_download_url_template" {
         return (!v.is_empty() && !v.starts_with("https://")).then(|| "the download address has to start with https://".to_string());
+    }
+    // The interface zoom (Settings -> General): a factor from 0.5 to 2.
+    if k == "ui_zoom" {
+        return (!v.is_empty() && ui_zoom_of(v).is_none()).then(|| "the zoom has to be a number from 0.5 to 2".to_string());
     }
     Some(format!("{k} cannot be set here"))
 }
@@ -5784,6 +5810,8 @@ fn main() {
                 if driven && !dir.is_empty() { builder = builder.data_directory(std::path::PathBuf::from(dir)); }
             }
             let w = builder.build()?;
+            // The zoom chosen in Settings, from the start.
+            if let Some(z) = load_cfg()["ui_zoom"].as_str().and_then(ui_zoom_of) { if z != 1.0 { let _ = w.set_zoom(z); } }
             // WebView2 fills fields in and offers to save passwords on its own, the same as the
             // browser it is built from. The page asks it not to (autocomplete="off" on every
             // field), but Chromium treats that as advice rather than instruction for its own
@@ -5812,7 +5840,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -7702,7 +7730,7 @@ mod compare_tests {
                 None    => { let _ = std::fs::remove_file(conn_path()); }
             }
             for n in [P_RW, P_RO] {
-                if let Ok(e) = keyring::Entry::new("NOBSSQL-Desktop", n) { let _ = e.delete_credential(); }
+                if let Ok(e) = keyring::Entry::new(keyring_service(), n) { let _ = e.delete_credential(); }
             }
         }
     }
@@ -7728,7 +7756,7 @@ mod compare_tests {
         ]);
         std::fs::write(conn_path(), serde_json::to_string_pretty(&profiles).unwrap()).unwrap();
         for n in [P_RW, P_RO] {
-            keyring::Entry::new("NOBSSQL-Desktop", n).unwrap().set_password(&pass).unwrap();
+            keyring::Entry::new(keyring_service(), n).unwrap().set_password(&pass).unwrap();
         }
         Some(guard)
     }
@@ -9096,6 +9124,10 @@ mod review_tests {
         assert!(config_entry_problem("mariadb_download_url_template", "http://mirror.example/x").is_some(), "not https");
         assert!(config_entry_problem("mysql_download_page", "https://evil.example").is_some(), "not a Settings key");
         assert!(config_entry_problem("anything", "").is_some());
+        assert_eq!(config_entry_problem("ui_zoom", "1.25"), None);
+        assert_eq!(config_entry_problem("ui_zoom", ""), None, "emptied: back to 100%");
+        assert!(config_entry_problem("ui_zoom", "3").is_some(), "more than 2");
+        assert!(config_entry_problem("ui_zoom", "big").is_some(), "not a number");
     }
 
     #[test]
