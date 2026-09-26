@@ -104,13 +104,15 @@ test('the CA field only shows for the modes that use it', () => {
 });
 
 test('every SSL mode list offers verify-ca', () => {
-  // Three separate lists - the inline form and two dialogs - that have to agree. A mode missing
-  // from one of them means a connection saved with it cannot be edited without silently changing.
-  const inline = html.match(/<select id="ssl"[\s\S]*?<\/select>/);
-  assert.ok(inline && /value="verify-ca"/.test(inline[0]), 'the inline SSL select lacks verify-ca');
-  const dialogs = html.match(/\{key:'ssl',label:'SSL',type:'select',options:\[[^\]]*\]/g) || [];
-  assert.ok(dialogs.length >= 2, `expected the save and edit dialogs, found ${dialogs.length}`);
-  for (const d of dialogs) assert.match(d, /value:'verify-ca'/, `a dialog SSL list lacks verify-ca:\n  ${d.slice(0, 120)}`);
+  // Two separate lists - the inline form and the connection dialog (Save and Edit) - that have to
+  // agree. A mode missing from one of them means a connection saved with it cannot be edited
+  // without silently changing.
+  for (const [id, where] of [['ssl', 'the inline form'], ['cd_ssl', 'the connection dialog']]) {
+    const sel = html.match(new RegExp(`<select id="${id}"[\\s\\S]*?</select>`));
+    assert.ok(sel, `${where} has no SSL select`);
+    for (const mode of ['default', 'disabled', 'required', 'verify', 'verify-ca'])
+      assert.match(sel[0], new RegExp(`value="${mode}"`), `${where} lacks ${mode}`);
+  }
 });
 
 test('the CA is a path the app browses for, not a browser file input', () => {

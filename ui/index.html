@@ -252,6 +252,22 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .nullbtn:hover{color:var(--fg)}
  /* Edit row (form): each column's name above its field, the fields starting under the window's
     title; a field and its NULL button the same height as every other control. */
+ /* The connection dialog (Save / Edit connection): sections like Settings, pairs side by side
+    while the window is wide enough, one column when it is not. */
+ .cdbody{flex:1 1 auto;min-height:0;overflow:auto;padding:0 2px 0 0}
+ .cdbody .setgroup:first-child{margin-top:4px}
+ .cdrow{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin:0 0 10px}
+ .cdrow.cdnarrow{grid-template-columns:minmax(0,1fr) 110px}
+ .cdf{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;color:var(--muted)}
+ .cdf input:not([type=checkbox]),.cdf select{width:100%;box-sizing:border-box}
+ .cdf input[type=color]{height:28px;padding:2px}
+ .cdin{display:flex;gap:6px;min-width:0} .cdin input{flex:1;min-width:0}
+ .cdck{display:flex;align-items:center;gap:6px;margin:2px 0 8px;font-size:13px;color:var(--fg)}
+ .cdnote{font-size:11px;line-height:1.45;color:var(--muted);margin:-4px 0 10px}
+ .cdfoot{flex:none;display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd2)}
+ .cdmsg{font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .cdmsg.ok{color:#3fb950} .cdmsg.err{color:var(--danger)}
+ @media (max-width:720px){.cdrow,.cdrow.cdnarrow{grid-template-columns:1fr}}
  .rfField{margin:0 0 10px}
  .rfLabel{display:flex;align-items:baseline;gap:6px;margin:0 0 4px;font-size:12px;color:var(--muted);min-width:0}
  .rfLabel b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -958,6 +974,28 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div class="modal floating" id="mInput"><div class="box" style="width:460px;max-width:92vw;display:flex;flex-direction:column;overflow:hidden;top:90px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInput')" title="Drag to move"><h3 id="inpTitle" style="margin:0 0 10px">Input</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInput')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="inpFields" style="flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>
  <div class="row" style="justify-content:flex-end;margin-top:6px;flex:none"><button class="go" id="inpOk" onclick="inpOk()">OK</button><button onclick="inpCancel()">Cancel</button></div></div></div>
+<div class="modal floating" id="mConn"><div class="box" style="width:640px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;top:50px;left:220px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mConn')" title="Drag to move"><h3 id="cdTitle" style="margin:0 0 10px">Connection</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mConn')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
+ <div class="cdbody" onkeydown="if(event.key==='Enter'&&event.target.tagName==='INPUT'&&event.target.type!=='checkbox'){event.preventDefault();cdOk();}">
+  <div class="cdrow cdnarrow"><label class="cdf">Name<input id="cd_name" maxlength="60" autocomplete="off" spellcheck="false"></label><label class="cdf" title="Its colour in the bar - to tell servers apart at a glance">Colour<input id="cd_color" type="color"></label></div>
+  <div class="setgroup">Server</div>
+  <div class="cdrow cdnarrow"><label class="cdf">Host<input id="cd_host" autocomplete="off" spellcheck="false" placeholder="127.0.0.1"></label><label class="cdf">Port<input id="cd_port" inputmode="numeric" autocomplete="off" placeholder="3306"></label></div>
+  <div class="cdrow"><label class="cdf">User<input id="cd_user" autocomplete="off" spellcheck="false"></label><label class="cdf">Password<span class="cdin"><input id="cd_pass" type="password" autocomplete="new-password" name="mwt_secret" data-lpignore="true" data-form-type="other" spellcheck="false"><button type="button" class="sm" title="Show or hide the password" onclick="const i=$('cd_pass');i.type=i.type==='password'?'text':'password';">&#128065;</button></span></label></div>
+  <label class="cdck"><input type="checkbox" id="cd_savepw"> Save the password</label>
+  <div class="setgroup">Security</div>
+  <div class="cdrow"><label class="cdf">SSL<select id="cd_ssl" onchange="cdSync()"><option value="default">default</option><option value="disabled">disabled</option><option value="required">required</option><option value="verify">verify (CA and host name)</option><option value="verify-ca">verify-ca (CA only)</option></select></label><label class="cdf" id="cd_caWrap">CA certificate<span class="cdin"><input id="cd_ca" placeholder="the system trust store" spellcheck="false"><button type="button" class="sm" onclick="browse({title:'Select CA certificate',filter:'*.pem',mode:'file',onPick:p=>{$('cd_ca').value=p;}})">Browse...</button></span></label></div>
+  <div class="cdnote" id="cd_sslNote"></div>
+  <label class="cdck" id="cd_pamWrap" title="Only tick this if your database admin set the account up for PAM or LDAP. Such an account needs the password sent as you typed it. With SSL set to &quot;verify&quot; that is always safe. With &quot;required&quot; or &quot;default&quot; the app cannot check it is talking to the real server, so tick it only on a network you trust."><input type="checkbox" id="cd_clearpw"> This account signs in through PAM or LDAP</label>
+  <div class="setgroup"><label class="cdck" style="margin:0;font-size:inherit;color:inherit;letter-spacing:inherit"><input type="checkbox" id="cd_useSsh" onchange="cdSync()"> SSH tunnel</label></div>
+  <div id="cd_ssh">
+   <div class="cdrow cdnarrow"><label class="cdf">SSH host<input id="cd_sshHost" spellcheck="false" placeholder="bastion.example.com, or a host alias from ~/.ssh/config"></label><label class="cdf">SSH port<input id="cd_sshPort" inputmode="numeric" placeholder="22"></label></div>
+   <div class="cdrow"><label class="cdf">SSH user<input id="cd_sshUser" spellcheck="false"></label><label class="cdf">SSH password<input id="cd_sshPass" type="password" autocomplete="new-password" data-lpignore="true" placeholder="only if the server asks for one"></label></div>
+   <div class="cdrow" style="grid-template-columns:1fr"><label class="cdf">Private key file<span class="cdin"><input id="cd_sshKey" spellcheck="false" placeholder="the SSH agent and ~/.ssh"><button type="button" class="sm" onclick="browse({title:'Select private key file',filter:'*.*',mode:'file',onPick:p=>{$('cd_sshKey').value=p;}})">Browse...</button></span></label></div>
+  </div>
+  <div class="setgroup">Options</div>
+  <div class="cdrow"><label class="cdf">Environment label<input id="cd_env" maxlength="40" placeholder="e.g. Production, Dev"></label></div>
+  <label class="cdck"><input type="checkbox" id="cd_ro"> Read-only / safe mode - block all writes</label>
+ </div>
+ <div class="cdfoot"><button type="button" id="cdTestBtn" onclick="cdTest()" data-ic="plug">Test connection</button><span class="cdmsg" id="cdMsg"></span><span style="flex:1"></span><button class="go" id="cdOkBtn" onclick="cdOk()">Save</button><button onclick="cdClose(null)">Cancel</button></div></div></div>
 <div class="modal floating" id="mLib"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mLib')" title="Drag to move"><h3 style="margin:0 0 10px">Query library</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mLib')" title="Maximize" id="maxBtn_mLib" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mLib')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><input id="libName" placeholder="Name for the current query" maxlength="80" style="flex:1" onkeydown="if(event.key==='Enter')libSaveCurrent()"><button class="go" onclick="libSaveCurrent()">Save current query</button></div>
  <div class="row" style="flex:none"><input id="libSearch" placeholder="Search saved queries..." oninput="libRender()" style="flex:1"></div>
@@ -1182,7 +1220,8 @@ async function apiCall(path,p,signal){p=p||{};p.token=TOKEN;
  // it is the profile being saved. Overwriting it made Save, Edit, Clone and Forget-password
  // store the CONNECTED server's host, port, user, SSL settings and CA - and hand its password to
  // the keychain under the other profile's name - whenever you were connected somewhere else.
- if(path==='/api/connect'){p.conn=getConn();p.ro=!!window.readOnly;}
+ // Test connection in the connection dialog is the other: it tries the values in the dialog.
+ if(path==='/api/connect'){if(!(p.test&&p.conn))p.conn=getConn();p.ro=!!window.readOnly;}
  else if(path==='/api/conn-save'&&p.conn){p.ro=false;}
  else{p.conn=window._activeConn||getConn();p.ro=(window._activeConn?!!window._activeReadOnly:!!window.readOnly);}
  // Browsing in another character set makes every request read-only whatever the profile says. The
@@ -2165,25 +2204,49 @@ async function pickConn() {
 // it (matching the backend's existing same-name-means-update behavior); a different name saves
 // a new, separate one, leaving the original untouched. "Edit..." remains the place to
 // deliberately change a saved connection's details regardless of what's currently loaded live.
+// The connection dialog, for Save and for Edit: the fields in sections, those that do not apply out
+// of sight - the CA for the modes that check one, the SSH fields while there is no tunnel - and a
+// Test that tries the values in the dialog before anything is saved. It hands back the same fields
+// the input box did.
+const SSL_NOTES={default:'Encrypted when the server offers it, otherwise not. The server\'s certificate is not checked.',
+ disabled:'Never encrypted.',required:'Always encrypted. The server\'s certificate is not checked.',
+ verify:'Always encrypted, and the server is checked against the CA and its host name.',
+ 'verify-ca':'Always encrypted, and the server is checked against the CA but not its host name - for the certificates MySQL and MariaDB make for themselves.'};
+let _cd=null;
+function connDialog(o){return new Promise(resolve=>{if(_cd)_cd.resolve(null);const v=o.values||{};_cd={resolve,savedName:o.savedName||''};
+ $('cdTitle').textContent=o.title;$('cdOkBtn').textContent=o.okText||'Save';$('cdMsg').textContent='';$('cdMsg').className='cdmsg';
+ const set=(id,x)=>{$(id).value=x==null?'':x;};
+ set('cd_name',v.name);$('cd_color').value=v.color||'#3b82f6';set('cd_host',v.host);set('cd_port',v.port);set('cd_user',v.user);
+ const pw=$('cd_pass');pw.type='password';set('cd_pass',v.password);pw.placeholder=v.savedPw?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'';pw.classList.toggle('pwsaved',!!v.savedPw);
+ $('cd_savepw').checked=!!v.savepw;$('cd_ssl').value=v.ssl||'default';set('cd_ca',v.sslCa);$('cd_clearpw').checked=!!v.clearPw;
+ $('cd_useSsh').checked=!!v.sshHost;set('cd_sshHost',v.sshHost);set('cd_sshPort',v.sshPort);set('cd_sshUser',v.sshUser);set('cd_sshKey',v.sshKey);
+ const sp=$('cd_sshPass');set('cd_sshPass','');sp.placeholder=v.hasSshPassword?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'only if the server asks for one';sp.classList.toggle('pwsaved',!!v.hasSshPassword);
+ set('cd_env',v.env);$('cd_ro').checked=!!v.ro;
+ cdSync();show('mConn');const nm=$('cd_name');nm.focus();nm.select();});}
+function cdSync(){const ssl=$('cd_ssl').value;
+ $('cd_caWrap').style.display=/^verify/.test(ssl)?'':'none';$('cd_sslNote').textContent=SSL_NOTES[ssl]||'';
+ $('cd_pamWrap').style.display=ssl==='disabled'?'none':'';$('cd_ssh').style.display=$('cd_useSsh').checked?'':'none';}
+function cdVals(){const g=id=>$(id).value,ssh=$('cd_useSsh').checked;
+ return {name:g('cd_name'),host:g('cd_host').trim(),port:g('cd_port').trim(),user:g('cd_user'),password:g('cd_pass'),ssl:g('cd_ssl'),sslCa:/^verify/.test(g('cd_ssl'))?g('cd_ca').trim():'',
+  clearPw:$('cd_clearpw').checked&&g('cd_ssl')!=='disabled',useSsh:ssh,sshHost:ssh?g('cd_sshHost').trim():'',sshPort:ssh?g('cd_sshPort').trim():'',sshUser:ssh?g('cd_sshUser').trim():'',
+  sshKey:ssh?g('cd_sshKey').trim():'',sshPassword:ssh?g('cd_sshPass'):'',color:$('cd_color').value,env:g('cd_env'),ro:$('cd_ro').checked,savepw:$('cd_savepw').checked};}
+function cdClose(res){hide('mConn');const c=_cd;_cd=null;if(c)c.resolve(res);}
+function cdOk(){const v=cdVals();if(!v.name.trim()){toast('Give the connection a name.',true);$('cd_name').focus();return;}
+ if(!v.host){toast('Give the server\'s host.',true);$('cd_host').focus();return;}cdClose(v);}
+// Tries the values in the dialog - a saved password left untouched included, for the address it was
+// saved for (resolve_saved) - without saving or connecting anything.
+async function cdTest(){if(!_cd)return;const v=cdVals(),m=$('cdMsg'),b=$('cdTestBtn');m.className='cdmsg';m.textContent='Testing...';b.disabled=true;
+ try{const r=await api('/api/connect',{test:true,conn:{savedName:_cd.savedName,host:v.host,port:v.port,user:v.user,password:v.password,ssl:v.ssl,sslCa:v.sslCa,clearPw:v.clearPw,...sshOf(v)}});
+  if(r&&r.ok){m.className='cdmsg ok';m.textContent='Connected - '+(r.version||'the server answers');m.title='';}
+  else{const e=String((r&&r.error)||'failed');m.className='cdmsg err';m.textContent=e.split('\n')[0];m.title=e;}}
+ catch(e){m.className='cdmsg err';m.textContent=String(e);}finally{b.disabled=false;}}
 async function saveConn(){
  const n0=$('connlist').value;
  const m0=n0?(connMeta()[n0]||{}):{};
  const dn=n0||($('user').value+'@'+$('host').value);
- const res=await inputBox({title:'Save connection',okText:'Save',fields:[
-  {key:'name',label:'Save connection as',value:dn,maxlength:60},
-  {key:'host',label:'Host',value:$('host').value},
-  {key:'port',label:'Port',value:$('port').value},
-  {key:'user',label:'User',value:$('user').value},
-  {key:'password',label:'Password',type:'password',value:$('pass').value,placeholder:n0&&(window._connPw||{})[n0]?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!(n0&&(window._connPw||{})[n0])},
-  {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:$('ssl').value},
-  {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:$('sslca').value},
-  {key:'clearPw',label:'This account signs in through PAM or LDAP',title:'Only tick this if your database admin set the account up for PAM or LDAP. Such an account needs the password sent as you typed it. With SSL set to "verify" that is always safe. With "required" or "default" the app cannot check it is talking to the real server, so tick it only on a network you trust.',type:'checkbox',value:$('clearpw').checked},
-  ...sshFields(getConn(),true),
-  {key:'color',label:'Accent color (tell servers apart at a glance)',type:'color',value:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6'},
-  {key:'env',label:'Environment label (e.g. Production, Dev) - optional',value:m0.env||'',maxlength:40},
-  {key:'ro',label:'Read-only / safe mode (block all writes)',type:'checkbox',value:!!m0.readonly},
-  {key:'savepw',label:'Save password (unchecked = type it each time)',type:'checkbox',value:n0?!!($('pass').value||(window._connPw||{})[n0]):true}
- ]});
+ const pw0=!!(n0&&(window._connPw||{})[n0]),c0=getConn();
+ const res=await connDialog({title:'Save connection',okText:'Save',savedName:n0,values:{name:dn,host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,savedPw:pw0,
+  ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,...sshOf(c0),color:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6',env:m0.env||'',ro:!!m0.readonly,savepw:n0?!!($('pass').value||pw0):true}});
  if(!res||!res.name.trim())return;const n=res.name.trim();
  const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0||''});
  if(!r.ok){toast(r.error,true);return;}
@@ -2199,21 +2262,8 @@ async function saveConn(){
 async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a saved connection to edit first.',true);return;}
  const g=await api('/api/conn-get',{name:n0});if(!g.ok){toast('Could not load connection.',true);return;}
  const m0=connMeta()[n0]||{};
- const res=await inputBox({title:'Edit connection',okText:'Save',fields:[
-  {key:'name',label:'Name',value:n0,maxlength:60},
-  {key:'host',label:'Host',value:g.conn.host},
-  {key:'port',label:'Port',value:g.conn.port},
-  {key:'user',label:'User',value:g.conn.user},
-  {key:'password',label:'Password',type:'password',value:'',placeholder:g.conn.hasPassword?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!g.conn.hasPassword},
-  {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:g.conn.ssl},
-  {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:g.conn.sslCa||''},
-  {key:'clearPw',label:'This account signs in through PAM or LDAP',title:'Only tick this if your database admin set the account up for PAM or LDAP. Such an account needs the password sent as you typed it. With SSL set to "verify" that is always safe. With "required" or "default" the app cannot check it is talking to the real server, so tick it only on a network you trust.',type:'checkbox',value:!!g.conn.clearPw},
-  ...sshFields(g.conn,true),
-  {key:'color',label:'Accent color',type:'color',value:accMap()[n0]||'#3b82f6'},
-  {key:'env',label:'Environment label (optional)',value:m0.env||'',maxlength:40},
-  {key:'ro',label:'Read-only / safe mode (block all writes)',type:'checkbox',value:!!m0.readonly},
-  {key:'savepw',label:'Save password (uncheck to remove the saved password)',type:'checkbox',value:!!(g.ok&&g.conn.hasPassword)}
- ]});
+ const res=await connDialog({title:'Edit connection',okText:'Save',savedName:n0,values:{name:n0,host:g.conn.host,port:g.conn.port,user:g.conn.user,password:'',savedPw:!!g.conn.hasPassword,
+  ssl:g.conn.ssl,sslCa:g.conn.sslCa,clearPw:!!g.conn.clearPw,...sshOf(g.conn),hasSshPassword:!!g.conn.hasSshPassword,color:accMap()[n0]||'#3b82f6',env:m0.env||'',ro:!!m0.readonly,savepw:!!g.conn.hasPassword}});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
  const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0});if(!r.ok){toast(r.error,true);return;}
  if(nn!==n0){await api('/api/conn-delete',{name:n0});}
@@ -3499,7 +3549,7 @@ document.addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey;if(!mod)r
 // the scan keeps going in the background against a now-hidden dialog. Escape used to call hide()
 // directly and skip all of that, so it behaved differently from clicking Close on the exact same
 // window - this map lets Escape reuse each modal's own close function where one exists.
-const MODAL_CLOSE_OVERRIDES={mCompare:cmpCloseAndCancel,mCompareRows:cmprCloseAndCancel,mBrowse:brClose,mInput:inpCancel};
+const MODAL_CLOSE_OVERRIDES={mCompare:cmpCloseAndCancel,mCompareRows:cmprCloseAndCancel,mBrowse:brClose,mInput:inpCancel,mConn:()=>cdClose(null)};
 // Shared by the Escape handler below AND the minimized-window tray's own × (floatRenderTray) -
 // both are ways to close a modal that DON'T go through its own Close button, so both need the
 // same override lookup. Missing this on the tray's × specifically would have been a real
