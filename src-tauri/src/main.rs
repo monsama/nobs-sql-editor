@@ -5903,6 +5903,19 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn a_transfer_script_gives_back_what_it_was_made_from() {
+        // MariaDB 10.2 on the Windows CI runner now and then marks a grant table as crashed in the
+        // middle of a run - ERROR 1194, the server's own defect (see start-compat-servers.ps1). The
+        // table is repaired and the statement given once more, rather than the run failing on it.
+        fn query_drop_repairing(c: &mut Conn, sql: &str) -> Result<(), mysql::Error> {
+            match c.query_drop(sql) {
+                Err(mysql::Error::MySqlError(e)) if e.code == 1194 => {
+                    let table = e.message.split('\'').nth(1).unwrap_or("").to_string();
+                    if !table.is_empty() { let _ = c.query_drop(format!("REPAIR TABLE mysql.{}", sql_id(&table))); }
+                    c.query_drop(sql)
+                }
+                r => r,
+            }
+        }
         let Ok(dsn) = std::env::var("NOBS_TEST_DSN") else { return };
         let d: Vec<&str> = dsn.splitn(4, ':').collect();
         let conn = json!({"host":d[0],"port":d[1],"user":d[2],"password":d[3],"ssl":"default"});
@@ -5935,7 +5948,7 @@ mod tests {
                   "GRANT SELECT (id) ON nobs_test.ro_canary TO 'nobs_xfer_cols'@'localhost' WITH GRANT OPTION".into()];
         // A server without roles (MySQL 5.7) still transfers its accounts.
         for s in setup.iter().filter(|s| cap.roles() || !s.contains("ROLE") && !s.contains(role.as_str())) {
-            c.query_drop(s).unwrap_or_else(|e| panic!("setup {}: {}", s, e));
+            query_drop_repairing(&mut c, s).unwrap_or_else(|e| panic!("setup {}: {}", s, e));
         }
         let before = snap(&mut c);
         let others: Vec<String> = c.query("SELECT DISTINCT user FROM mysql.user WHERE user NOT LIKE 'nobs\\_xfer\\_%'").unwrap();
