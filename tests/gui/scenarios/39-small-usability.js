@@ -31,6 +31,13 @@
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     G.eq('Esc with nothing new to cancel changes nothing', $('host').value, before.host);
 
+    // F1 opens the list of shortcuts, as help does elsewhere
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }));
+    G.check('F1 opens the keyboard shortcuts', $('mShortcuts').classList.contains('show'));
+    const scBox = $('mShortcuts').querySelector('.box');
+    G.check('which fit the window without scrolling', scBox.scrollHeight <= innerHeight - 20 || innerHeight < 800, { box: scBox.scrollHeight, window: innerHeight });
+    hide('mShortcuts');
+
     // a folded list opens when its divider is dragged
     const sp = $('sideSplit'), sc = $('schemas'), ob = $('objects');
     const y0 = sp.getBoundingClientRect().top + 5;
