@@ -58,7 +58,7 @@ CREATE VIEW ${DB}.vw AS SELECT id FROM ${DB}.t;`);
     [...document.querySelectorAll('#ctx > .item')].find(x => own(x) === 'Call...').click();
     await G.until(() => tabs.length > n0, 5000);
     const ft = tabs[tabs.length - 1], fsql = $('ed_' + ft.id).value;
-    G.check('a function is called in a SELECT', /^SELECT `?nobs_gui_menus`?\.`?f`?\(\s+NULL\s+-- x int\s+\);$/i.test(fsql), fsql);
+    G.check('a function is called in a SELECT', /^SELECT `?nobs_gui_menus`?\.`?f`?\(\s+NULL\s+-- x int(\(\d+\))?\s+\);$/i.test(fsql), fsql); // int(11) on older servers
     closeTab(ft.id);
 
     // the database list

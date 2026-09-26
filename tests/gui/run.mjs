@@ -204,7 +204,9 @@ try {
         failed++; console.log(`  FAIL  ${f} stopped: ${e.message}`);
         break;
       } finally {
-        await page.evaluate(`(()=>{const keep=new Set(${JSON.stringify(tabsBefore)});[...tabs].forEach(t=>{if(!keep.has(t.id))closeTab(t.id);});G.toasts.length=0;return true;})()`).catch(() => {});
+        // Each scenario starts on a clean screen: its tabs closed, and no message of the one before it
+        // still on screen - a message that had not faded yet covered the grid a check aims at.
+        await page.evaluate(`(()=>{const keep=new Set(${JSON.stringify(tabsBefore)});[...tabs].forEach(t=>{if(!keep.has(t.id))closeTab(t.id);});G.toasts.length=0;const box=document.getElementById('toasts');if(box)box.replaceChildren();return true;})()`).catch(() => {});
       }
     }
     timings.push([f, Date.now() - began]);
