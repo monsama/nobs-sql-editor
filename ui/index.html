@@ -99,6 +99,9 @@
  #connlist{text-overflow:ellipsis}
  #connTags{position:absolute;right:22px;top:0;bottom:0;display:inline-flex;align-items:center;gap:5px;pointer-events:none}
  #pwChip{color:var(--muted);display:inline-flex}
+ /* A saved password is not in the page, so its box is empty: it says so in the text colour, with
+    dots, so it reads as filled rather than as a password nobody gave. */
+ input.pwsaved::placeholder{color:var(--fg);opacity:.85}
  /* The primary connection's star, beside the lock rather than in front of the name. */
  #primChip,#connListPop .clp{color:#f5c518;display:inline-flex;align-items:center}
  #connListPop .clp{width:13px;justify-content:center}
@@ -480,7 +483,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .toolbar.tight{gap:4px} .toolbar.tight .tbsep{margin:2px !important} .toolbar.tight [id^="resultActions_"],.toolbar.tight [id^="edit_"]{gap:4px !important} .toolbar.tight>label{margin-left:0 !important}
  .fit3 [id^="pager_"]{max-width:130px;overflow:hidden;white-space:nowrap} .fit3 [id^="pager_"]>span{overflow:hidden;text-overflow:ellipsis}
  #barRight{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px 9px;min-width:0} #topActions{display:contents} .tbchunk{display:inline-flex;gap:9px;align-items:center;white-space:nowrap}
- body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 4px 16px rgba(0,0,0,.35);min-width:180px;z-index:9999;padding:3px 0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:16px;font-weight:600} table.ovgrid{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2)}
+ body.ro .write{opacity:.4;pointer-events:none;filter:grayscale(45%);cursor:not-allowed} #ctx .item.rodis{opacity:.4;pointer-events:none;cursor:not-allowed} .ctxsub{display:none;position:absolute;background:var(--bg);border:1px solid var(--bd);border-radius:0;box-shadow:0 4px 14px rgba(0,0,0,.3);min-width:180px;z-index:9999;padding:0} .ctxsub .item{white-space:nowrap} #objects .item{display:flex;justify-content:space-between;gap:8px;align-items:center} #objects .onm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} #objects .osz{color:var(--muted);font-size:11px;flex:none} #overview h2{margin:2px 0 12px;font-size:16px;font-weight:600} table.ovgrid{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2)}
  /* Columns parted by a hairline as well as rows: eleven numbers across, and without them the
     eye loses which column it is in halfway along a wide window. */
  table.ovgrid th+th,table.ovgrid td+td{border-left:0}
@@ -1109,7 +1112,7 @@ function sshFields(c,grouped){const hasSshPw=!!(c&&c.hasSshPassword);c=sshOf(c);
  {key:'sshPort',label:'SSH port',value:c.sshPort,placeholder:'22'},
  {key:'sshUser',label:'SSH user',value:c.sshUser},
  {key:'sshKey',label:'Private key file (optional - defaults to the SSH agent and ~/.ssh)',type:'file',browseTitle:'Select private key file',placeholder:'e.g. C:\\Users\\me\\.ssh\\id_ed25519',value:c.sshKey},
- {key:'sshPassword',label:'SSH password (only if the server asks for one; a key is better)',type:'password',value:c.sshPassword,placeholder:hasSshPw?'saved - leave empty to keep it (while host, port and user stay the same)':''}];
+ {key:'sshPassword',label:'SSH password (only if the server asks for one; a key is better)',type:'password',value:c.sshPassword,placeholder:hasSshPw?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:hasSshPw}];
  if(!grouped)return f;
  return [{key:'useSsh',label:'Use SSH tunnel',type:'checkbox',value:!!c.sshHost,reveals:'ssh'},...f.map(x=>({...x,group:'ssh'}))];}
 // What a dialog says about SSH: nothing at all when its box is not ticked.
@@ -1719,7 +1722,7 @@ function inputBox(opts){return new Promise(res=>{_inpResolve=res;$('inpTitle').t
    // this exact field, silently overwriting the real value set below) so this field can't be
    // clobbered here either, whether or not the underlying WebView2 autosave setting is off.
    inp.autocomplete='new-password';inp.setAttribute('autocorrect','off');inp.setAttribute('autocapitalize','off');inp.spellcheck=false;inp.name='mwt_secret';inp.setAttribute('data-lpignore','true');inp.setAttribute('data-form-type','other');
-   if(f.value!=null)inp.value=f.value;inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();inpOk();}else if(e.key==='Escape'){e.preventDefault();inpCancel();}};const eye=document.createElement('span');eye.textContent='\u{1F441}';eye.title='Show/hide password';eye.style.cssText='position:absolute;right:6px;top:0;bottom:0;display:flex;align-items:center;line-height:1;cursor:pointer;font-size:13px;user-select:none;opacity:.7';eye.onclick=()=>{inp.type=(inp.type==='password')?'text':'password';};wrap.appendChild(inp);wrap.appendChild(eye);w.appendChild(lb);w.appendChild(wrap);box.appendChild(w);return;}
+   if(f.value!=null)inp.value=f.value;if(f.placeholder)inp.placeholder=f.placeholder;if(f.saved)inp.classList.add('pwsaved');inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();inpOk();}else if(e.key==='Escape'){e.preventDefault();inpCancel();}};const eye=document.createElement('span');eye.textContent='\u{1F441}';eye.title='Show/hide password';eye.style.cssText='position:absolute;right:6px;top:0;bottom:0;display:flex;align-items:center;line-height:1;cursor:pointer;font-size:13px;user-select:none;opacity:.7';eye.onclick=()=>{inp.type=(inp.type==='password')?'text':'password';};wrap.appendChild(inp);wrap.appendChild(eye);w.appendChild(lb);w.appendChild(wrap);box.appendChild(w);return;}
   // A path field: a plain text input plus the app's own file browser. Not <input type="file">,
   // which hands back a File object and deliberately never a real path - and a path is exactly
   // what has to be written into the options file. The button is a <button>, so inpOk()'s
@@ -2065,7 +2068,7 @@ function watchBar(row){if(!row||row.classList.contains('fitbar'))return;row.clas
 function watchTopBar(){watchBar($('barTop'));wireConnList();if(_barRO)new ResizeObserver(syncConnTags).observe($('connTags'));if(_barMO)new MutationObserver(()=>refit($('barTop'),true)).observe(document.body,{attributes:true,attributeFilter:['class']});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchTopBar);else watchTopBar();
 function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const n=$('connlist').value,hasPw=!!(window._connPw&&window._connPw[n]);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],hasPw&&['Clear saved password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with other details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items,{local:true});}
-async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n)setPass('');}else toast(r.error||'Failed',true);}
+async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will type it on next connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n){setPass('');passSavedMark(false);}}else toast(r.error||'Failed',true);}
 async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Failed',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
 async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
   // Just the name: the environment and READ-ONLY are the tag beside it, in the box and in its
@@ -2083,8 +2086,10 @@ function paintConnGo(){const go=$('connGo'),s=$('connlist');if(!go||!s)return;
  go.title=same?'Reconnect':'Connect to the connection picked in the list';go.setAttribute('aria-label',same?'Reconnect':'Connect');
  go.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+CONNGO_ICONS[k]+'</svg>';}
 function toggleConnForm(){document.body.classList.toggle('show-connform');}
-function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';$('ssl').value='default';$('sslca').value='';$('clearpw').checked=false;sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
+function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';passSavedMark(false);$('ssl').value='default';$('sslca').value='';$('clearpw').checked=false;sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
 function setPass(pw){const el=$('pass');if(el)el.value=pw;}
+// The top bar's password box, for a connection whose password is saved (and so not in the page).
+function passSavedMark(on){const el=$('pass');if(!el)return;el.classList.toggle('pwsaved',!!on);el.placeholder=on?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'';}
 async function pickConnGuarded(){
   if (anyPending() && !(await ask('You have unsaved grid edits open. Switching connections will leave them orphaned. Switch anyway?'))) return;
   return pickConn();
@@ -2118,7 +2123,7 @@ async function pickConn() {
         // which is exactly backwards from the point (knowing beforehand whether you'll need to
         // type a password). Simple icon rather than a text chip, so it doesn't compete for
         // width with the dropdown itself or wrap awkwardly at narrower window sizes.
-        const pwc=$('pwChip');if(pwc)pwc.style.display=_pw?'inline':'none';
+        const pwc=$('pwChip');if(pwc)pwc.style.display=_pw?'inline':'none';passSavedMark(_pw);
         // Env label / read-only chip: same "preview the selected connection, not the active
         // one" treatment as the password icon above. Uses renderEnvChip() only (not applyEnv())
         // so it's purely cosmetic here - window.readOnly/curEnv, and therefore actual write
@@ -2157,7 +2162,7 @@ async function saveConn(){
   {key:'host',label:'Host',value:$('host').value},
   {key:'port',label:'Port',value:$('port').value},
   {key:'user',label:'User',value:$('user').value},
-  {key:'password',label:'Password',type:'password',value:$('pass').value,placeholder:n0&&(window._connPw||{})[n0]?'saved - leave empty to keep it (while host, port and user stay the same)':''},
+  {key:'password',label:'Password',type:'password',value:$('pass').value,placeholder:n0&&(window._connPw||{})[n0]?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!(n0&&(window._connPw||{})[n0])},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:$('ssl').value},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:$('sslca').value},
   {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:$('clearpw').checked},
@@ -2172,7 +2177,7 @@ async function saveConn(){
  if(!r.ok){toast(r.error,true);return;}
  window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
  $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);
- const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[n]?'inline':'none';
+ const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[n]?'inline':'none';passSavedMark(!res.password&&(window._connPw||{})[n]);
 }
 // Edits a saved connection entirely within its own dialog - host/port/user/password/ssl are
 // fields here directly, fetched fresh from the actual saved data, rather than the dialog only
@@ -2187,7 +2192,7 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'host',label:'Host',value:g.conn.host},
   {key:'port',label:'Port',value:g.conn.port},
   {key:'user',label:'User',value:g.conn.user},
-  {key:'password',label:'Password',type:'password',value:'',placeholder:g.conn.hasPassword?'saved - leave empty to keep it (while host, port and user stay the same)':''},
+  {key:'password',label:'Password',type:'password',value:'',placeholder:g.conn.hasPassword?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!g.conn.hasPassword},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:g.conn.ssl},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:g.conn.sslCa||''},
   {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:!!g.conn.clearPw},
@@ -2204,7 +2209,7 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
  // If this connection is the one currently loaded into the (largely internal, now rarely
  // shown) inline form, keep it in sync with what was just saved - otherwise a subsequent
  // Connect click would silently use stale values from before the edit.
- if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[nn]?'inline':'none';}
+ if($('connlist').value===nn){$('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[nn]?'inline':'none';passSavedMark(!res.password&&(window._connPw||{})[nn]);}
  log('Updated connection: '+nn);}
 async function cloneConn(){const n0=$('connlist').value;
  if(n0){const g=await api('/api/conn-get',{name:n0});if(g.ok){$('host').value=g.conn.host;$('port').value=g.conn.port;$('user').value=g.conn.user;$('ssl').value=g.conn.ssl;$('sslca').value=g.conn.sslCa||'';$('clearpw').checked=!!g.conn.clearPw;sslCaToggle();sshSet(g.conn);$('pass').value='';}}
@@ -5365,7 +5370,8 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   const pickRows=sel?null:new Set([...(t.cellSel||[])].map(k=>+k.split(':')[0]).filter(r=>pickView.has(r)));
   const nexp=sel?nsel:pickRows.size,exl=sel?nsel+' selected':nexp+' row'+(nexp===1?'':'s')+' with picked cells';
   const onRows=fn=>sel?fn:async()=>{const old=t.selected;t.selected=pickRows;try{await fn();}finally{t.selected=old;}};
-  items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],nexp&&['Export to CSV ('+exl+')...',onRows(()=>csvSel(id))],['Export to INSERTs (all rows)...',()=>insGrid(id)],nexp&&['Export to INSERTs ('+exl+')...',onRows(()=>insSel(id))],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],nexp&&['Export to Excel ('+exl+')...',onRows(()=>exportRowsAs(id,'xlsx',true))],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],nexp&&['Export to JSON ('+exl+')...',onRows(()=>exportRowsAs(id,'json',true))],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],nexp&&['Export to Markdown ('+exl+')...',onRows(()=>exportRowsAs(id,'md',true))],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
+  // The exports in one submenu, each format with its all-rows and its selected-rows form together.
+  items.push(['Export',[['CSV (all rows)...',()=>csvGrid(id)],nexp&&['CSV ('+exl+')...',onRows(()=>csvSel(id))],'-',['INSERTs (all rows)...',()=>insGrid(id)],nexp&&['INSERTs ('+exl+')...',onRows(()=>insSel(id))],'-',['Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],nexp&&['Excel ('+exl+')...',onRows(()=>exportRowsAs(id,'xlsx',true))],'-',['JSON (all rows)...',()=>exportRowsAs(id,'json')],nexp&&['JSON ('+exl+')...',onRows(()=>exportRowsAs(id,'json',true))],'-',['Markdown (all rows)...',()=>exportRowsAs(id,'md')],nexp&&['Markdown ('+exl+')...',onRows(()=>exportRowsAs(id,'md',true))]]],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks

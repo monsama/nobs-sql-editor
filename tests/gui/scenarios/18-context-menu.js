@@ -2,7 +2,9 @@
 // no "(selected)" commands when nothing is ticked, and nothing that edits a result that cannot be
 // edited. Each of those used to be offered and then answer with a toast saying why not.
 (async () => {
-  const items = () => [...document.querySelectorAll('#ctx > .item')].map(d => d.textContent.replace(/\s+▸$/, ''));
+  const own = d => [...d.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+▸$/, '');
+  // Each entry by its own label; an entry of a submenu as "Parent > entry".
+  const items = () => [...document.querySelectorAll('#ctx > .item')].flatMap(d => [own(d), ...[...d.querySelectorAll(':scope > .ctxsub > .item')].map(s => own(d) + ' > ' + own(s))]);
   const parts = () => [...document.querySelectorAll('#ctx > *')].map(d => d.className);
   const open = async (id, ri, ci) => { await cellMenu({ preventDefault() {}, clientX: 40, clientY: 40 }, id, ri, ci); return items(); };
 
@@ -44,7 +46,7 @@
   T(i).selected = new Set([0, 1]);
   m = await open(i, 0, 0);
   G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 7 : 6); // copy, delete (when it can be edited) and the five exports
-  G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export to CSV (2 selected)...'), m);
+  G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export > CSV (2 selected)...'), m);
   // the single overwrite takes one row and one only; several copied rows can go over the same
   // number of ticked ones instead
   window._rowsClipboard = [T(i).cols.map((c, ci) => T(i).rows[0][ci]), T(i).cols.map((c, ci) => T(i).rows[1][ci])];
@@ -87,7 +89,7 @@
   await G.until(() => T(j).rows && T(j).rows.length, 20000);
   m = await open(j, 0, 0);
   G.check('a result with no key is not offered edits or pastes', !m.includes('Set NULL') && !m.includes('Set empty') && !m.some(x => /^Paste/.test(x)), m);
-  G.check('but is still copied and exported', m.includes('Copy value') && m.some(x => /Export to CSV \(all/.test(x)), m);
+  G.check('but is still copied and exported', m.includes('Copy value') && m.some(x => /Export > CSV \(all/.test(x)), m);
 
   // "Copy value as hex" is a second command only where it would do something else: the plain copy
   // decodes a value written as hex, so on a name or a number the two are the same thing.

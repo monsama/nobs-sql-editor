@@ -3,9 +3,11 @@
 // spreadsheet) or into as many picked cells. What is pasted is the value itself - NULL stays NULL.
 (async () => {
   const DB = 'nobs_gui_cellpaste';
-  const items = () => [...document.querySelectorAll('#ctx > .item')].map(d => d.textContent.replace(/\s+▸$/, ''));
+  const own = d => [...d.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+▸$/, '');
+  // Each entry by its own label; an entry of a submenu as "Parent > entry".
+  const items = () => [...document.querySelectorAll('#ctx > .item')].flatMap(d => [own(d), ...[...d.querySelectorAll(':scope > .ctxsub > .item')].map(s => own(d) + ' > ' + own(s))]);
   const open = async (id, ri, ci) => { await cellMenu({ preventDefault() {}, clientX: 40, clientY: 40 }, id, ri, ci); return items(); };
-  const click = label => { const it = [...document.querySelectorAll('#ctx > .item')].find(d => d.textContent === label); if (it) it.click(); $('ctx').style.display = 'none'; return !!it; };
+  const click = label => { const it = [...document.querySelectorAll('#ctx .item')].find(d => own(d) === label); if (it) it.click(); $('ctx').style.display = 'none'; return !!it; };
   // The text copy to the system clipboard needs a permission a test browser does not have; what is
   // tested is the values kept for Paste.
   const realCopy = copyText; copyText = () => {};
@@ -71,8 +73,8 @@ INSERT INTO ${DB}.t VALUES (1,'a1','b1'),(2,'a2',NULL),(3,'a3','b3');`);
     const m3 = await open(id, 0, A);
     G.check('Set 2 picked cells to NULL is offered', m3.includes('Set 2 picked cells to NULL'), m3);
     // cells picked on two rows export those rows
-    G.check('and the exports offer their 2 rows', m3.includes('Export to CSV (2 rows with picked cells)...') && m3.includes('Export to Markdown (2 rows with picked cells)...'), m3);
-    const csv = await (async () => { let out = null; const realDl = dl; dl = (text) => { out = text; }; try { click('Export to CSV (2 rows with picked cells)...'); await G.wait(200); } finally { dl = realDl; } return out; })();
+    G.check('and the exports offer their 2 rows', m3.includes('Export > CSV (2 rows with picked cells)...') && m3.includes('Export > Markdown (2 rows with picked cells)...'), m3);
+    const csv = await (async () => { let out = null; const realDl = dl; dl = (text) => { out = text; }; try { click('CSV (2 rows with picked cells)...'); await G.wait(200); } finally { dl = realDl; } return out; })();
     G.check('which holds those two rows', !!csv && /a1/.test(csv) && /a2/.test(csv) && !/a3/.test(csv), csv);
     G.eq('and the ticks are left as they were', t.selected.size, 0);
 
