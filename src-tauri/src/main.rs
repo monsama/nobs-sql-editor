@@ -1911,7 +1911,8 @@ async fn schema_erd(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
         let db = sql_str_lit(req["db"].as_str().unwrap_or(""));
         let mut c = build_conn(&req["conn"])?;
-        let (_c1, columns) = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA={} ORDER BY TABLE_NAME, ORDINAL_POSITION", db))?;
+        // Each column with its type and whether it takes NULL, for the diagram to show.
+        let (_c1, columns) = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA={} ORDER BY TABLE_NAME, ORDINAL_POSITION", db))?;
         // PK detection deliberately matches get_table_pk_cols's approach (CONSTRAINT_NAME='PRIMARY'),
         // NOT information_schema.COLUMNS.COLUMN_KEY='PRI'. COLUMN_KEY has a documented MySQL edge
         // case: a table with NO actual primary key but a UNIQUE NOT NULL index will still show that
@@ -1919,8 +1920,12 @@ async fn schema_erd(req: Value) -> R {
         // grid means the ER diagram can never highlight a column as PK that the grid itself
         // disagrees is one.
         let (_c2, pks) = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA={} AND CONSTRAINT_NAME='PRIMARY'", db))?;
-        let (_c3, fks) = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA={} AND REFERENCED_TABLE_NAME IS NOT NULL", db))?;
-        Ok(json!({"ok":true,"columns":columns,"pks":pks,"fks":fks}))
+        let (_c3, fks) = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA={} AND REFERENCED_TABLE_NAME IS NOT NULL", db))?;
+        // Columns a unique index holds on its own, and each table's estimated row count - both
+        // only shown, so a server that will not tell leaves them out rather than the diagram.
+        let uniques = run_select(&mut c, &format!("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.STATISTICS s WHERE TABLE_SCHEMA={0} AND NON_UNIQUE=0 AND INDEX_NAME<>'PRIMARY' AND (SELECT COUNT(*) FROM information_schema.STATISTICS t WHERE t.TABLE_SCHEMA=s.TABLE_SCHEMA AND t.TABLE_NAME=s.TABLE_NAME AND t.INDEX_NAME=s.INDEX_NAME)=1", db)).map(|x| x.1).unwrap_or_default();
+        let rowcounts = run_select(&mut c, &format!("SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA={} AND TABLE_TYPE='BASE TABLE'", db)).map(|x| x.1).unwrap_or_default();
+        Ok(json!({"ok":true,"columns":columns,"pks":pks,"fks":fks,"uniques":uniques,"rowcounts":rowcounts}))
     }).await.map_err(|e| e.to_string())?
 }
 

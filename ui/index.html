@@ -37,7 +37,7 @@
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--sb);border-radius:var(--r-m);border:3px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:var(--sbh);border:2px solid transparent;background-clip:content-box}
-::-webkit-scrollbar-corner{background:transparent} button,input,select,textarea{font-family:inherit;font-size:inherit} html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
+::-webkit-scrollbar-corner{background:transparent} button,input,select,textarea{font-family:inherit;font-size:inherit} html,body{height:100%;margin:0;font-family:var(--uiff,system-ui,"Segoe UI",Roboto,Arial,sans-serif);font-size:13px;color:var(--fg);background:var(--bg)}
  body{display:flex;flex-direction:column}
  #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .brand{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:2px;letter-spacing:.2px} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
  input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;box-sizing:border-box}
@@ -206,7 +206,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
  .tbsep{width:1px;align-self:stretch;background:var(--bd);margin:2px 8px}
- .result{flex:1;overflow:auto} table.grid{border-collapse:collapse;width:100%;table-layout:fixed;font-size:var(--gridfs,13px)} .grid th .rz{position:absolute;left:-5px;top:0;width:9px;height:100%;cursor:col-resize;z-index:3} .grid th:last-child .rz{left:-9px} /* the last edge's handle stays inside the grid: centred on it, it stuck out past the right side and gave every narrow result a scrollbar for nothing */ .grid th .rz:hover,.grid th .rz.drag{background:var(--accent);opacity:.55}
+ .result{flex:1;overflow:auto} table.grid{border-collapse:collapse;width:100%;table-layout:fixed;font-size:var(--gridfs,13px);font-family:var(--gridff)} .grid th .rz{position:absolute;left:-5px;top:0;width:9px;height:100%;cursor:col-resize;z-index:3} .grid th:last-child .rz{left:-9px} /* the last edge's handle stays inside the grid: centred on it, it stuck out past the right side and gave every narrow result a scrollbar for nothing */ .grid th .rz:hover,.grid th .rz.drag{background:var(--accent);opacity:.55}
  table.grid th{position:sticky;top:0;background:var(--gridh);border:none;border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:3px 8px;text-align:left;white-space:nowrap;z-index:1;transform:translateZ(0);will-change:transform}
 table.grid td{border:none;border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:2px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.grid td:first-child{text-align:center;vertical-align:middle;padding:0}
@@ -230,6 +230,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .logpanel:empty{display:none;border:none;padding:0}
  .logpanel .ln{border-left:3px solid transparent;padding-left:8px}
  .logpanel .ln.ok{border-left-color:var(--erd-pk)}
+ .erdrel.hi .erdline{stroke-width:2.6}
+ .erdrel.hi line,.erdrel.hi circle{stroke-width:2.2}
+ rect.erdrow.hi{fill:var(--hit)}
  .logpanel .ln.warn{border-left-color:var(--log-warn)}
  .logpanel .ln.err{border-left-color:var(--err-line)}
  /* Inline cell-edit input: kept visually close to the plain cell text it replaces - the td's own
@@ -851,12 +854,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 </div></div>
 
 <div class="modal floating" id="mErd"><div class="box" style="width:96vw;max-width:1400px;height:92vh;display:flex;flex-direction:column;top:40px;left:60px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mErd')" title="Drag to move"><h3 id="erdTitle" style="margin:0 0 10px">ER diagram</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mErd')" title="Maximize" id="maxBtn_mErd" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mErd')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <div class="muted" style="margin-bottom:6px">The tables of this database and the foreign keys between them; primary key columns are highlighted. Drag a table to move it, the background to pan, and double-click to zoom.</div>
+ <div class="muted" style="margin-bottom:6px">The tables of this database and the foreign keys between them, each table to the right of the ones it refers to. PK, FK and UQ mark the keys; a type in italics takes NULL. Point at a line for its foreign key; drag a table to move it, the background to pan, and double-click to zoom.</div>
  <div id="erdStatus" class="muted" style="margin-bottom:6px;font-size:11px"></div>
- <div class="row" style="margin-bottom:6px"><input id="erdFind" placeholder="Find table..." style="width:240px" oninput="erdFindTable()"><label style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="erdOnlyRelated" checked onchange="erdRender()"> Only show tables with a relationship</label><button class="sm" onclick="erdExportPng()" title="Save the diagram as a PNG image, at its full size regardless of current zoom" style="margin-left:14px">Export PNG</button></div>
+ <div class="row" style="margin-bottom:6px"><input id="erdFind" placeholder="Find table..." style="width:240px" oninput="erdFindTable()"><label style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="erdOnlyRelated" checked onchange="erdRender()"> Only show tables with a relationship</label><button class="sm" onclick="erdFit()" title="Zoom so the whole diagram is in view" style="margin-left:14px">Fit</button><button class="sm" onclick="erdExportPng()" title="Save the diagram as a PNG image, at its full size regardless of current zoom" style="margin-left:6px">Export PNG</button><button class="sm" onclick="erdExportSvg()" title="Save the diagram as an SVG image, which stays sharp at any size" style="margin-left:6px">Export SVG</button></div>
  <div style="position:relative;flex:1;min-height:0">
   <div id="erdBox" style="position:absolute;inset:0;overflow:auto;border:1px solid var(--bd2);background:var(--bg);cursor:grab" onmousedown="erdPanStart(event)" ondblclick="erdDblClickZoom(event)" title="Drag to pan the diagram - Double-click to zoom in - Shift+double-click to zoom out"></div>
-  <div style="position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--bd2);border-radius:var(--r-m);padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <div style="position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--bd2);padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
    <button class="sm" onclick="erdZoomOut()" title="Zoom out">&minus;</button>
    <span id="erdZoomLabel" class="muted" style="font-size:11px;min-width:36px;text-align:center;display:inline-block">100%</span>
    <button class="sm" onclick="erdZoomIn()" title="Zoom in">+</button>
@@ -925,8 +928,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Light or dark, remembered on this computer.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Editor text size</div><div class="setnote">The SQL editor. Ctrl + mouse wheel in the editor changes it as well.</div></div><div class="setrc"><select id="setEdFs" onchange="uiSizeSet('ed',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option><option value="19">19 px</option><option value="20">20 px</option><option value="21">21 px</option><option value="22">22 px</option></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Results text size</div><div class="setnote">The rows of every result grid.</div></div><div class="setrc"><select id="setGridFs" onchange="uiSizeSet('grid',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Code font</div><div class="setnote">The SQL editor, and SQL and logs wherever they are shown. Only fonts this computer has are listed.</div></div><div class="setrc"><select id="setEdFont" onchange="uiFontSet('ed',this.value)"></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Results font</div><div class="setnote">The rows of every result grid; by default the interface font.</div></div><div class="setrc"><select id="setGridFont" onchange="uiFontSet('grid',this.value)"></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Interface font</div><div class="setnote">Menus, lists, buttons and dialogs.</div></div><div class="setrc"><select id="setUiFont" onchange="uiFontSet('ui',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Interface zoom</div><div class="setnote" id="setZoomNote">Everything in the window, larger or smaller, as Ctrl + and Ctrl - in a browser.</div></div><div class="setrc"><select id="setZoom" onchange="uiZoomSet(this.value)"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100% (default)</option><option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Text sizes and zoom</div><div class="setnote">Back to 13 px in the editor and the results, and 100%.</div></div><div class="setrc"><button class="sm" onclick="uiSizesReset()">Reset to defaults</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Fonts, text sizes and zoom</div><div class="setnote">Back to the default fonts, 13 px in the editor and the results, and 100%.</div></div><div class="setrc"><button class="sm" onclick="uiSizesReset()">Reset to defaults</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Keyboard shortcuts</div><div class="setnote">Every shortcut in the editor, the grids and the dialogs.</div></div><div class="setrc"><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Show</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">About</div><div class="setnote">Version, license and project information.</div></div><div class="setrc"><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div></div>
   </div>
@@ -1629,6 +1635,8 @@ function renderAllDbs(){
 // theme
 function toggleTheme(){document.body.classList.toggle('dark');localStorage.setItem('theme',document.body.classList.contains('dark')?'dark':'light');}
 if(localStorage.getItem('theme')!=='light')document.body.classList.add('dark');
+// The ER diagram's colours are values rather than variables (so its exports match), so a new theme redraws it.
+{let dark=document.body.classList.contains('dark');new MutationObserver(()=>{const d=document.body.classList.contains('dark');if(d===dark)return;dark=d;if(window._erdRawData&&$('mErd')&&$('mErd').classList.contains('show'))erdRender();}).observe(document.body,{attributes:true,attributeFilter:['class']});}
 
 // context menu
 function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k)continue;if(k.indexOf('overviewCache')===0||k.indexOf('tableSizes')===0){keys.push(k);}else if(includeAll&&['session','history','connmeta','accents','theme'].indexOf(k)>=0){keys.push(k);}}keys.forEach(k=>localStorage.removeItem(k));return keys.length;}
@@ -1846,6 +1854,10 @@ function uiSizeGet(k){const [lo,hi,d]=UI_SIZES[k];try{const v=+localStorage.getI
 function uiSizeSet(k,v){const [lo,hi,d]=UI_SIZES[k];v=Math.max(lo,Math.min(hi,Math.round(+v)||d));try{localStorage.setItem(uiSizeKey(k),String(v));}catch(e){}uiSizesApply();}
 function uiSizesApply(){const r=document.documentElement.style;r.setProperty('--edfs',uiSizeGet('ed')+'px');r.setProperty('--gridfs',uiSizeGet('grid')+'px');
  const a=$('setEdFs'),b=$('setGridFs');if(a)a.value=String(uiSizeGet('ed'));if(b)b.value=String(uiSizeGet('grid'));
+ Object.keys(UI_FONTS).forEach(k=>{const F=UI_FONTS[k],f=uiFontGet(k),s=$(F.sel);
+  if(f)r.setProperty(F.css,uiFontStack(f));else r.removeProperty(F.css);
+  if(s){if(!s.options.length)s.innerHTML='<option value="">'+F.none+'</option>'+F.list.filter(fontInstalled).map(n=>'<option value="'+esc(n)+'" style="font-family:'+esc(uiFontStack(n))+'">'+esc(n)+'</option>').join('');
+   s.value=f;if(s.value!==f)s.value='';}});
  if(typeof tabs!=='undefined')tabs.forEach(t=>{try{syncHl(t.id);}catch(e){}});}
 async function uiZoomSet(z){z=Math.max(0.5,Math.min(2,+z||1));const r=await api('/api/save-config',{config:{ui_zoom:String(z)}});
  if(!r||!r.ok){toast('The zoom was not saved: '+((r&&r.error)||''),true);return;}
@@ -1854,9 +1866,22 @@ async function uiZoomSet(z){z=Math.max(0.5,Math.min(2,+z||1));const r=await api(
   // than left where the old size put it.
   setTimeout(()=>document.querySelectorAll('.modal.floating.show').forEach(m=>{floatCenterX(m.id);floatCenterY(m.id);}),120);}
  else toast('Saved - the zoom applies from the next start of the app.','ok');}
-// Text sizes and zoom back to how the app comes.
-async function uiSizesReset(){try{localStorage.removeItem('edFontSize');localStorage.removeItem('gridFontSize');}catch(e){}uiSizesApply();
- const s=$('setZoom');if(s)s.value='1';await uiZoomSet(1);log('Text sizes and zoom are back to their defaults.');}
+// The fonts: the code's, the results' and the interface's, each one of a short list of common ones,
+// offered only when this computer has it, and kept on this computer as the sizes are.
+const UI_MONO=['Cascadia Code','Cascadia Mono','Consolas','JetBrains Mono','Fira Code','Source Code Pro','Lucida Console','Courier New'],UI_SANS=['Segoe UI','Calibri','Tahoma','Verdana','Arial'];
+const UI_FONTS={ed:{key:'edFont',css:'--mono',sel:'setEdFont',list:UI_MONO,none:'Default (Cascadia Code)'},
+ grid:{key:'gridFont',css:'--gridff',sel:'setGridFont',list:UI_SANS.concat(UI_MONO),none:'Same as the interface'},
+ ui:{key:'uiFont',css:'--uiff',sel:'setUiFont',list:UI_SANS,none:'Default (Segoe UI)'}};
+// Whether a font is there: text in it measures differently from the fallback it would otherwise get,
+// against at least one of three fallbacks (a font can match one of them to the pixel).
+function fontInstalled(name){const c=fontInstalled.c||(fontInstalled.c=document.createElement('canvas').getContext('2d')),s='mmmmmmmmmmlli1WQ@#';
+ return ['monospace','serif','sans-serif'].some(g=>{c.font='40px '+g;const w=c.measureText(s).width;c.font='40px "'+name+'",'+g;return c.measureText(s).width!==w;});}
+function uiFontStack(n){return '"'+n+'",'+(UI_MONO.includes(n)?'Consolas,monospace':'"Segoe UI",sans-serif');}
+function uiFontGet(k){try{const v=localStorage.getItem(UI_FONTS[k].key)||'';return UI_FONTS[k].list.includes(v)?v:'';}catch(e){return '';}}
+function uiFontSet(k,v){try{if(v&&UI_FONTS[k].list.includes(v))localStorage.setItem(UI_FONTS[k].key,v);else localStorage.removeItem(UI_FONTS[k].key);}catch(e){}uiSizesApply();}
+// Fonts, text sizes and zoom back to how the app comes.
+async function uiSizesReset(){try{['edFontSize','gridFontSize'].concat(Object.values(UI_FONTS).map(F=>F.key)).forEach(k=>localStorage.removeItem(k));}catch(e){}uiSizesApply();
+ const s=$('setZoom');if(s)s.value='1';await uiZoomSet(1);log('Fonts, text sizes and zoom are back to their defaults.');}
 function uiZoomShow(c){const s=$('setZoom');if(!s)return;const z=+(c&&c.ui_zoom)||1;s.value=String(z);if(s.value!==String(z))s.value='1';
  const n=$('setZoomNote');if(n)n.textContent='Everything in the window, larger or smaller, as Ctrl + and Ctrl - in a browser.'+(window.__TAURI__?'':' From the next start of the app.');}
 uiSizesApply();
@@ -6150,68 +6175,16 @@ function libRender(){const box=$('libList');const q=($('libSearch').value||'').t
   d.appendChild(head);d.appendChild(pre);box.appendChild(d);});}
 
 // ---- users ----
-// Simple grid-layout ER diagram: not an auto-arranged, minimal-crossing-lines layout (that's a
-// much bigger algorithmic problem), just a straightforward grid of table boxes with curved lines
-// for each FK relationship - functional for getting an overview of a schema's relationships,
-// especially for small-to-medium schemas.
+// The ER diagram: the tables in columns by foreign key (each to the right of the ones it refers
+// to), right-angled lines between the rows a key joins - see erdRender().
 function openErdForCurSchema(){
  if(!curSchema){toast('Select a database in the list first.',true);return;}
  openErd(curSchema);
 }
-// Reorders tables so that FK-related ones end up ADJACENT in the resulting list, rather than
-// wherever their names happen to sort alphabetically - since the grid lays tables out in the
-// order of this list, adjacent-in-list means adjacent-on-screen. This is a graph traversal
-// (breadth-first, starting from each not-yet-visited table in alphabetical order, visiting
-// directly-related tables before moving further away), not a full force-directed physics layout -
-// much simpler to reason about and verify, and it directly targets the actual complaint (related
-// tables ending up scattered far apart), even though it won't produce a mathematically optimal,
-// minimal-crossing-lines arrangement the way a real graph-layout algorithm would.
-// Crow's foot notation: a short perpendicular tick on the "one" side (the referenced table),
-// a three-pronged fork on the "many" side (the table holding the FK column) - the standard
-// visual convention for cardinality in ER diagrams. Both connector lines have purely horizontal
-// tangents at their endpoints (a property of how the Bezier control points are set up below), so
-// both symbols can be drawn as simple horizontal shapes rather than needing general tangent math.
-// SIMPLIFICATION, stated plainly: this always assumes "many" on the FK side and "one" on the
-// referenced side, which is correct for the overwhelming majority of foreign keys (a child row
-// referencing a parent's primary key). It does not check whether the FK column is ALSO covered
-// by a UNIQUE constraint, which would make it a genuine one-to-one relationship - that would need
-// an extra query and is a reasonable follow-up, not something folded into this notation change.
-function svgCrowsFoot(x,y,dir,spread,len,strokeW){
- strokeW=strokeW||1.3;
- const hx=x+dir*len;
- return '<line x1="'+hx+'" y1="'+y+'" x2="'+x+'" y2="'+(y-spread)+'" stroke="var(--erd-line,#7aa8d8)" stroke-width="'+strokeW+'"/>'
-      +'<line x1="'+hx+'" y1="'+y+'" x2="'+x+'" y2="'+(y+spread)+'" stroke="var(--erd-line,#7aa8d8)" stroke-width="'+strokeW+'"/>'
-      +'<line x1="'+hx+'" y1="'+y+'" x2="'+x+'" y2="'+y+'" stroke="var(--erd-line,#7aa8d8)" stroke-width="'+strokeW+'"/>';
-}
-function svgOneTick(x,y,dir,tickLen,gap,strokeW){
- strokeW=strokeW||1.3;
- const tx=x+dir*gap;
- return '<line x1="'+tx+'" y1="'+(y-tickLen)+'" x2="'+tx+'" y2="'+(y+tickLen)+'" stroke="var(--erd-line,#7aa8d8)" stroke-width="'+strokeW+'"/>';
-}
-function erdClusterOrder(sortedNames,fks,tables){
- const adj={};
- sortedNames.forEach(n=>adj[n]=new Set());
- fks.forEach(row=>{
-  const tbl=row[0],refTbl=row[2];
-  // adj holds only the tables being drawn; a key that leaves the set is not a link within it.
-  if(adj[tbl]&&adj[refTbl]&&tbl!==refTbl){adj[tbl].add(refTbl);adj[refTbl].add(tbl);}
- });
- const visited=new Set();const order=[];
- sortedNames.forEach(start=>{
-  if(visited.has(start))return;
-  const queue=[start];visited.add(start);
-  while(queue.length){
-   const cur=queue.shift();order.push(cur);
-   const neighbors=[...adj[cur]].filter(x=>!visited.has(x)).sort();
-   neighbors.forEach(nb=>{visited.add(nb);queue.push(nb);});
-  }
- });
- return order;
-}
 function erdFindTable(){
  const q=($('erdFind').value||'').trim().toLowerCase();
  const box=$('erdBox');
- box.querySelectorAll('g[id^="erd_tbl_"] rect').forEach(r=>{r.setAttribute('stroke','var(--bd2,#444)');r.setAttribute('stroke-width','1.5');r.removeAttribute('stroke-dasharray');});
+ box.querySelectorAll('rect.erdframe').forEach(r=>{r.setAttribute('stroke',r.dataset.bd);r.setAttribute('stroke-width','1');r.removeAttribute('stroke-dasharray');});
  if(!q||!window._erdTableNames)return;
  const names=window._erdTableNames;
  // exact match first, then substring, so typing a short/common fragment doesn't jump around
@@ -6222,7 +6195,7 @@ function erdFindTable(){
  const el=$('erd_tbl_'+idx);
  if(!el)return;
  el.scrollIntoView({block:'center',inline:'center'});
- const rect=el.querySelector('rect');
+ const rect=el.querySelector('rect.erdframe');
  if(rect){rect.setAttribute('stroke','#f5c518');rect.setAttribute('stroke-width','3');rect.setAttribute('stroke-dasharray','6,3');}
 }
 // The filter checkbox re-renders from cached data (no server round-trip) - toggling it just
@@ -6415,147 +6388,173 @@ function erdRender(){
  const data=window._erdRawData;
  if(!data)return;
  const r=data.r;
+ // The theme's colours as values, not CSS variables: the PNG and SVG exports are images of their
+ // own, where a variable means nothing and every colour fell back to the dark one.
+ const cs=getComputedStyle(document.body),cv=(n,d)=>(cs.getPropertyValue(n)||'').trim()||d;
+ const dark=document.body.classList.contains('dark');
+ const C={bg:cv('--bg',dark?'#1e1e1e':'#fff'),panel:cv('--panel',dark?'#252526':'#fff'),zebra:cv('--panel2',dark?'#2a2a2a':'#f6f7f9'),bd:cv('--bd',dark?'#444':'#c8ccd2'),
+  fg:cv('--fg',dark?'#ddd':'#222'),muted:cv('--muted',dark?'#999':'#6b7280'),accent:cv('--accent','#3b82f6'),head:dark?'#35506e':'#2d4a6b',line:cv('--erd-line',dark?'#7aa8d8':'#2a5a9e'),pk:cv('--erd-pk',dark?'#5dcaa5':'#1a7a5e'),uq:dark?'#b8a1e8':'#7c5cc4'};
  // Keyed by table and column names, which can be "constructor" or "__proto__": no prototype.
  const tables=Object.create(null);
  r.columns.forEach(row=>{
   const tbl=row[0],col=row[1];
-  if(!tables[tbl])tables[tbl]={cols:[],pk:new Set()};
-  tables[tbl].cols.push(col);
+  if(!tables[tbl])tables[tbl]={cols:[],types:[],nullable:[],pk:new Set(),uq:new Set(),rows:null};
+  tables[tbl].cols.push(col);tables[tbl].types.push(row[2]==null?'':String(row[2]));tables[tbl].nullable.push(String(row[3]||'').toUpperCase()==='YES');
  });
  // PK flags come from a separate, precise CONSTRAINT_NAME='PRIMARY' query (matching how the
  // grid itself determines PK columns), not information_schema.COLUMNS.COLUMN_KEY - which has a
  // documented edge case where a table with no real primary key, but a UNIQUE NOT NULL index,
  // still shows that column as 'PRI'.
- (r.pks||[]).forEach(row=>{const tbl=row[0],col=row[1];if(tables[tbl])tables[tbl].pk.add(col);});
+ (r.pks||[]).forEach(row=>{if(tables[row[0]])tables[row[0]].pk.add(row[1]);});
+ (r.uniques||[]).forEach(row=>{if(tables[row[0]])tables[row[0]].uq.add(row[1]);});
+ (r.rowcounts||[]).forEach(row=>{if(tables[row[0]]&&row[1]!=null)tables[row[0]].rows=+row[1];});
  let allNames=Object.keys(tables).sort();
  // A table the diagram is narrowed to (right-click) decides on its own which tables are drawn -
  // the "only related" tick has nothing left to say about a set that is already one table's own.
  const focus=window._erdFocus&&tables[window._erdFocus]?window._erdFocus:(window._erdFocus=null);
  const onlyRelated=!focus&&$('erdOnlyRelated')&&$('erdOnlyRelated').checked;
  if(focus){const keep=erdNeighbours(focus,r.fks||[]);allNames=allNames.filter(n=>keep.has(n));}
- if(onlyRelated){
-  const related=erdRelatedNames(tables,r.fks||[]);
-  allNames=allNames.filter(n=>related.has(n));
- }
- const names=erdClusterOrder(allNames,r.fks||[],tables);
- if(!names.length){$('erdBox').innerHTML='<div class="muted" style="padding:8px">'+(onlyRelated?'No tables have a foreign key relationship in this database.':'No tables in this database.')+'</div>';show('mErd');return;}
+ if(onlyRelated){const related=erdRelatedNames(tables,r.fks||[]);allNames=allNames.filter(n=>related.has(n));}
+ if(!allNames.length){$('erdBox').innerHTML='<div class="muted" style="padding:8px">'+(onlyRelated?'No tables have a foreign key relationship in this database.':'No tables in this database.')+'</div>';show('mErd');return;}
 
- // Measure the ACTUAL rendered width of each name (canvas text measurement, not a guessed
- // characters-times-average-width heuristic), so a box is always exactly as wide as its longest
- // name needs - long, heavily-prefixed table names (common in larger schemas) no longer get cut
- // off. Measured at BOLD weight for every string as a safe upper bound, since bold text (used for
- // headers and PK columns) is wider than regular text of the same characters.
- const measCanvas=document.createElement('canvas');const mctx=measCanvas.getContext('2d');
- function textW(text,font){mctx.font=font;return mctx.measureText(text).width;}
- const HEADER_FONT="700 12px sans-serif",COL_FONT="700 11px sans-serif";
- const rowH=18,headerH=24,padY=40,padX=40,gapX=70,gapY=90,boxPad=16,minW=140;
- // Per-table lookup of which columns are FKs and what they reference, so column rows can be
- // labeled "[PK]"/"[FK]" explicitly (a crow's foot at the table edge tells you A relationship
- // exists, but tracing exactly which ROW it touches gets hard once a table has more than a
- // handful of columns - an explicit label removes the guesswork).
+ // Which columns are foreign keys, and to what.
  const fkByTable=Object.create(null);
- (r.fks||[]).forEach(row=>{
-  const tbl=row[0],col=row[1],refTbl=row[2],refCol=row[3];
-  if(tables[tbl]){if(!fkByTable[tbl])fkByTable[tbl]=Object.create(null);fkByTable[tbl][col]={refTbl,refCol};}
+ (r.fks||[]).forEach(row=>{const tbl=row[0];if(!tables[tbl])return;if(!fkByTable[tbl])fkByTable[tbl]=Object.create(null);fkByTable[tbl][row[1]]={refTbl:row[2],refCol:row[3],name:row[4]||''};});
+
+ // Sizes, measured: each box as wide as its longest name and type need.
+ const mctx=document.createElement('canvas').getContext('2d');
+ const textW=(t,f)=>{mctx.font=f;return mctx.measureText(t).width;};
+ const FONT='system-ui,"Segoe UI",Roboto,Arial,sans-serif';
+ const HEAD_F='600 12px '+FONT,NAME_F='600 11px '+FONT,TYPE_F='11px '+FONT,META_F='10px '+FONT;
+ const rowH=19,headerH=26,padX=40,padY=36,gapX=110,gapY=34,badgeW=22,minW=180;
+ const fmtRows=n=>n==null?'':(n>=1e6?(n/1e6).toFixed(n>=1e7?0:1)+'M':n>=1e3?(n/1e3).toFixed(n>=1e4?0:1)+'k':String(n))+' rows';
+ allNames.forEach(n=>{const t=tables[n];
+  let nameW=0,typeW=0;t.cols.forEach((c,i)=>{nameW=Math.max(nameW,textW(c,NAME_F));typeW=Math.max(typeW,textW(t.types[i],TYPE_F));});
+  const badges=t.cols.reduce((m,c)=>Math.max(m,(t.pk.has(c)?1:0)+(fkByTable[n]&&fkByTable[n][c]?1:0)+(t.uq.has(c)&&!t.pk.has(c)?1:0)),0);
+  t.badgeW=Math.max(1,badges)*badgeW;
+  const head=textW(n,HEAD_F)+(t.rows?textW(fmtRows(t.rows),META_F)+18:0);
+  t.w=Math.max(minW,Math.ceil(Math.max(head+20,10+t.badgeW+nameW+18+typeW+10)));
+  t.h=headerH+t.cols.length*rowH+4;
  });
- function erdRowLabel(tbl,col){
-  const isPk=tables[tbl].pk.has(col);
-  const isFk=!!(fkByTable[tbl]&&fkByTable[tbl][col]);
-  let label=col;
-  if(isPk)label+=' [PK]';
-  if(isFk)label+=' [FK]';
-  return {label,isPk,isFk,fkInfo:isFk?fkByTable[tbl][col]:null};
+
+ // Layout by relationship: a table sits to the right of the ones it refers to, so the keys read
+ // from left (what is referred to) to right (what refers to it), and within a column each table is
+ // placed near the tables it is linked with, which leaves fewer lines crossing. Tables without a
+ // relationship follow on the right.
+ const inSet=new Set(allNames),refs=new Map(allNames.map(n=>[n,new Set()])),back=new Map(allNames.map(n=>[n,new Set()]));
+ (r.fks||[]).forEach(row=>{const a=row[0],b=row[2];if(inSet.has(a)&&inSet.has(b)&&a!==b){refs.get(a).add(b);back.get(b).add(a);}});
+ const level=new Map(),busy=new Set();
+ const lev=n=>{if(level.has(n))return level.get(n);if(busy.has(n))return 0;busy.add(n);let l=0;refs.get(n).forEach(m=>{l=Math.max(l,lev(m)+1);});busy.delete(n);level.set(n,l);return l;};
+ const linked=allNames.filter(n=>refs.get(n).size||back.get(n).size),alone=allNames.filter(n=>!refs.get(n).size&&!back.get(n).size);
+ linked.forEach(lev);
+ const nLev=linked.length?Math.max(...linked.map(n=>level.get(n)))+1:0;
+ let layers=Array.from({length:nLev},(_,i)=>linked.filter(n=>level.get(n)===i).sort());
+ const idx=new Map();const reIndex=()=>layers.forEach(L=>L.forEach((n,i)=>idx.set(n,i)));reIndex();
+ const bary=(n,nb)=>{const v=[...nb].filter(m=>idx.has(m)).map(m=>idx.get(m));return v.length?v.reduce((a,b)=>a+b,0)/v.length:idx.get(n);};
+ for(let pass=0;pass<3;pass++){
+  for(let i=1;i<nLev;i++){layers[i].sort((a,b)=>bary(a,refs.get(a))-bary(b,refs.get(b))||a.localeCompare(b));reIndex();}
+  for(let i=nLev-2;i>=0;i--){layers[i].sort((a,b)=>bary(a,back.get(a))-bary(b,back.get(b))||a.localeCompare(b));reIndex();}
  }
- names.forEach(n=>{
-  let maxW=textW(n,HEADER_FONT);
-  tables[n].cols.forEach(c=>{maxW=Math.max(maxW,textW(erdRowLabel(n,c).label,COL_FONT));});
-  tables[n].w=Math.max(minW,Math.ceil(maxW)+boxPad);
-  tables[n].h=headerH+tables[n].cols.length*rowH+10;
- });
+ const pos=Object.create(null);let x=padX,maxH=padY;
+ layers.forEach(L=>{let y=padY,w=0;L.forEach(n=>{pos[n]={x,y,w:tables[n].w,h:tables[n].h};y+=tables[n].h+gapY;w=Math.max(w,tables[n].w);});maxH=Math.max(maxH,y);x+=w+gapX;});
+ // The tables on their own: in columns to the right, as tall as the linked part (or a screenful).
+ if(alone.length){const cap=Math.max(maxH,520);let y=padY,w=0;
+  alone.forEach(n=>{if(y>padY&&y+tables[n].h>cap){x+=w+gapX*0.5;y=padY;w=0;}pos[n]={x,y,w:tables[n].w,h:tables[n].h};y+=tables[n].h+gapY;w=Math.max(w,tables[n].w);maxH=Math.max(maxH,y);});x+=w+gapX;}
+ const names=[...layers.flat(),...alone];
+ let totalW=x-gapX+padX,totalH=maxH-gapY+padY;
 
- const cols=Math.max(1,Math.ceil(Math.sqrt(names.length)));
- // Each grid COLUMN's width is the widest table assigned to that column position - tables no
- // longer share one uniform box width, but columns still line up neatly.
- const colWidths=new Array(cols).fill(0);
- names.forEach((n,i)=>{const cx=i%cols;colWidths[cx]=Math.max(colWidths[cx],tables[n].w);});
- const colX=[];let xAcc=padX;
- for(let c=0;c<cols;c++){colX[c]=xAcc;xAcc+=colWidths[c]+gapX;}
- let totalW=xAcc-gapX+padX;
-
- const pos=Object.create(null);
- names.forEach((n,i)=>{
-  const cx=i%cols,cy=Math.floor(i/cols);
-  pos[n]={x:colX[cx],cy,w:tables[n].w,h:tables[n].h};
- });
- const bandHeights={};
- names.forEach(n=>{const cy=pos[n].cy;bandHeights[cy]=Math.max(bandHeights[cy]||0,pos[n].h);});
- let yAcc=padY;const bandY={};const numBands=Math.ceil(names.length/cols);
- for(let b=0;b<numBands;b++){bandY[b]=yAcc;yAcc+=(bandHeights[b]||0)+gapY;}
- names.forEach(n=>{pos[n].y=bandY[pos[n].cy];});
- let totalH=yAcc;
-
- // Manually-dragged positions override the computed grid layout and persist across re-renders -
- // but only while the same tables are drawn. The grid lays out whatever it is given, so with a
- // different set (the "only related" tick, a table's own relations) the untouched tables move to
- // new places while a dragged one stays where it was put, and one lands on top of another. When
- // the set changes the diagram is laid out afresh instead, and the drags are let go.
+ // Manually-dragged positions override the computed layout and persist across re-renders - but
+ // only while the same tables are drawn. With a different set (the "only related" tick, a table's
+ // own relations) the diagram is laid out afresh instead, and the drags are let go.
  {const key=names.join('\u0000');if(window._erdPosKey!==key){window._erdPos=Object.create(null);window._erdPosKey=key;}}
- // If a drag moves a table outside the originally-computed bounds, the diagram's own dimensions
- // expand to keep it fully visible rather than clipping it off.
  names.forEach(n=>{
   if(window._erdPos[n]){pos[n].x=window._erdPos[n].x;pos[n].y=window._erdPos[n].y;}
-  totalW=Math.max(totalW,pos[n].x+pos[n].w+padX);
-  totalH=Math.max(totalH,pos[n].y+pos[n].h+padY);
+  totalW=Math.max(totalW,pos[n].x+pos[n].w+padX);totalH=Math.max(totalH,pos[n].y+pos[n].h+padY);
  });
- window._erdCurPos=pos;
+ window._erdCurPos=pos;window._erdTableNames=names;
+ const tIndex=new Map(names.map((n,i)=>[n,i]));
 
- let svg='<svg viewBox="0 0 '+totalW+' '+totalH+'" width="'+totalW+'" height="'+totalH+'" style="transform:scale('+window._erdZoom+');transform-origin:0 0" xmlns="http://www.w3.org/2000/svg">';
- let drawnCount=0,droppedCount=0;
+ const a=(k,v)=>' '+k+'="'+v+'"';
+ // The relationships, under the tables: right-angled lines from the key's row to the row it refers
+ // to, with crow's-foot ends - many on the side that refers, and on the side referred to one (two
+ // bars) or none-or-one (a circle and a bar) as the key's column takes NULL. Hovering one marks it
+ // and the two rows it joins.
+ const lineEnd=(x0,y0,dir,kind)=>{const L=(x1,y1,x2,y2)=>'<line'+a('x1',x1)+a('y1',y1)+a('x2',x2)+a('y2',y2)+a('stroke',C.line)+' stroke-width="1.4"/>';
+  if(kind==='many'){const hx=x0+dir*12;return L(hx,y0,x0,y0-6)+L(hx,y0,x0,y0+6)+L(hx,y0,x0,y0);}
+  if(kind==='one')return L(x0+dir*8,y0-6,x0+dir*8,y0+6)+L(x0+dir*12,y0-6,x0+dir*12,y0+6);
+  return L(x0+dir*8,y0-6,x0+dir*8,y0+6)+'<circle'+a('cx',x0+dir*16)+a('cy',y0)+' r="3.5"'+a('fill',C.bg)+a('stroke',C.line)+' stroke-width="1.4"/>';};
+ // Whether a line's straight piece would run under a table other than the two it joins - a line
+ // hidden under a table looks as if it joined that table instead.
+ const under=(n,xa,xb,ya,yb)=>{const p=pos[n];return p.x-4<Math.max(xa,xb)&&p.x+p.w+4>Math.min(xa,xb)&&p.y-4<Math.max(ya,yb)&&p.y+p.h+4>Math.min(ya,yb);};
+ const blocked=(pts,skip)=>{for(let i=1;i<pts.length;i++){const [xa,ya]=pts[i-1],[xb,yb]=pts[i];if(names.some(n=>!skip.includes(n)&&under(n,xa,xb,ya,yb)))return true;}return false;};
+ const lanes=new Map(),lane=k=>{const v=lanes.get(k)||0;lanes.set(k,v+1);return v;};
+ const pathOf=pts=>'M'+pts.map(p=>p[0]+' '+p[1]).join('L');
+ let drawn=0,dropped=0,rels='';
  (r.fks||[]).forEach(row=>{
-  const tbl=row[0],col=row[1],refTbl=row[2],refCol=row[3];
+  const tbl=row[0],col=row[1],refTbl=row[2],refCol=row[3],cname=row[4]||'';
   const p1=pos[tbl],p2=pos[refTbl];
-  if(!p1||!p2||!tables[tbl]||!tables[refTbl]){droppedCount++;return;}
-  const srcColIdx=tables[tbl].cols.indexOf(col),dstColIdx=tables[refTbl].cols.indexOf(refCol);
-  if(srcColIdx<0||dstColIdx<0){droppedCount++;return;}
-  drawnCount++;
-  const y1=p1.y+headerH+srcColIdx*rowH+rowH/2,y2=p2.y+headerH+dstColIdx*rowH+rowH/2;
-  const x1=(p1.x<p2.x)?p1.x+p1.w:p1.x,x2=(p1.x<p2.x)?p2.x:p2.x+p2.w;
-  const midX=(x1+x2)/2;
-  const dir=(x1<x2)?1:-1;
-  svg+='<path d="M'+x1+' '+y1+' C '+midX+' '+y1+', '+midX+' '+y2+', '+x2+' '+y2+'" stroke="var(--erd-line,#7aa8d8)" fill="none" stroke-width="1.5" opacity="0.75"/>';
-  svg+=svgCrowsFoot(x1,y1,dir,5,16,1.6);
-  svg+=svgOneTick(x2,y2,-dir,5,10,1.6);
+  if(!p1||!p2){dropped++;return;}
+  const i1=tables[tbl].cols.indexOf(col),i2=tables[refTbl].cols.indexOf(refCol);
+  if(i1<0||i2<0){dropped++;return;}
+  drawn++;
+  const y1=p1.y+headerH+i1*rowH+rowH/2,y2=p2.y+headerH+i2*rowH+rowH/2;
+  const optional=tables[tbl].nullable[i1];
+  let pts,x1,x2,d1,d2;
+  if(tbl===refTbl){
+   // A table referring to itself: a loop on its left, clear of the lines that leave its keys.
+   x1=p1.x;x2=x1;d1=-1;d2=-1;const m=x1-30-lane('L'+x1)*6;pts=[[x1,y1],[m,y1],[m,y2],[x2,y2]];
+  }else{
+   // Facing edges when the tables sit side by side, else both on the right.
+   if(p2.x+p2.w<=p1.x){x1=p1.x;x2=p2.x+p2.w;d1=-1;d2=1;}
+   else if(p1.x+p1.w<=p2.x){x1=p1.x+p1.w;x2=p2.x;d1=1;d2=-1;}
+   else{x1=p1.x+p1.w;x2=p2.x+p2.w;d1=1;d2=1;}
+   const skip=[tbl,refTbl];
+   if(d1!==d2){const m=Math.round((x1+x2)/2)+((lane('M'+x2)%5)-2)*6;pts=[[x1,y1],[m,y1],[m,y2],[x2,y2]];}
+   else{const m=Math.max(x1,x2)+28+lane('R'+Math.max(x1,x2))*6;pts=[[x1,y1],[m,y1],[m,y2],[x2,y2]];}
+   if(blocked(pts,skip)){
+    // Around the tables in between: out of the key's side, along a channel above them (or below,
+    // when there is no room above), and into the other table's side.
+    const e1=x1+d1*(20+lane('E'+x1+':'+d1)*6),e2=x2+d2*(20+lane('E'+x2+':'+d2)*6),lo=Math.min(e1,e2),hi=Math.max(e1,e2);
+    const inRange=names.filter(n=>!skip.includes(n)&&pos[n].x<hi&&pos[n].x+pos[n].w>lo);
+    const k=lane('C');
+    const top=Math.min(y1,y2,...inRange.map(n=>pos[n].y))-14-k*5;
+    const yc=top>=6?top:Math.max(y1,y2,...inRange.map(n=>pos[n].y+pos[n].h))+14+k*5;
+    pts=[[x1,y1],[e1,y1],[e1,yc],[e2,yc],[e2,y2],[x2,y2]];
+   }
+  }
+  pts.forEach(p=>{totalW=Math.max(totalW,p[0]+padX);totalH=Math.max(totalH,p[1]+padY);});
+  const d=pathOf(pts);
+  const title=(cname?cname+': ':'')+tbl+'.'+col+' → '+refTbl+'.'+refCol+(optional?' (may be NULL)':'');
+  rels+='<g class="erdrel"'+a('data-a',tIndex.get(tbl)+':'+i1)+a('data-b',tIndex.get(refTbl)+':'+i2)+' onmouseenter="erdHi(this,1)" onmouseleave="erdHi(this,0)"><title>'+esc(title)+'</title>'
+   +'<path class="erdhit"'+a('d',d)+' fill="none" stroke="transparent" stroke-width="10"/>'
+   +'<path class="erdline"'+a('d',d)+' fill="none"'+a('stroke',C.line)+' stroke-width="1.4"/>'
+   +lineEnd(x1,y1,d1,'many')+lineEnd(x2,y2,d2,optional?'zero-or-one':'one')+'</g>';
  });
- // Report this instead of silently dropping lines - a table that failed to load for any reason
- // (permissions, a fetch error, a genuinely cross-schema FK pointing outside this diagram) would
- // otherwise just look like "the relationship isn't there" with zero indication why.
- $('erdStatus').textContent=names.length+' table(s), '+drawnCount+' relationship(s) drawn'+(droppedCount?(' - '+droppedCount+' relationship(s) could NOT be drawn (referenced table not found in this diagram - check for a cross-database reference, or scroll/search if the table should be here).'):'.');
- // Each table gets a stable, findable id (erd_tbl_<index>, not the raw name - table names can
- // contain characters that aren't safe as HTML/SVG element ids) so erdFindTable() can scroll a
- // matched table into view and highlight it - useful once a schema has more tables than fit on
- // screen at once, where a real relationship can be easy to miss just because the two ends are
- // far apart in the grid.
- window._erdTableNames=names;
+ let svg='<svg viewBox="0 0 '+totalW+' '+totalH+'" width="'+totalW+'" height="'+totalH+'" style="transform:scale('+window._erdZoom+');transform-origin:0 0" xmlns="http://www.w3.org/2000/svg" font-family=\''+FONT+'\'>';
+ svg+='<rect x="0" y="0"'+a('width',totalW)+a('height',totalH)+a('fill',C.bg)+'/>'+rels;
+ $('erdStatus').textContent=names.length+' table(s), '+drawn+' relationship(s) drawn'+(dropped?(' - '+dropped+' relationship(s) could NOT be drawn (referenced table not found in this diagram - check for a cross-database reference, or scroll/search if the table should be here).'):'.');
+ // The tables: a header with the name and its estimated rows, then a row per column - PK, FK and UQ
+ // marks, the name, and its type on the right; a column that takes NULL has its type in italics.
+ const badge=(bx,by,label,col)=>'<rect'+a('x',bx)+a('y',by+3)+' width="18" height="13"'+a('fill','none')+a('stroke',col)+' stroke-width="1"/><text'+a('x',bx+9)+a('y',by+13)+' text-anchor="middle" font-size="8.5" font-weight="700"'+a('fill',col)+'>'+label+'</text>';
  names.forEach((n,ni)=>{
-  const p=pos[n];
+  const p=pos[n],t=tables[n];
   svg+='<g id="erd_tbl_'+ni+'" oncontextmenu="erdMenu(event,'+ni+')">';
-  svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" fill="var(--panel,#1e1e1e)" stroke="var(--bd2,#444)" stroke-width="1.5" rx="4"/>';
-  svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+headerH+'" fill="#2d4a6b" rx="4" style="cursor:move" onmousedown="erdStartDrag(event,'+ni+')" ondblclick="event.stopPropagation()"/>';
-  svg+='<text x="'+(p.x+8)+'" y="'+(p.y+16)+'" fill="#fff" font-size="12" font-weight="600" style="cursor:move;user-select:none" onmousedown="erdStartDrag(event,'+ni+')" ondblclick="event.stopPropagation()">'+esc(n)+'</text>';
-  tables[n].cols.forEach((c,ci)=>{
-   const {label,isPk,isFk,fkInfo}=erdRowLabel(n,c);
-   const rowY=p.y+headerH+ci*rowH;
-   const yy=rowY+11;
-   // Highlight the row background for FK columns - a crow's foot at the table edge tells you
-   // A relationship exists, but which row it touches is easy to lose track of once a table has
-   // more than a handful of columns. PK keeps its existing green/bold treatment (already
-   // distinctive on its own); adding a background tint there too would be visual overkill.
-   if(isFk)svg+='<rect x="'+p.x+'" y="'+rowY+'" width="3" height="'+rowH+'" fill="var(--erd-line,#7aa8d8)"/>';
-   const color=isPk?'var(--erd-pk,#5dcaa5)':(isFk?'var(--erd-fk,#8fb8e8)':'var(--fg,#ccc)');
-   const weight=isPk?'700':'400';
-   const titleTag=fkInfo?('<title>References '+esc(fkInfo.refTbl)+'.'+esc(fkInfo.refCol)+'</title>'):'';
-   svg+='<text x="'+(p.x+8)+'" y="'+yy+'" fill="'+color+'" font-size="11" font-weight="'+weight+'">'+esc(label)+titleTag+'</text>';
+  svg+='<rect'+a('x',p.x)+a('y',p.y)+a('width',p.w)+a('height',p.h)+a('fill',C.panel)+'/>';
+  svg+='<rect'+a('x',p.x)+a('y',p.y)+a('width',p.w)+a('height',headerH)+a('fill',C.head)+' style="cursor:move" onmousedown="erdStartDrag(event,'+ni+')" ondblclick="event.stopPropagation()"/>';
+  svg+='<text'+a('x',p.x+10)+a('y',p.y+17)+' fill="#fff" font-size="12" font-weight="600" style="cursor:move;user-select:none;pointer-events:none">'+esc(n)+'</text>';
+  if(t.rows)svg+='<text'+a('x',p.x+p.w-10)+a('y',p.y+17)+' text-anchor="end" fill="#fff" fill-opacity="0.7" font-size="10" style="pointer-events:none">'+esc('~'+fmtRows(t.rows))+'</text>';
+  t.cols.forEach((c,ci)=>{
+   const ry=p.y+headerH+ci*rowH,fk=fkByTable[n]&&fkByTable[n][c],isPk=t.pk.has(c),isUq=t.uq.has(c)&&!isPk;
+   svg+='<rect class="erdrow" id="erd_row_'+ni+'_'+ci+'"'+a('x',p.x+1)+a('y',ry)+a('width',p.w-2)+a('height',rowH)+a('fill',ci%2?C.zebra:C.panel)+'/>';
+   let bx=p.x+8;
+   if(isPk){svg+=badge(bx,ry,'PK',C.pk);bx+=badgeW;}
+   if(fk){svg+=badge(bx,ry,'FK',C.line);bx+=badgeW;}
+   if(isUq){svg+=badge(bx,ry,'UQ',C.uq);bx+=badgeW;}
+   const tip=c+' '+t.types[ci]+(t.nullable[ci]?' NULL':' NOT NULL')+(isPk?', primary key':'')+(isUq?', unique':'')+(fk?', references '+fk.refTbl+'.'+fk.refCol:'');
+   svg+='<text'+a('x',p.x+10+t.badgeW)+a('y',ry+13)+' font-size="11"'+a('font-weight',isPk?'700':'500')+a('fill',C.fg)+'>'+esc(c)+'<title>'+esc(tip)+'</title></text>';
+   svg+='<text'+a('x',p.x+p.w-10)+a('y',ry+13)+' text-anchor="end" font-size="11"'+a('fill',C.muted)+(t.nullable[ci]?' font-style="italic"':'')+'>'+esc(t.types[ci])+'</text>';
   });
+  svg+='<rect class="erdframe"'+a('x',p.x)+a('y',p.y)+a('width',p.w)+a('height',p.h)+' fill="none"'+a('stroke',C.bd)+a('data-bd',C.bd)+' stroke-width="1" pointer-events="none"/>';
   svg+='</g>';
  });
  svg+='</svg>';
@@ -6564,6 +6563,21 @@ function erdRender(){
  erdApplyZoomStyle();
  show('mErd');
 }
+// Hovering a relationship marks it and the two rows it joins.
+function erdHi(g,on){g.classList.toggle('hi',!!on);['a','b'].forEach(k=>{const v=(g.dataset[k]||'').split(':'),row=$('erd_row_'+v[0]+'_'+v[1]);if(row)row.classList.toggle('hi',!!on);});}
+// The whole diagram in view.
+function erdFit(){const box=$('erdBox'),svg=box&&box.querySelector('svg');if(!svg)return;
+ const w=svg.width.baseVal.value,h=svg.height.baseVal.value;if(!w||!h)return;
+ erdSetZoom(Math.max(0.2,Math.min(1.5,Math.min((box.clientWidth-20)/w,(box.clientHeight-20)/h))));box.scrollLeft=0;box.scrollTop=0;}
+// The diagram as an SVG file: it stays sharp at any size, in a document or a slide.
+function erdExportSvg(){const text=erdSvgText();if(!text){toast('Nothing to export yet - open a database\'s ER diagram first.',true);return;}
+ const dbName=(window._erdRawData&&window._erdRawData.db)?window._erdRawData.db:'schema';
+ dl(text,dbName+'_erd.svg');}
+// The drawn diagram as a file of its own: no zoom, no hover targets, no handlers.
+function erdSvgText(){const svg=document.querySelector('#erdBox svg');if(!svg)return '';
+ const clone=svg.cloneNode(true);clone.removeAttribute('style');clone.querySelectorAll('.erdhit').forEach(e=>e.remove());clone.querySelectorAll('.hi').forEach(e=>e.classList.remove('hi'));
+ clone.querySelectorAll('*').forEach(e=>[...e.attributes].forEach(x=>{if(/^on/i.test(x.name))e.removeAttribute(x.name);}));
+ return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(clone);}
 async function openErd(db){
  $('erdFind').value='';window._erdFocus=null;
  window._erdPos=Object.create(null);

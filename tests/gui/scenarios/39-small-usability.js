@@ -78,7 +78,23 @@
     }
     const bad = await G.A('/api/save-config', { config: { ui_zoom: '9' } });
     G.check('a zoom out of range is refused', bad.ok === false, bad);
-    await uiSizesReset(); if (G.desktop) await G.until(() => Math.abs(devicePixelRatio - dpr0) < 0.01, 3000);
+    // the fonts: only ones this computer has are offered; each applies where it says
+    const offered = id => [...$(id).options].map(o => o.value).filter(Boolean);
+    G.check('the fonts on offer are ones this computer has', ['setEdFont', 'setGridFont', 'setUiFont'].every(id => offered(id).every(fontInstalled)) && offered('setUiFont').every(n => UI_SANS.includes(n)), [offered('setEdFont'), offered('setUiFont')]);
+    const mono = offered('setEdFont').find(n => n !== 'Cascadia Code'), sans = offered('setUiFont').find(n => n !== 'Segoe UI');
+    if (mono) { uiFontSet('ed', mono); G.check('the code font applies to the editor', getComputedStyle($('ed_' + zq)).fontFamily.includes(mono) && getComputedStyle($('hl_' + zq)).fontFamily === getComputedStyle($('ed_' + zq)).fontFamily, getComputedStyle($('ed_' + zq)).fontFamily); }
+    if (sans) {
+      uiFontSet('ui', sans); G.check('the interface font applies to the page', getComputedStyle(document.body).fontFamily.includes(sans), getComputedStyle(document.body).fontFamily);
+      const gt = document.createElement('table'); gt.className = 'grid'; document.body.appendChild(gt);
+      G.check('and to the results, by default', getComputedStyle(gt).fontFamily.includes(sans), getComputedStyle(gt).fontFamily);
+      if (mono) { uiFontSet('grid', mono); G.check('unless they have a font of their own', getComputedStyle(gt).fontFamily.includes(mono), getComputedStyle(gt).fontFamily); }
+      gt.remove();
+    }
+    uiFontSet('ui', 'Wingdings');
+    G.eq('a font not on the list is not kept', uiFontGet('ui'), '');
+    await uiSizesReset();
+    G.eq('Reset puts the fonts back as well', [uiFontGet('ed'), uiFontGet('grid'), uiFontGet('ui'), document.documentElement.style.getPropertyValue('--mono'), $('setEdFont').value], ['', '', '', '', '']);
+    if (G.desktop) await G.until(() => Math.abs(devicePixelRatio - dpr0) < 0.01, 3000);
     const cfg1 = await G.A('/api/get-config');
     G.check('Reset to defaults: 13 px both, and 100%', uiSizeGet('ed') === 13 && uiSizeGet('grid') === 13 && String(cfg1.config.ui_zoom) === '1', [uiSizeGet('ed'), uiSizeGet('grid'), cfg1.config.ui_zoom]);
     if (+zoom0 && +zoom0 !== 1) await uiZoomSet(+zoom0);

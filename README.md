@@ -102,6 +102,8 @@ Export files are kept wherever you saved them.
   script with several SELECTs, shows each result in a tab of its own.
 - Explain draws the plan: every table read as a card, a full scan in red and an index lookup in
   green, with the joins, sorts and subqueries around them.
+- Your own fonts and text sizes for the editor, the results and the interface, and an interface
+  zoom (Settings → General).
 - Query history, and a reusable query library with export and import.
 
 **Results and editing**
@@ -121,8 +123,10 @@ Export files are kept wherever you saved them.
 - Table designer and DDL view and edit; routines and triggers edited and recreated in place.
 - Inspect a table: its details and sizes, its indexes with their columns in order, its foreign
   keys, and the tables that point at it.
-- ER diagrams, and table maintenance (check, analyze, optimize; repair where the table's engine
-  supports it).
+- ER diagrams: each table to the right of the tables it refers to, its columns with their types
+  and PK / FK / UQ marks, and crow's-foot lines to the exact rows a key joins (pointing at one
+  names the key). Fit to the window, and export as PNG or SVG.
+- Table maintenance (check, analyze, optimize; repair where the table's engine supports it).
 - Server overview: the server's figures, with what is worth a look marked, and every database with
   its size, row count and character set - yours first. The process list, with kill.
 - Right-click menus offer what fits: nothing is created in or dropped from the server's own
