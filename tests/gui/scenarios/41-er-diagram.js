@@ -49,6 +49,15 @@ CREATE TABLE ${DB}.loner (id INT PRIMARY KEY);`);
     window._erdPos.loner = { x: 900, y: 500 }; erdRender();
     G.check('a dragged table keeps its place', window._erdCurPos.loner.x === 900 && window._erdCurPos.loner.y === 500);
 
+    erdSetZoom(1);
+    const wheel = (ctrlKey, deltaY) => { const w = new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey, deltaY, clientX: 200, clientY: 200 }); $('erdBox').dispatchEvent(w); return w; };
+    const wz = wheel(true, -100);
+    G.check('Ctrl + wheel zooms in, and not the window', window._erdZoom === 1.1 && wz.defaultPrevented, window._erdZoom);
+    wheel(true, 100); wheel(true, 100);
+    G.eq('and out', window._erdZoom, 0.91);
+    const wp = wheel(false, 100);
+    G.check('the wheel alone leaves the zoom and scrolls', window._erdZoom === 0.91 && !wp.defaultPrevented);
+
     erdSetZoom(3); erdFit();
     const box = $('erdBox'), sv = box.querySelector('svg').getBoundingClientRect();
     G.check('Fit brings the whole diagram into view', sv.width <= box.clientWidth + 1 && sv.height <= box.clientHeight + 1, { svg: [sv.width, sv.height], box: [box.clientWidth, box.clientHeight], zoom: window._erdZoom });
