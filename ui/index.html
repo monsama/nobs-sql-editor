@@ -2366,9 +2366,9 @@ async function loadSchemas() {
                 !virt && ['Export...', () => openExport({ db: sc.name })],
                 !sys && ['Import SQL files into it...', async () => { await openImport(); const d = $('impDb'); if (d) d.value = sc.name; }],
                 '-',
-                !sys && ['Drop database...', () => dropSchema(sc.name)],
+                ['Refresh', () => loadSchemas()],
                 '-',
-                ['Refresh', () => loadSchemas()]
+                !sys && ['Drop database...', () => dropSchema(sc.name)]
             ]);
         };
         box.appendChild(d);
@@ -3094,8 +3094,9 @@ function objOpen(db,type,name){if(type==='table'){const _id=openTab(name,'SELECT
 // itself - nothing in them is designed, filled, kept up, renamed or dropped - so their tables and
 // views offer only what reads them.
 function objMenu(e,db,type,name){const b=[],virt=/^(information_schema|performance_schema)$/i.test(db);
+ // In groups, as the other menus: open it; its definition; its data in and out; upkeep; then
+ // renaming and copying; and last, on their own, what empties or removes it.
  if(type==='table'){const isPinned=pinnedTables(db).includes(name);
-  b.push([isPinned?'★ Unpin':'☆ Pin to top',()=>togglePin(db,name)],'-');
   b.push(['SELECT *',()=>{const _i=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_i);}]);
   b.push(['SELECT COUNT(*)',()=>openTab('count '+name,'SELECT COUNT(*) FROM '+qid(db)+'.'+qid(name)+';',db,true,null)]);
   b.push(['Generate SELECT/INSERT/UPDATE...',()=>genTemplate(db,name)],'-');
@@ -3103,19 +3104,34 @@ function objMenu(e,db,type,name){const b=[],virt=/^(information_schema|performan
   const _trigMap=(objData&&objData.r&&objData.r.triggerTables)||{};const _existingTriggers=Object.keys(_trigMap).filter(tn=>_trigMap[tn]===name);
   if(_existingTriggers.length){b.push(['Existing triggers ('+_existingTriggers.length+')',_existingTriggers.map(tn=>[tn,()=>openDdl(db,'trigger',tn)])]);}
   b.push(!virt&&['New trigger on this table...',()=>newTrigger(db,name)],['Inspect...',()=>inspect(db,name)],'-');
-  b.push(!virt&&['Import CSV into table...',()=>importCsv(db,name)],!virt&&['Export...',()=>openExport({db,table:name})]);
-  b.push(['Export table to CSV (all rows)...',()=>exportFull(db,name,'csv')],['Export table INSERTs (all rows)...',()=>exportFull(db,name,'inserts')],'-');
+  b.push(!virt&&['Import CSV into table...',()=>importCsv(db,name)],
+   ['Export',[!virt&&['SQL dump...',()=>openExport({db,table:name})],['CSV (all rows)...',()=>exportFull(db,name,'csv')],['INSERTs (all rows)...',()=>exportFull(db,name,'inserts')]]],'-');
   // REPAIR TABLE works on MyISAM, Aria, CSV and Archive; InnoDB only says it does not support it.
   // An engine the list does not know - another database's table in the all-databases search - keeps it.
   const _eng=(objData&&objData.db===db&&objData.r&&objData.r.tableEngines)||null,repairable=!_eng||!(name in _eng)||/^(myisam|aria|csv|archive)$/i.test(String(_eng[name]));
-  b.push(!virt&&['Maintenance',[['Optimize',()=>maint(db,name,'OPTIMIZE')],['Analyze',()=>maint(db,name,'ANALYZE')],['Check',()=>maint(db,name,'CHECK')],repairable&&['Repair',()=>maint(db,name,'REPAIR')]]],'-');
-  b.push(!virt&&['Rename...',()=>renameTable(db,name)],!virt&&['Duplicate table...',()=>duplicateTable(db,name)],!virt&&['Truncate...',()=>truncateTable(db,name)],!virt&&['Drop table...',()=>dropObject(db,type,name)]);}
+  b.push(!virt&&['Maintenance',[['Optimize',()=>maint(db,name,'OPTIMIZE')],['Analyze',()=>maint(db,name,'ANALYZE')],['Check',()=>maint(db,name,'CHECK')],repairable&&['Repair',()=>maint(db,name,'REPAIR')]]],
+   [isPinned?'★ Unpin':'☆ Pin to top',()=>togglePin(db,name)],'-');
+  b.push(!virt&&['Rename...',()=>renameTable(db,name)],!virt&&['Duplicate table...',()=>duplicateTable(db,name)],'-');
+  b.push(!virt&&['Truncate...',()=>truncateTable(db,name)],!virt&&['Drop table...',()=>dropObject(db,type,name)]);}
  // A MariaDB sequence reads as a one-row table of its state; SHOW CREATE SEQUENCE is its definition.
  else if(type==='sequence'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)],['Show CREATE',async()=>{const r=await api('/api/query',{sql:'SHOW CREATE SEQUENCE '+qid(db)+'.'+qid(name)});if(r.ok&&r.rows.length)viewText('Sequence '+db+'.'+name,String(r.rows[0][1]),{readonly:true});else toast(r.error||'No definition.',true);}],'-',!virt&&['Drop sequence...',()=>dropObject(db,type,name)]);}
- else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)],[virt?'Show CREATE':'Show CREATE / edit',()=>openDdl(db,type,name)],'-',!virt&&['Drop view...',()=>dropObject(db,type,name)]);}
- else {b.push(['Show CREATE / edit',()=>openDdl(db,type,name)],'-',['Drop '+type+'...',()=>dropObject(db,type,name)]);}
+ else if(type==='view'){b.push(['Open',()=>openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null)],[virt?'Show CREATE':'Show CREATE / edit',()=>openDdl(db,type,name)],'-',
+   ['Export',[['CSV (all rows)...',()=>exportFull(db,name,'csv')],['INSERTs (all rows)...',()=>exportFull(db,name,'inserts')]]],'-',!virt&&['Drop view...',()=>dropObject(db,type,name)]);}
+ // A procedure or function is called from here as well: a tab with the call written out.
+ else {b.push((type==='procedure'||type==='function')&&['Call...',()=>routineCallTab(db,type,name)],['Show CREATE / edit',()=>openDdl(db,type,name)],'-',['Drop '+type+'...',()=>dropObject(db,type,name)]);}
  menu(e.clientX,e.clientY,b);}
 
+// A new tab with the routine's call written out, one line per parameter with its name, type and
+// direction: IN parameters as NULL to be filled in, OUT and INOUT ones as a user variable, read back
+// after a CALL. Not run - the values are yours to give.
+async function routineCallTab(db,type,name){
+ const q=await api('/api/query',{sql:'SELECT PARAMETER_NAME, DTD_IDENTIFIER, PARAMETER_MODE FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='+strLit(db)+' AND SPECIFIC_NAME='+strLit(name)+' AND ROUTINE_TYPE='+strLit(type.toUpperCase())+' AND ORDINAL_POSITION>0 ORDER BY ORDINAL_POSITION'});
+ if(!q.ok){toast(q.error,true);return;}
+ const ps=q.rows||[],outs=ps.filter(p=>/OUT/i.test(String(p[2]||''))).map(p=>'@'+String(p[0]));
+ const args=ps.map((p,i)=>'\n  '+(/OUT/i.test(String(p[2]||''))?'@'+p[0]:'NULL')+(i<ps.length-1?',':'')+'  -- '+p[0]+' '+String(p[1]||'')+(p[2]&&type==='procedure'?' ('+p[2]+')':''));
+ const target=qid(db)+'.'+qid(name),body=args.length?args.join('')+'\n':'';
+ const sql=type==='procedure'?'CALL '+target+'('+body+');'+(outs.length?'\nSELECT '+outs.join(', ')+';':''):'SELECT '+target+'('+body+');';
+ openTab((type==='procedure'?'call ':'')+name,sql,db,false,null);}
 async function exec(sql,note,btn){if(roBlock())return false;
  let orig=null;if(btn){orig=btn.textContent;btn.disabled=true;btn.textContent='Working...';}
  const r=await api('/api/exec',{sql});
@@ -5353,11 +5369,36 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // Where the two copies would part company: bytes, or something written as bytes. On anything else
  // 'Copy value as hex' does exactly what 'Copy value' does.
  const asHex=cur!=null&&(/^0x[0-9A-Fa-f]*$/.test(String(cur))||!!(t.binCols&&t.binCols[ci])||!!(t.bitCols&&t.bitCols[ci]));
- const items=[!multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),'-',!multi&&['Copy value',()=>{window._cellClipboard=[[cur]];copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
-  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;window._cellClipboard=pickedCellsGrid(id);copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,
-  ...(()=>{const nc=cellClipCount();if(!editable||!nc)return [];
+ // In groups, the way grid menus are laid out (Excel, DataGrip, HeidiSQL): this cell first - edit it,
+ // or set it NULL or empty; then the clipboard, copies before pastes; then the row; then finding
+ // rows; then exporting; and last what looks at the edits waiting for Apply.
+ const pasteCells=(()=>{const nc=cellClipCount();if(!editable||!nc)return [];
    if(multi&&npick>1)return [nc===1?['Paste value into '+npick+' picked cells',()=>pasteCellsInto(id,pickKeys)]:nc===npick?['Paste '+nc+' values into the picked cells',()=>pasteCellsInto(id,pickKeys)]:null];
-   return multi?[]:[nc===1?['Paste value',()=>pasteCellsInto(id,[key])]:['Paste '+nc+' cells here',()=>pasteCellsFrom(id,ri,ci)]];})(),!multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],!multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],!multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],!multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],!multi&&['Edit full row (form)...',()=>rowForm(id,ri)],editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],'-'];if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+   return multi?[]:[nc===1?['Paste value',()=>pasteCellsInto(id,[key])]:['Paste '+nc+' cells here',()=>pasteCellsFrom(id,ri,ci)]];})();
+ const items=[
+  // this cell (or the picked cells)
+  !multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),
+  !multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],
+  pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')],
+  '-',
+  // copy
+  !multi&&['Copy value',()=>{window._cellClipboard=[[cur]];copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
+  !multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],
+  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;window._cellClipboard=pickedCellsGrid(id);copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,
+  !multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],
+  !multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],
+  // paste
+  ...pasteCells,
+  !multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],
+  editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],
+  editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],
+  '-',
+  // the row
+  !multi&&['Edit full row (form)...',()=>rowForm(id,ri)],
+  !multi&&editable&&!sel&&['Delete row',()=>{if(!t.pending.del.has(ri))toggleDel(id,ri);}],
+  editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],
+  '-'];
+ if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   // The key is followed into the database it names, on every column it has; a part that is NULL
   // points nowhere.
@@ -5365,13 +5406,19 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
    const valOf=c=>{const i=t.cols.indexOf(c),k=ri+':'+i;return i<0?undefined:(t.pending&&(k in t.pending.upd))?t.pending.upd[k]:t.rows[ri][i];};
    const pairs=parts.map(f=>[f[2],valOf(f[0])]);
    if(pairs.every(p=>p[1]!=null))items.push(['Go to referenced row ('+(refDb!==t.db?refDb+'.':'')+fkd[1]+'.'+pairs.map(p=>p[0]).join('+')+')',()=>goToFkRow(refDb,fkd[1],pairs)]);}
-  items.push('-');}// With no row ticked, the rows that picked cells are on are "the selected ones" to an export:
-  // cells picked on two rows export those two rows, as ticking them would.
-  const pickRows=sel?null:new Set([...(t.cellSel||[])].map(k=>+k.split(':')[0]).filter(r=>pickView.has(r)));
-  const nexp=sel?nsel:pickRows.size,exl=sel?nsel+' selected':nexp+' row'+(nexp===1?'':'s')+' with picked cells';
-  const onRows=fn=>sel?fn:async()=>{const old=t.selected;t.selected=pickRows;try{await fn();}finally{t.selected=old;}};
-  // The exports in one submenu, each format with its all-rows and its selected-rows form together.
-  items.push(['Export',[['CSV (all rows)...',()=>csvGrid(id)],nexp&&['CSV ('+exl+')...',onRows(()=>csvSel(id))],'-',['INSERTs (all rows)...',()=>insGrid(id)],nexp&&['INSERTs ('+exl+')...',onRows(()=>insSel(id))],'-',['Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],nexp&&['Excel ('+exl+')...',onRows(()=>exportRowsAs(id,'xlsx',true))],'-',['JSON (all rows)...',()=>exportRowsAs(id,'json')],nexp&&['JSON ('+exl+')...',onRows(()=>exportRowsAs(id,'json',true))],'-',['Markdown (all rows)...',()=>exportRowsAs(id,'md')],nexp&&['Markdown ('+exl+')...',onRows(()=>exportRowsAs(id,'md',true))]]],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}
+ // With no row ticked, the rows that picked cells are on are "the selected ones" to an export:
+ // cells picked on two rows export those two rows, as ticking them would.
+ const pickRows=sel?null:new Set([...(t.cellSel||[])].map(k=>+k.split(':')[0]).filter(r=>pickView.has(r)));
+ const nexp=sel?nsel:pickRows.size,exl=sel?nsel+' selected':nexp+' row'+(nexp===1?'':'s')+' with picked cells';
+ const onRows=fn=>sel?fn:async()=>{const old=t.selected;t.selected=pickRows;try{await fn();}finally{t.selected=old;}};
+ // The exports in one submenu, each format with its all-rows and its selected-rows form together -
+ // parted by a line only when there are two of each.
+ const fmt=(name,all,some)=>[nexp&&'-',[name+' (all rows)...',all],nexp&&[name+' ('+exl+')...',onRows(some)]];
+ items.push(['Export',[...fmt('CSV',()=>csvGrid(id),()=>csvSel(id)),...fmt('INSERTs',()=>insGrid(id),()=>insSel(id)),...fmt('Excel',()=>exportRowsAs(id,'xlsx'),()=>exportRowsAs(id,'xlsx',true)),
+  ...fmt('JSON',()=>exportRowsAs(id,'json'),()=>exportRowsAs(id,'json',true)),...fmt('Markdown',()=>exportRowsAs(id,'md'),()=>exportRowsAs(id,'md',true))]],
+  '-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)]);
+ menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
@@ -5563,11 +5610,14 @@ async function editIns(td,id,ii,col){clearTimeout(clickTimer);const t=T(id);cons
  viewText('New row - '+col,(cur==null?'':cur),{onSave:v=>{t.pending.ins[ii][col]=v;renderGrid(id);},onNull:canNullIns(id,col)?()=>{t.pending.ins[ii][col]=null;renderGrid(id);}:null,...ew});}
 async function insCellMenu(e,id,ii,col){e.preventDefault();const t=T(id);if(t.table)await colMeta(id);const cur=t.pending.ins[ii][col];
  const clip1=singleRowClipboard(),fitsHere=!!(clip1&&clip1.length===t.cols.length);
- const items=[['Copy value',()=>{clipWrite(cellCopyValue(cur));log('Copied value.');}],
-  fitsHere&&['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],
-  ['Edit value...',()=>editIns(null,id,ii,col)],'-',
+ // Laid out as a cell's menu: the value, then the clipboard, then the row.
+ const c1=window._cellClipboard,one=c1&&cellClipCount()===1?c1.flat().find(v=>v!==undefined):undefined;
+ const items=[['Edit value...',()=>editIns(null,id,ii,col)],
   canNullIns(id,col)&&['Set NULL',()=>{t.pending.ins[ii][col]=null;renderGrid(id);}],
   ['Set empty',()=>{t.pending.ins[ii][col]='';renderGrid(id);}],'-',
+  ['Copy value',()=>{window._cellClipboard=[[cur===undefined?null:cur]];clipWrite(cellCopyValue(cur));log('Copied value.');}],
+  one!==undefined&&!isGenCol(id,col)&&['Paste value',()=>{t.pending.ins[ii][col]=one;renderGrid(id);}],
+  fitsHere&&['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],'-',
   ['Delete this new row',()=>delIns(id,ii)]];
  menu(e.clientX,e.clientY,items);}
 function pasteRowIntoIns(id,ii){const t=T(id);const vals=singleRowClipboard();if(!vals||!vals.length){toast(noSingleRowMsg('new'),true);return;}if(vals.length!==t.cols.length){toast('Copied row has '+vals.length+' column(s) but this table has '+t.cols.length+'. Cannot paste.',true);return;}
@@ -6215,9 +6265,10 @@ function erdMenu(e,ni){e.preventDefault();e.stopPropagation();
  const name=(window._erdTableNames||[])[ni];if(!name)return;
  const data=window._erdRawData,fks=(data&&data.r&&data.r.fks)||[];
  const n=erdNeighbours(name,fks).size-1;
- const items=[[n?('Show only its relations ('+n+')'):'No relations to show',n?(()=>erdFocusTable(name)):null]];
+ // Opening the table first, as every menu leads with its main action; then what the diagram shows.
+ const items=[['Open the table',()=>{hide('mErd');objOpen(data.db,'table',name);}],'-',
+  [n?('Show only its relations ('+n+')'):'No relations to show',n?(()=>erdFocusTable(name)):null]];
  if(window._erdFocus)items.push(['Show all tables',()=>erdFocusTable(null)]);
- items.push('-',['Open the table',()=>{hide('mErd');objOpen(data.db,'table',name);}]);
  menu(e.clientX,e.clientY,items.filter(x=>x==='-'||x[1]));}
 function erdRelatedNames(tables,fks){
  const related=new Set();
