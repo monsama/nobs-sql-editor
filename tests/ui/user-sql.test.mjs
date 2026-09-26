@@ -514,8 +514,11 @@ test('row values are written for their column type, and CR survives a script', (
   assert.match(apply, /keyWhere\(t,ri,bc,kt\)/, 'applyChanges finds rows through keyWhere');
   assert.match(extractFunction(html, 'keyWhere'), /litAs\(v,bc\?bc\[ci\]:null\)/, 'which writes row keys by column type');
   assert.match(apply, /return litAs\(v,bc\?bc\[ci\]:null\)/, 'changed cells go through litAs');
-  for (const f of ['insGrid', 'insSel', 'exportFull']) {
+  for (const f of ['insertsText', 'exportFull']) {
     assert.ok(extractFunction(html, f).includes('litAs('), f + ' writes rows by column type');
+  }
+  for (const f of ['insGrid', 'insSel', 'copyInserts']) {
+    assert.ok(extractFunction(html, f).includes('insertsText('), f + ' writes its INSERTs through insertsText');
   }
 });
 

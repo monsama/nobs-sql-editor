@@ -107,6 +107,21 @@ INSERT INTO ${DB}.t VALUES (1,'a1','b1'),(2,'a2',NULL),(3,'a3','b3');`);
     rfSave();
     G.eq('Save to pending stages it', cell(0, A), 'from editor');
 
+    // Copy as INSERTs, from the Copy button: the statements the export writes
+    let copied = '';
+    copyText = text => { copied = text; };
+    t.pending.upd = {}; t.cellSel = new Set(); renderGrid(id);
+    await copyInserts(id);
+    G.check('Copy as INSERTs gives one INSERT per row, into the table', (copied.match(/INSERT INTO `?nobs_gui_cellpaste`?\.`?t`?/g) || []).length === 3 && /'a1'/.test(copied), copied.slice(0, 300));
+    t.selected = new Set([1]); copied = '';
+    await copyInserts(id, true);
+    G.check('and the selected rows only', (copied.match(/INSERT INTO/g) || []).length === 1 && /'a2'/.test(copied) && !/'a1'/.test(copied), copied.slice(0, 300));
+    t.selected = new Set(); copyText = () => {};
+    openCopyMenu(id, document.body);
+    const cmItems = [...$('copyMenu').querySelectorAll('.cpitem')].map(d => d.textContent);
+    $('copyMenu').style.display = 'none';
+    G.check('the Copy button offers them', cmItems.includes('INSERTs (all rows)'), cmItems);
+
     // saved, it is in the table
     t.cellSel = new Set();
     t.pending.upd = {}; renderGrid(id);
