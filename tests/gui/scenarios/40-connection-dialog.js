@@ -52,12 +52,31 @@
     await again;
     G.check('Esc closes it and saves nothing', !$('mConn').classList.contains('show') && connMeta()[N].env === 'changed', connMeta()[N]);
 
+
+    // Connected through the saved connection, then renamed in Edit: the connection you are on goes on
+    // under the new name. It went on under the old one and was refused ("using password: NO").
+    await refreshConns(); $('connlist').value = N; setPass(''); await connect();
+    await G.until(() => !document.body.classList.contains('disconnected') && window._activeConnName === N, 15000);
+    G.eq('connected through the saved connection', window._activeConnName, N);
+    const N2 = N + '_renamed';
+    const ren = editConn(); await G.until(() => $('mConn').classList.contains('show'), 5000);
+    $('cd_name').value = N2; cdOk(); await ren;
+    G.eq('renamed, the connection you are on goes by the new name', window._activeConnName, N2);
+    G.eq('and still signs in', await G.one('SELECT 1+1'), '2');
+    $('connlist').value = N2; await delConn();
+    G.check('deleting it closes the connection, rather than leaving it to fail', document.body.classList.contains('disconnected'));
   } finally {
     if (_cd) cdClose(null);
+    await G.A('/api/conn-delete', { name: N + '_renamed' });
     await G.A('/api/conn-delete', { name: N });
     $('host').value = form.host; $('port').value = form.port; $('user').value = form.user; $('pass').value = form.pass;
     await refreshConns(); $('connlist').value = form.list;
-    window.readOnly = false; document.body.classList.remove('ro');
+    // Back on the connection the run started with, as it was made: typed, not a saved one.
+    if (document.body.classList.contains('disconnected') || window._activeConnName !== form.list) {
+      $('connlist').value = form.list; setPass(form.pass); await connect();
+      await G.until(() => !document.body.classList.contains('disconnected'), 15000);
+    }
+    window.readOnly = false; window._activeReadOnly = false; document.body.classList.remove('ro');
     G.take();
   }
   return G.report();

@@ -36,7 +36,23 @@
     G.check('F1 opens the keyboard shortcuts', $('mShortcuts').classList.contains('show'));
     const scBox = $('mShortcuts').querySelector('.box');
     G.check('which fit the window without scrolling', scBox.scrollHeight <= innerHeight - 20 || innerHeight < 800, { box: scBox.scrollHeight, window: innerHeight });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }));
+    G.check('and F1 again closes them', !$('mShortcuts').classList.contains('show'));
     hide('mShortcuts');
+
+    // F6 between the editor and the results; Ctrl+Shift+F formats; F9 runs as F5 does
+    const k = openTab('keys', 'select id,a from ' + DB + '.t where id=1', DB, false);
+    const ked = $('ed_' + k); ked.focus();
+    const key = (el, o) => el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...o }));
+    key(ked, { key: 'F6' });
+    G.check('F6 goes from the editor to the results', document.activeElement === $('res_' + k), document.activeElement && document.activeElement.id);
+    key(document.activeElement, { key: 'F6' });
+    G.check('and back', document.activeElement === ked);
+    const typed = ked.value; key(ked, { key: 'F', ctrlKey: true, shiftKey: true });
+    G.check('Ctrl+Shift+F formats the query (not the find box)', ked.value !== typed && ked.value.includes('\nfrom ') && (!$('fr_' + k) || $('fr_' + k).style.display === 'none'), ked.value);
+    key(ked, { key: 'F9' }); await G.until(() => T(k).rows && T(k).rows.length && !T(k).runningReqId, 15000);
+    G.eq('F9 runs it', T(k).rows.map(r => String(r[0])), ['1']);
+    closeTab(k);
 
     // a folded list opens when its divider is dragged
     const sp = $('sideSplit'), sc = $('schemas'), ob = $('objects');
