@@ -5051,12 +5051,13 @@ function viewCell(id,ri,ci){const t=T(id);if(!t||!t.rows[ri])return;const v=t.ro
 function setUpd(id,ri,ci,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}if(v===null&&t.pk&&t.pk.indexOf(t.cols[ci])>=0){toast('Column "'+t.cols[ci]+'" is part of the primary key and cannot be set to NULL.',true);return;}if(v===null&&!canNull(id,t.cols[ci])){toast('Column "'+t.cols[ci]+'" is NOT NULL and cannot be set to NULL.',true);return;}if(isGenCol(id,t.cols[ci])){toast(genColMsg(t.cols[ci]),true);return;}const key=ri+':'+ci;if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;renderGrid(id);}
 // The same for a set of cells given one value, with one rebuild at the end. A key column or a NOT
 // NULL one is never given NULL; it is left as it was, and the user is told.
+// v is the value for every key, or a function giving each key its own (a pasted block of cells).
 function setUpdMany(id,keys,v){const t=T(id);if(!t.pending){toast('This result is not editable (no primary key detected).',true);return;}
- let n=0,kept=0,gen=0;
- keys.forEach(key=>{const p=key.split(':'),ri=+p[0],ci=+p[1];if(!t.rows[ri])return;
+ let n=0,kept=0,gen=0;const each=typeof v==='function'?v:()=>v;
+ keys.forEach(key=>{const p=key.split(':'),ri=+p[0],ci=+p[1];if(!t.rows[ri])return;const val=each(key);
   if(isGenCol(id,t.cols[ci])){gen++;return;}
-  if(v===null&&!canNull(id,t.cols[ci])){kept++;return;}
-  if(v===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=v;n++;});
+  if(val===null&&!canNull(id,t.cols[ci])){kept++;return;}
+  if(val===t.rows[ri][ci])delete t.pending.upd[key];else t.pending.upd[key]=val;n++;});
  renderGrid(id);
  if(gen)toast(gen+' cell'+(gen===1?' is':'s are')+' in a generated column and '+(gen===1?'was':'were')+' left as '+(gen===1?'it was':'they were')+'.',true);
  if(kept)toast(kept+' cell'+(kept===1?' was':'s were')+' left as they were - '+(kept===1?'its column':'their columns')+' cannot hold NULL.',true);
@@ -5201,14 +5202,35 @@ function clearCellPick(id){const t=T(id);if(t&&t.cellSel&&t.cellSel.size){t.cell
 // The tab the user is looking at, for the copy handler - which hears about a copy from the whole
 // document and has to decide which result it is about.
 function shownTabId(){const t=tabs.find(x=>{const p=$('pane_'+x.id);return p&&p.classList.contains('active');});return t?t.id:null;}
-function pickedCellsText(id){const t=T(id);if(!t.cellSel||!t.cellSel.size)return '';
- const byRow=new Map();
- t.cellSel.forEach(k=>{const p=k.split(':'),ri=+p[0],ci=+p[1];if(!byRow.has(ri))byRow.set(ri,[]);byRow.get(ri).push(ci);});
- const view=viewIndices(id);
- return [...byRow.keys()].sort((x,y)=>view.indexOf(x)-view.indexOf(y)).map(ri=>
-  byRow.get(ri).sort((x,y)=>x-y).map(ci=>{const key=ri+':'+ci;
-   const v=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
-   return cellCopyValue(v);}).join('\t')).join('\n');}
+// The picked cells as the block they sit in on screen - from the first picked row to the last as
+// the rows are shown, from the leftmost picked column to the rightmost - with the values themselves
+// (NULL stays NULL, bytes stay bytes). A cell in between that is not picked is a gap (undefined):
+// cells picked apart stay apart, instead of closing up side by side. What Paste puts back.
+function pickedCellsGrid(id){const t=T(id);if(!t.cellSel||!t.cellSel.size)return [];
+ const view=viewIndices(id),pos=new Map(view.map((ri,i)=>[ri,i]));
+ const cells=[...t.cellSel].map(k=>k.split(':').map(Number)).filter(([ri])=>pos.has(ri));if(!cells.length)return [];
+ const r0=Math.min(...cells.map(c=>pos.get(c[0]))),r1=Math.max(...cells.map(c=>pos.get(c[0])));
+ const c0=Math.min(...cells.map(c=>c[1])),c1=Math.max(...cells.map(c=>c[1]));
+ const out=[];for(let i=r0;i<=r1;i++){const ri=view[i],row=[];
+  for(let ci=c0;ci<=c1;ci++){const key=ri+':'+ci;row.push(t.cellSel.has(key)?((t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci]):undefined);}
+  out.push(row);}
+ return out;}
+// As text: a gap is an empty field, so the cells land where they were in a spreadsheet as well.
+function pickedCellsText(id){return pickedCellsGrid(id).map(r=>r.map(v=>v===undefined?'':cellCopyValue(v)).join('\t')).join('\n');}
+// Copied cells, kept as values next to the text on the clipboard, the way copied rows are.
+// Pasted from a cell: laid out from there like a spreadsheet - down the rows as they are shown,
+// across the columns. Pasted into picked cells: one value fills them all, or as many values as
+// there are picked cells go in reading order.
+function cellClipCount(){const c=window._cellClipboard;return c?c.reduce((a,r)=>a+r.filter(v=>v!==undefined).length,0):0;}
+function pasteCellsFrom(id,ri,ci){const t=T(id),c=window._cellClipboard;if(!c)return;
+ const view=viewIndices(id),at=view.indexOf(ri),vals=new Map();let off=0;
+ c.forEach((row,i)=>{const r=view[at+i];row.forEach((v,j)=>{if(v===undefined)return;if(r!=null&&ci+j<t.cols.length)vals.set(r+':'+(ci+j),v);else off++;});});
+ setUpdMany(id,[...vals.keys()],k=>vals.get(k));
+ if(off)toast(off+' copied value'+(off===1?' falls':'s fall')+' outside the grid and '+(off===1?'was':'were')+' left out.',true);}
+function pasteCellsInto(id,keys){const c=window._cellClipboard;if(!c)return;const flat=c.flat().filter(v=>v!==undefined);
+ const view=viewIndices(id),order=[...keys].sort((a,b)=>{const [ra,ca]=a.split(':').map(Number),[rb,cb]=b.split(':').map(Number);return (view.indexOf(ra)-view.indexOf(rb))||(ca-cb);});
+ if(flat.length===1){setUpdMany(id,order,flat[0]);return;}
+ const vals=new Map(order.map((k,i)=>[k,flat[i]]));setUpdMany(id,order,k=>vals.get(k));}
 // One place decides what a click does to the selection, whether it landed on the checkbox or on
 // the row. Shift extends from the row picked last; anything else sets that row and becomes the
 // new anchor, so a range always runs from somewhere the user actually pointed at.
@@ -5311,8 +5333,11 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // Where the two copies would part company: bytes, or something written as bytes. On anything else
  // 'Copy value as hex' does exactly what 'Copy value' does.
  const asHex=cur!=null&&(/^0x[0-9A-Fa-f]*$/.test(String(cur))||!!(t.binCols&&t.binCols[ci])||!!(t.bitCols&&t.bitCols[ci]));
- const items=[!multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),'-',!multi&&['Copy value',()=>{copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
-  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,!multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],!multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],!multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],!multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],!multi&&['Edit full row (form)...',()=>rowForm(id,ri)],editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],'-'];if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+ const items=[!multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),'-',!multi&&['Copy value',()=>{window._cellClipboard=[[cur]];copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
+  (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;window._cellClipboard=pickedCellsGrid(id);copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,
+  ...(()=>{const nc=cellClipCount();if(!editable||!nc)return [];
+   if(multi&&npick>1)return [nc===1?['Paste value into '+npick+' picked cells',()=>pasteCellsInto(id,pickKeys)]:nc===npick?['Paste '+nc+' values into the picked cells',()=>pasteCellsInto(id,pickKeys)]:null];
+   return multi?[]:[nc===1?['Paste value',()=>pasteCellsInto(id,[key])]:['Paste '+nc+' cells here',()=>pasteCellsFrom(id,ri,ci)]];})(),!multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],!multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],!multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],editable&&clipN&&nsel>1&&clipN.length===nsel&&clipN.every(fits)&&['Paste '+nsel+' rows over the '+nsel+' selected rows',()=>pasteRowsOver(id)],editable&&clipN&&clipN.every(fits)&&['Paste '+rows(clipN.length)+' as new',()=>pasteRowsAsNew(id)],!multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],!multi&&['Edit full row (form)...',()=>rowForm(id,ri)],editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],'-'];if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   // The key is followed into the database it names, on every column it has; a part that is NULL
   // points nowhere.
@@ -5320,7 +5345,12 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
    const valOf=c=>{const i=t.cols.indexOf(c),k=ri+':'+i;return i<0?undefined:(t.pending&&(k in t.pending.upd))?t.pending.upd[k]:t.rows[ri][i];};
    const pairs=parts.map(f=>[f[2],valOf(f[0])]);
    if(pairs.every(p=>p[1]!=null))items.push(['Go to referenced row ('+(refDb!==t.db?refDb+'.':'')+fkd[1]+'.'+pairs.map(p=>p[0]).join('+')+')',()=>goToFkRow(refDb,fkd[1],pairs)]);}
-  items.push('-');}items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],sel&&['Export to CSV ('+nsel+' selected)...',()=>csvSel(id)],['Export to INSERTs (all rows)...',()=>insGrid(id)],sel&&['Export to INSERTs ('+nsel+' selected)...',()=>insSel(id)],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],sel&&['Export to Excel ('+nsel+' selected)...',()=>exportRowsAs(id,'xlsx',true)],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],sel&&['Export to JSON ('+nsel+' selected)...',()=>exportRowsAs(id,'json',true)],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
+  items.push('-');}// With no row ticked, the rows that picked cells are on are "the selected ones" to an export:
+  // cells picked on two rows export those two rows, as ticking them would.
+  const pickRows=sel?null:new Set([...(t.cellSel||[])].map(k=>+k.split(':')[0]).filter(r=>pickView.has(r)));
+  const nexp=sel?nsel:pickRows.size,exl=sel?nsel+' selected':nexp+' row'+(nexp===1?'':'s')+' with picked cells';
+  const onRows=fn=>sel?fn:async()=>{const old=t.selected;t.selected=pickRows;try{await fn();}finally{t.selected=old;}};
+  items.push(['Export to CSV (all rows)...',()=>csvGrid(id)],nexp&&['Export to CSV ('+exl+')...',onRows(()=>csvSel(id))],['Export to INSERTs (all rows)...',()=>insGrid(id)],nexp&&['Export to INSERTs ('+exl+')...',onRows(()=>insSel(id))],['Export to Excel (all rows)...',()=>exportRowsAs(id,'xlsx')],nexp&&['Export to Excel ('+exl+')...',onRows(()=>exportRowsAs(id,'xlsx',true))],['Export to JSON (all rows)...',()=>exportRowsAs(id,'json')],nexp&&['Export to JSON ('+exl+')...',onRows(()=>exportRowsAs(id,'json',true))],['Export to Markdown (all rows)...',()=>exportRowsAs(id,'md')],nexp&&['Export to Markdown ('+exl+')...',onRows(()=>exportRowsAs(id,'md',true))],'-',editable&&pendingCount(t)>0&&['Show SQL of pending changes...',()=>applyChanges(id,true)],!multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')]);menu(e.clientX,e.clientY,items);}
 // The condition goes in as the tab's filter: openRun() rebuilds the query from the table and its
 // filters, so a WHERE written into the tab's SQL was dropped and the whole table came up. The
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks

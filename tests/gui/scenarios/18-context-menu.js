@@ -15,7 +15,7 @@
   await G.until(() => T(i).rows && T(i).rows.length > 1, 20000);
   // the clipboards are set directly: what is being tested is what the menu makes of them, and a
   // real copy needs a permission the browser does not grant a test.
-  window._rowClipboard = null; window._rowsClipboard = null;
+  window._rowClipboard = null; window._rowsClipboard = null; window._cellClipboard = null;
   T(i).selected = new Set();
 
   let m = await open(i, 0, 0);
@@ -43,7 +43,7 @@
 
   T(i).selected = new Set([0, 1]);
   m = await open(i, 0, 0);
-  G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 6 : 5); // copy, delete (when it can be edited) and the four exports
+  G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 7 : 6); // copy, delete (when it can be edited) and the five exports
   G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export to CSV (2 selected)...'), m);
   // the single overwrite takes one row and one only; several copied rows can go over the same
   // number of ticked ones instead
@@ -102,7 +102,7 @@
   // Several rows ticked, or several cells picked, and right-clicked among them: the menu is about
   // all of them - nothing that acts on the one cell or row alone. Outside them it still is.
   const single = /^(Edit value|View value|Copy value|Copy row$|Paste row here|Copy column|Edit full row|Quick filter|Go to referenced row|Set NULL$|Set empty$)/;
-  window._rowClipboard = null; window._rowsClipboard = null;
+  window._rowClipboard = null; window._rowsClipboard = null; window._cellClipboard = null;
   T(i).selected = new Set([0, 1]);
   const rm = await open(i, 0, 1);
   G.check('two rows ticked: only what acts on both', !rm.some(x => single.test(x)) && rm.includes('Copy 2 selected rows') && (!T(i).pending || rm.includes('Delete 2 selected rows')), rm);
