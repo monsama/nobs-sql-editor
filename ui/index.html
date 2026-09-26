@@ -2607,8 +2607,18 @@ const TX_LOST=/holding this tab's transaction was lost/;
 function sessOf(t){return t&&t.txOn?t.txSession:undefined;}
 // Whether SQL only reads. Only for telling the user there is something to commit; the server is
 // what decides.
-function txReadsOnly(sql){return !String(sql||'').replace(/\/\*[\s\S]*?\*\/|--[^\n]*|#[^\n]*/g,' ').split(';').some(x=>{
- const w=(x.trim().match(/^[A-Za-z]+/)||[''])[0].toUpperCase();return w&&!['SELECT','SHOW','DESCRIBE','DESC','EXPLAIN','USE','HELP','SET'].includes(w);});}
+// Whether a run only reads, so needs no Commit. Read as the server reads it: strings and quoted names
+// first - a # or -- or ; inside one is text, not a comment or the end of a statement - "--" a comment
+// only before a space, and /*! ... */ code rather than a comment. And with a backslash escaping in a
+// string and not, as the server may be set either way: only when both read only does it. A locking
+// read (FOR UPDATE, FOR SHARE) holds its locks until Commit, so it counts as not only reading.
+function txReadsOnly(sql){return [true,false].every(bs=>txReadsOnlyAs(String(sql||''),bs));}
+function txReadsOnlyAs(sql,bs){
+ const q=c=>c+(bs?'(?:[^'+c+'\\\\]|\\\\[\\s\\S]|'+c+c+')*':'(?:[^'+c+']|'+c+c+')*')+c;
+ const re=new RegExp(q("'")+'|'+q('"')+'|`(?:[^`]|``)*`|\\/\\*!\\d*([\\s\\S]*?)\\*\\/|\\/\\*[\\s\\S]*?\\*\\/|--(?=\\s|$)[^\\n]*|#[^\\n]*','g');
+ const s=sql.replace(re,(m,code)=>/^['"`]/.test(m)?"''":code!==undefined?' '+code+' ':' ');
+ return !s.split(';').some(x=>{const t=x.trim(),w=(t.match(/^[A-Za-z]+/)||[''])[0].toUpperCase();
+  return w&&(!['SELECT','SHOW','DESCRIBE','DESC','EXPLAIN','USE','HELP','SET'].includes(w)||/\bFOR\s+(UPDATE|SHARE)\b|\bLOCK\s+IN\s+SHARE\s+MODE\b/i.test(t));});}
 // What the tab sent that changes data is kept, with when and how it went, until Commit or Rollback -
 // the transaction's log, shown from the count beside Commit.
 function txWatch(path,p){if(!/^\/api\/(query|script|script-results)$/.test(path)||txReadsOnly(p.sql))return null;
@@ -5980,7 +5990,7 @@ function csvNullMarker(){ const el=$('expNullVal'); return el?el.value:'\\N'; }
 // silently splits one logical row into two and shifts every column after it.
 function bCSV(cols,rows){const nm=csvNullMarker();const q=s=>s===null?nm:/[",\n\r]/.test(s)?'"'+String(s).replace(/"/g,'""')+'"':s;return cols.map(c=>c===null?'':q(c)).join(',')+'\n'+rows.map(r=>r.map(q).join(',')).join('\n');}
 function bMD(cols,rows){
-  const esc=s=>s===null?'':String(s).replace(/\|/g,'\\|').replace(/\n/g,' ');
+  const esc=s=>s===null?'':String(s).replace(/\|/g,'\\|').replace(/\r\n|\r|\n/g,' ');
   let h='| '+cols.map(esc).join(' | ')+' |\n';
   h+='| '+cols.map(()=>'---').join(' | ')+' |\n';
   rows.forEach(r=>{h+='| '+r.map(esc).join(' | ')+' |\n';});

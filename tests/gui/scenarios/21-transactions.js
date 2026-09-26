@@ -62,6 +62,13 @@ INSERT INTO ${DB}.t VALUES (1,'a');`);
     G.check('Rollback clears it', !$('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
     G.eq('and empties the log', [$('txlog_' + i).textContent, $('txlog_' + i).disabled], ['0', true]);
     G.eq('and the change is gone', await outside(`SELECT v FROM ${DB}.t WHERE id=1`), 'z');
+
+    // a write behind a # in a string still lights Commit up: the # is text, not a comment
+    await runSql(i, "SELECT '#'; UPDATE t SET v='h' WHERE id=1;");
+    await G.until(() => T(i).txDirty, 5000);
+    G.check('a write behind a # in a string is still a write', T(i).txDirty && $('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
+    await txLogEnd('rollback');
+    G.eq('and Rollback takes it back', await outside(`SELECT v FROM ${DB}.t WHERE id=1`), 'z');
     closeTab(i);
 
     // Commit saves grid edits that were not applied yet, and commits them with the rest; Rollback
