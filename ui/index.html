@@ -1899,13 +1899,27 @@ function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre
 // caret and its undo while the find box has the keyboard. Replacing goes through insertText for the
 // same reason: Ctrl+Z takes a replacement back like anything typed.
 const FIND_MAX=5000;let _findCur={};
-function findRe(id){const q=$('frq_'+id)?$('frq_'+id).value:'';if(!q)return false;
- const src=$('frx_'+id).checked?q:q.replace(/[.*+?^$|(){}[\]\\]/g,'\\$&');
- try{return new RegExp(src,'gm'+($('frc_'+id).checked?'':'i'));}catch(e){return null;}}
-// Where the pattern is found, as [start, end] pairs. null for a pattern that is not a regex.
-function findMatches(id){const re=findRe(id);if(re===null)return null;if(!re)return [];const v=$('ed_'+id).value,out=[];let m;
- while(out.length<FIND_MAX&&(m=re.exec(v))){if(m[0]==='')re.lastIndex++;else out.push([m.index,m.index+m[0].length]);}
+function findRe(id){const q=$('frq_'+id)?$('frq_'+id).value:'';return findRegex(q,$('frx_'+id).checked,$('frc_'+id).checked);}
+// What the find box asks for as a regex: false for nothing asked, null for a regex that does not
+// parse. Plain text is matched as it is written; case matters only when asked.
+function findRegex(q,isRe,matchCase){if(!q)return false;
+ const src=isRe?q:q.replace(/[.*+?^$|(){}[\]\\]/g,'\\$&');
+ try{return new RegExp(src,'gm'+(matchCase?'':'i'));}catch(e){return null;}}
+// Where it matches in the text, [start, end) each, up to max; an empty match is stepped over rather
+// than looped on, and not counted - there is nothing to mark.
+function findAll(re,v,max){const out=[];let m;re.lastIndex=0;
+ while(out.length<max&&(m=re.exec(v))){if(m[0]==='')re.lastIndex++;else out.push([m.index,m.index+m[0].length]);}
  return out;}
+// The text one match, v[s..e), is replaced with: the box as it is, or for a regex with $1 and the
+// rest worked out where the match is, so ^ and lookbehinds see what is around it.
+function findReplaceText(re,isRe,w,v,s,e){if(!isRe)return w;
+ const y=new RegExp(re.source,re.flags.replace('g','')+'y');y.lastIndex=s;const r=v.replace(y,w);return r.slice(s,r.length-(v.length-e));}
+// Every match replaced: how many, and the text after. Plain text replaces with the box as written -
+// a $ in it is a $.
+function findReplaceAllText(re,isRe,w,v){re.lastIndex=0;const n=(v.match(re)||[]).length;re.lastIndex=0;
+ return {n,text:n?v.replace(re,isRe?w:()=>w):v};}
+// Where the pattern is found, as [start, end] pairs. null for a pattern that is not a regex.
+function findMatches(id){const re=findRe(id);if(re===null)return null;if(!re)return [];return findAll(re,$('ed_'+id).value,FIND_MAX);}
 function findPaint(id){const ta=$('ed_'+id),fm=$('fm_'+id);if(!ta||!fm)return;const v=ta.value;fm._v=v;
  const ms=findMatches(id),cur=_findCur[id];let out='',at=0;
  (ms||[]).forEach((m,i)=>{out+=esc(v.slice(at,m[0]))+'<mark'+(i===cur?' class="on"':'')+'>'+esc(v.slice(m[0],m[1]))+'</mark>';at=m[1];});
@@ -1960,14 +1974,10 @@ function edReplaceRange(id,s,e,text){const ta=$('ed_'+id),before=ta.value;ta.foc
 function findReplace(id){const ta=$('ed_'+id),re=findRe(id),ms=findMatches(id);if(!re||!ms||!ms.length)return;
  const s=ta.selectionStart,e=ta.selectionEnd;if(!ms.some(m=>m[0]===s&&m[1]===e)){findStep(id,1);return;}
  const w=$('frw_'+id).value,v=ta.value;
- // A regex replacement may use $1 and the rest; it is worked out where the match is, so ^ and
- // lookbehinds see what is around it.
- let text=w;if($('frx_'+id).checked){const y=new RegExp(re.source,re.flags.replace('g','')+'y');y.lastIndex=s;const r=v.replace(y,w);text=r.slice(s,r.length-(v.length-e));}
- edReplaceRange(id,s,e,text);_findCur[id]=null;$('frw_'+id).focus();findStep(id,0);}
+ edReplaceRange(id,s,e,findReplaceText(re,$('frx_'+id).checked,w,v,s,e));_findCur[id]=null;$('frw_'+id).focus();findStep(id,0);}
 function findReplaceAll(id){const ta=$('ed_'+id),re=findRe(id);if(!re)return;const w=$('frw_'+id).value,v=ta.value;
- const n=(v.match(re)||[]).length;if(!n){toast('Nothing to replace.',true);return;}
- re.lastIndex=0;const nv=v.replace(re,$('frx_'+id).checked?w:()=>w);
- edReplaceRange(id,0,v.length,nv);_findCur[id]=null;$('frw_'+id).focus();findPaint(id);
+ const {n,text}=findReplaceAllText(re,$('frx_'+id).checked,w,v);if(!n){toast('Nothing to replace.',true);return;}
+ edReplaceRange(id,0,v.length,text);_findCur[id]=null;$('frw_'+id).focus();findPaint(id);
  toast('Replaced '+n+' match'+(n===1?'':'es')+'.');}
 
 // connection profiles
@@ -6932,13 +6942,24 @@ async function privScopeChanged(){const sc=$('privScope').value;$('privDb').styl
  if(sc==='table'){const tr=await api('/api/query',{sql:'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='+lit($('privDb').value)+' ORDER BY TABLE_NAME'});
   $('privTable').innerHTML=(tr.ok?tr.rows:[]).map(r=>'<option>'+esc(r[0])+'</option>').join('');}
  await privLoad();}
-function privTarget(){const sc=$('privScope').value;return sc==='global'?'*.*':sc==='db'?qid(_priv.dbForm||$('privDb').value)+'.*':qid($('privDb').value)+'.'+qid($('privTable').value);}
+function privTarget(){return privOn($('privScope').value,$('privDb').value,$('privTable').value,_priv.dbForm);}
+// The level a grant is at: every database, one database - in the form its grants were read in, which
+// may have its _ and % escaped - or one table, where they are not wildcards and stand as they are.
+function privOn(scope,db,table,dbForm){return scope==='global'?'*.*':scope==='db'?qid(dbForm||db)+'.*':qid(db)+'.'+qid(table);}
 // In a database-level grant "_" and "%" are wildcards - on MariaDB, and on MySQL unless
 // partial_revokes is on - so SELECT granted on my_app was also SELECT on myXapp and my1app. A grant
 // made here names the database exactly (my\_app). One that already exists in the wildcard form
 // is kept in that form, so that taking a privilege away revokes what is really there, and the
 // window says what it covers.
 function privDbEscape(n){return String(n).replace(/[\\_%]/g,'\\$&');}
+// Which grant on a database the window edits, from its rows [privilege, grantable, schema]: one made
+// on the name as a pattern, if there is one - that is what the account really has - else the one
+// made on the exact name.
+function privPickForm(raw,rows){const exact=privDbEscape(raw),wild=rows.filter(x=>x[2]===raw);
+ return wild.length?{form:raw,rows:wild,pattern:true}:{form:exact,rows:rows.filter(x=>x[2]===exact),pattern:false};}
+// The privileges held, from rows [privilege, grantable]: USAGE is no privilege at all, and WITH GRANT
+// OPTION is held when any of them is grantable.
+function privHad(rows){return {had:new Set(rows.map(x=>String(x[0]).toUpperCase()).filter(p=>p!=='USAGE')),hadGO:rows.some(x=>x[1]==='YES')};}
 async function privWildcards(){if(_priv.wild!=null)return _priv.wild;let wild=true;
  if(!window.mariadb){try{const r=await api('/api/query',{sql:'SELECT @@partial_revokes'});if(r&&r.ok&&r.rows.length)wild=!(+r.rows[0][0]);}catch(e){}}
  return _priv.wild=wild;}
@@ -6951,9 +6972,9 @@ async function privLoad(){const a=_priv.acct,sc=$('privScope').value;if(!a)retur
  const where=sc==='global'?'':' AND TABLE_SCHEMA'+(dbWild?' IN ('+lit(raw)+','+lit(exact)+')':'='+lit(raw))+(sc==='table'?' AND TABLE_NAME='+lit($('privTable').value):'');
  const t=sc==='global'?'USER_PRIVILEGES':sc==='db'?'SCHEMA_PRIVILEGES':'TABLE_PRIVILEGES';
  const r0=await api('/api/query',{sql:'SELECT PRIVILEGE_TYPE,IS_GRANTABLE'+(dbWild?',TABLE_SCHEMA':'')+' FROM information_schema.'+t+' WHERE GRANTEE IN ('+g+')'+where});let rows=r0.ok?r0.rows:[];
- if(dbWild){const wildRows=rows.filter(x=>x[2]===raw);_priv.dbForm=wildRows.length?raw:exact;rows=wildRows.length?wildRows:rows.filter(x=>x[2]===exact);
-  if(wildRows.length)wildNote='<div class="muted" style="margin-top:8px;font-size:12px;color:var(--warn,#b8860b)">These were granted on '+esc(raw)+' as a pattern: "_" and "%" match any character, so they also apply to every database whose name fits it. Changes here are made to that same grant.</div>';}
- _priv.had=new Set(rows.map(x=>String(x[0]).toUpperCase()).filter(p=>p!=='USAGE'));_priv.hadGO=rows.some(x=>x[1]==='YES');
+ if(dbWild){const f=privPickForm(raw,rows);_priv.dbForm=f.form;rows=f.rows;
+  if(f.pattern)wildNote='<div class="muted" style="margin-top:8px;font-size:12px;color:var(--warn,#b8860b)">These were granted on '+esc(raw)+' as a pattern: "_" and "%" match any character, so they also apply to every database whose name fits it. Changes here are made to that same grant.</div>';}
+ {const h=privHad(rows);_priv.had=h.had;_priv.hadGO=h.hadGO;}
  const allowed=sc==='global'?_priv.known:(sc==='db'?PRIV_DB:PRIV_TABLE).filter(p=>_priv.known.includes(p));
  const data=allowed.filter(p=>PRIV_DB.includes(p)),admin=allowed.filter(p=>!PRIV_DB.includes(p));
  const box=p=>'<label class="ck"><input type="checkbox" value="'+esc(p)+'"'+(_priv.had.has(p)?' checked':'')+' onchange="privPreview()"> '+esc(p)+'</label>';
@@ -6962,15 +6983,19 @@ async function privLoad(){const a=_priv.acct,sc=$('privScope').value;if(!a)retur
   (sc!=='global'?'<div class="muted" style="margin-top:8px;font-size:12px">Privileges on single columns or routines are not shown here - use Type a GRANT for those.</div>':'')+wildNote;
  $('privGO').checked=_priv.hadGO;privPreview();}
 // The statements the boxes stand for: a GRANT for what was added, a REVOKE for what was taken away.
-function privSqlFor(){const a=_priv.acct;if(!a)return [];const on=privTarget(),who=uRef(a);
+function privSqlFor(){const a=_priv.acct;if(!a)return [];
  const shown=new Set([...$('privList').querySelectorAll('input[type=checkbox]')].map(b=>b.value));
  const want=new Set([...$('privList').querySelectorAll('input:checked')].map(b=>b.value));
- const add=[...want].filter(p=>!_priv.had.has(p)),del=[..._priv.had].filter(p=>shown.has(p)&&!want.has(p));
- const go=$('privGO').checked,out=[];
+ return privSql(uRef(a),privTarget(),_priv.had,_priv.hadGO,shown,want,$('privGO').checked);}
+// The statements that take an account from the privileges it had at a level to those ticked: what
+// is newly ticked granted, what was had and is now unticked revoked - only among those shown, so a
+// privilege the list does not offer at this level is left alone.
+function privSql(who,on,had,hadGO,shown,want,go){
+ const add=[...want].filter(p=>!had.has(p)),del=[...had].filter(p=>shown.has(p)&&!want.has(p)),out=[];
  // WITH GRANT OPTION belongs to the level, not to a privilege: given once, it covers them all.
- if(add.length||(go&&!_priv.hadGO&&want.size))out.push('GRANT '+(add.length?add:[...want]).join(', ')+' ON '+on+' TO '+who+(go?' WITH GRANT OPTION':'')+';');
+ if(add.length||(go&&!hadGO&&want.size))out.push('GRANT '+(add.length?add:[...want]).join(', ')+' ON '+on+' TO '+who+(go?' WITH GRANT OPTION':'')+';');
  if(del.length)out.push('REVOKE '+del.join(', ')+' ON '+on+' FROM '+who+';');
- if(!go&&_priv.hadGO)out.push('REVOKE GRANT OPTION ON '+on+' FROM '+who+';');
+ if(!go&&hadGO)out.push('REVOKE GRANT OPTION ON '+on+' FROM '+who+';');
  return out;}
 function privPreview(){const s=privSqlFor();$('privSql').textContent=s.length?s.join('\n'):'-- Nothing to change.';$('privApply').disabled=!s.length;}
 async function privApply(){const s=privSqlFor();if(!s.length)return;const r=await api('/api/script',{sql:s.join('\n')});
