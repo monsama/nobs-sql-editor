@@ -54,6 +54,16 @@
     G.eq('F9 runs it', T(k).rows.map(r => String(r[0])), ['1']);
     closeTab(k);
 
+    // Ctrl+Enter with the cursor where typing "...;" leaves it runs that statement, not the next line's
+    const cs = openTab('cursor', 'select id from ' + DB + '.t where id=1;\nselect id from ' + DB + '.t where id=2;', DB, false);
+    const ced = $('ed_' + cs); ced.focus(); const endOfFirst = ced.value.indexOf(';') + 1; ced.setSelectionRange(endOfFirst, endOfFirst);
+    key(ced, { key: 'Enter', ctrlKey: true }); await G.until(() => T(cs).rows && T(cs).rows.length && !T(cs).runningReqId, 15000);
+    G.eq('Ctrl+Enter just after a ; runs the statement it ends', T(cs).rows.map(r => String(r[0])), ['1']);
+    ced.setSelectionRange(ced.value.length - 3, ced.value.length - 3); T(cs).rows = null;
+    key(ced, { key: 'Enter', ctrlKey: true }); await G.until(() => T(cs).rows && T(cs).rows.length && !T(cs).runningReqId, 15000);
+    G.eq('and inside the second, the second', T(cs).rows.map(r => String(r[0])), ['2']);
+    closeTab(cs);
+
     // text sizes and the zoom (Settings -> General)
     const zq = openTab('sizes', 'SELECT 1', DB, false);
     await openSettings(); const zoom0 = $('setZoom').value;

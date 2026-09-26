@@ -3722,6 +3722,23 @@ function sqlHead(s){
  }
 }
 function isCommentOnly(s){ return sqlHead(s)===''; }
+// The statement Run and Explain take when nothing is selected: the one the cursor is in; with the
+// cursor after a statement's delimiter on its line - where it is left having typed "...;" - that
+// statement, not the next one; else, on a line of its own, the next statement (or the last, past
+// them all). Comments alone are not statements. The cursor right after "SELECT ... ;" used to count
+// as the start of the next statement, so Ctrl+Enter there ran the line below - a DELETE as well.
+// null when there is no statement at all.
+// A comment on the line a statement ends, after its delimiter, is a note on that statement, not the
+// start of the next one.
+const TAIL_NOTE=/^[ \t]*(?:(?:--(?=\s)[^\n]*|#[^\n]*|\/\*[^\n]*?\*\/)[ \t]*)*/;
+function stmtAtCursor(sql,pos){const v=String(sql||'').replace(/\r\n/g,'\n');
+ const all=splitStmts(v,true).filter(s=>!isCommentOnly(s.text)).map(s=>{const raw=v.slice(s.start,s.end),lead=s.start?raw.match(TAIL_NOTE)[0]:'',rest=raw.slice(lead.length);return {text:s.text,start:s.start+lead.length+(rest.length-rest.replace(/^\s+/,'').length),end:s.end};});
+ if(!all.length)return null;
+ const inside=all.find(s=>pos>=s.start&&pos<=s.end);if(inside)return inside.text;
+ const before=all.filter(s=>s.end<pos).pop();
+ if(before&&v.slice(before.end,pos).indexOf('\n')<0)return before.text;
+ const next=all.find(s=>s.start>=pos);
+ return (next||before).text;}
 // Comments are read as the server reads them: "#" to the end of the line, and "--" only when a
 // space or control character follows it ("5--3" is five minus minus three). "#" used to be left
 // to the rest of the text, so an apostrophe in "# Don't run the next one" opened a string that
@@ -3753,7 +3770,7 @@ async function explainTab(id){
  // be the first statement in the editor, whichever one the cursor was on.
  let stmt;
  if(sel){const stmts=splitStmts(sel).filter(s=>!isCommentOnly(s));stmt=(stmts[0]||sel);}
- else{const pos=ta.selectionStart,all=splitStmts(ta.value,true).filter(s=>!isCommentOnly(s.text));const hit=all.find(s=>pos>=s.start&&pos<=s.end)||all[0];stmt=hit?hit.text:ta.value;}
+ else{const hit=stmtAtCursor(ta.value,ta.selectionStart);stmt=hit!=null?hit:ta.value;}
  stmt=String(stmt).trim().replace(/;+\s*$/,'');
  if(!stmt){toast('Nothing to explain.',true);return;}
  await runSql(id,'EXPLAIN '+stmt);
@@ -3945,10 +3962,8 @@ async function runSel(id){
  // than falling back to the whole editor - matches the "execute statement at cursor"
  // convention most SQL editors (DBeaver, DataGrip, SSMS) already use. A selection, when
  // present, is always honored above and takes priority over this.
- const pos=ta.selectionStart;
- const stmts=splitStmts(ta.value,true);
- const hit=stmts.find(s=>pos>=s.start&&pos<=s.end);
- await runSql(id,hit?hit.text:ta.value);
+ const hit=stmtAtCursor(ta.value,ta.selectionStart);
+ await runSql(id,hit!=null?hit:ta.value);
 }
 // Server errors already start with "ERROR 1146 (42S02): ...", so prefixing them produced
 // "ERROR: ERROR 1146 ...". Only add the prefix when the message does not carry one.
