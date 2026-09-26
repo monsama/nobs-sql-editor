@@ -194,3 +194,34 @@ test('bars stand on zero, one per value, and a line is one path', () => {
   assert.equal((line.match(/class="cline s1"/g) || []).length, 1);
   assert.equal((line.match(/class="cdot s2"/g) || []).length, 2);
 });
+
+// Call... on a procedure or function: a tab with the call written out, one line per parameter with
+// its name, type and direction, IN as NULL and OUT as a variable read back after the CALL.
+async function callSql(type, params) {
+  let opened = null, asked = null;
+  const env = {
+    api: async (path, p) => { asked = p.sql; return { ok: true, rows: params }; },
+    openTab: (title, sql) => { opened = { title, sql }; },
+    toast: () => {},
+    qid: s => '`' + String(s).replace(/`/g, '``') + '`',
+    strLit: s => "'" + String(s).split("'").join("''") + "'",
+  };
+  const keys = Object.keys(env);
+  const f = new Function(...keys, 'async ' + extractFunction(html, 'routineCallTab') + '\nreturn routineCallTab;')(...keys.map(k => env[k]));
+  await f('shop', type, 'p');
+  return { opened, asked };
+}
+
+test('Call... writes a procedure call: IN as NULL, OUT read back', async () => {
+  const { opened, asked } = await callSql('procedure', [['a', 'int(11)', 'IN'], ['b', 'varchar(20)', 'OUT'], ['c', 'date', 'INOUT']]);
+  assert.match(asked, /ROUTINE_TYPE='PROCEDURE'/);
+  assert.equal(opened.title, 'call p');
+  assert.equal(opened.sql, 'CALL `shop`.`p`(\n  NULL,  -- a int(11) (IN)\n  @b,  -- b varchar(20) (OUT)\n  @c  -- c date (INOUT)\n);\nSELECT @b, @c;');
+});
+
+test('Call... writes a function in a SELECT, and a routine without parameters as ()', async () => {
+  const fn = await callSql('function', [['x', 'int', null]]);
+  assert.equal(fn.opened.sql, 'SELECT `shop`.`p`(\n  NULL  -- x int\n);');
+  const none = await callSql('procedure', []);
+  assert.equal(none.opened.sql, 'CALL `shop`.`p`();');
+});
