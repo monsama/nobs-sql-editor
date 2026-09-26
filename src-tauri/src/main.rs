@@ -787,14 +787,14 @@ fn explain_conn_error(ssl: &str, has_ca: bool, err: &str) -> String {
     if err.contains("mysql_clear_password must be enabled") || err.contains("Unknown authentication protocol: `mysql_clear_password`") {
         return format!("{err}\n\nThis account signs in with its password sent as typed (PAM or LDAP), and \
 this connection is not encrypted, or does not check the server's certificate, so the password was not \
-sent. Set SSL to a verify mode, or - on a network you trust - to \"required\" with \"PAM / LDAP sign-in\" \
-ticked in the saved connection.");
+sent. Set SSL to a verify mode, or - on a network you trust - to \"required\" with \"This account signs \
+in through PAM or LDAP\" ticked in the saved connection.");
     }
     if err.contains("Unknown authentication protocol: `dialog`") {
         return format!("{err}\n\nThis account signs in through PAM with MariaDB's dialog plugin, which \
 this app cannot answer. On the server, SET GLOBAL pam_use_cleartext_plugin=ON (and in its config file) \
 makes PAM ask for the password in a way the app can answer - over an encrypted connection, so set SSL \
-to a verify mode, or to \"required\" with \"PAM / LDAP sign-in\" ticked in the saved connection.");
+to a verify mode, or to \"required\" with \"This account signs in through PAM or LDAP\" ticked in the saved connection.");
     }
     let tls_related = err.contains("TlsError") || err.contains("certificate") || err.contains("Certificate");
     if !ssl_mode_verifies(ssl) || !tls_related { return err.to_string(); }

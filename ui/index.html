@@ -2086,7 +2086,19 @@ function paintConnGo(){const go=$('connGo'),s=$('connlist');if(!go||!s)return;
  go.title=same?'Reconnect':'Connect to the connection picked in the list';go.setAttribute('aria-label',same?'Reconnect':'Connect');
  go.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+CONNGO_ICONS[k]+'</svg>';}
 function toggleConnForm(){document.body.classList.toggle('show-connform');}
-function newConn(){$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';passSavedMark(false);$('ssl').value='default';$('sslca').value='';$('clearpw').checked=false;sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
+// New clears the connection bar for another connection. New again, or Esc, puts back the one you
+// were on, as a dialog's Cancel would; connecting or saving keeps the new one.
+function connBarSnapshot(){const b=document.body.classList,ec=$('envChip'),pwc=$('pwChip'),ps=$('pass');
+ return {list:$('connlist').value,host:$('host').value,port:$('port').value,user:$('user').value,pass:ps.value,pwSaved:ps.classList.contains('pwsaved'),
+  ssl:$('ssl').value,sslca:$('sslca').value,clearpw:$('clearpw').checked,ssh:sshOf(getConn()),accent:window.curAccent||'',ro:!!window.readOnly,env:window.curEnv||'',
+  envShown:ec?ec.style.display:'',pwShown:pwc?pwc.style.display:'',form:b.contains('show-connform'),roClass:b.contains('ro')};}
+function cancelNewConn(){const s=window._newConnPrev;if(!s)return false;window._newConnPrev=null;
+ $('connlist').value=s.list;$('host').value=s.host;$('port').value=s.port;$('user').value=s.user;setPass(s.pass);passSavedMark(s.pwSaved);
+ $('ssl').value=s.ssl;$('sslca').value=s.sslca;$('clearpw').checked=s.clearpw;sslCaToggle();sshSet(s.ssh);
+ window.curAccent=s.accent;applyAccent(s.accent);window.readOnly=s.ro;window.curEnv=s.env;
+ const ec=$('envChip');if(ec)ec.style.display=s.envShown;const pwc=$('pwChip');if(pwc)pwc.style.display=s.pwShown;
+ document.body.classList.toggle('show-connform',s.form);document.body.classList.toggle('ro',s.roClass);connTitle();log('New connection cancelled.');return true;}
+function newConn(){if(cancelNewConn())return;window._newConnPrev=connBarSnapshot();$('connlist').value='';$('host').value='127.0.0.1';$('port').value='3306';$('user').value='';$('pass').value='';passSavedMark(false);$('ssl').value='default';$('sslca').value='';$('clearpw').checked=false;sslCaToggle();sshSet({});window.curAccent='';applyAccent('');window.readOnly=false;window.curEnv='';const ec=$('envChip');if(ec)ec.style.display='none';const pwc=$('pwChip');if(pwc)pwc.style.display='none';document.body.classList.add('show-connform');document.body.classList.remove('ro');connTitle();$('user').focus();log('New connection - enter details and Save.');}
 function setPass(pw){const el=$('pass');if(el)el.value=pw;}
 // The top bar's password box, for a connection whose password is saved (and so not in the page).
 function passSavedMark(on){const el=$('pass');if(!el)return;el.classList.toggle('pwsaved',!!on);el.placeholder=on?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'';}
@@ -2165,7 +2177,7 @@ async function saveConn(){
   {key:'password',label:'Password',type:'password',value:$('pass').value,placeholder:n0&&(window._connPw||{})[n0]?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!(n0&&(window._connPw||{})[n0])},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:$('ssl').value},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:$('sslca').value},
-  {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:$('clearpw').checked},
+  {key:'clearPw',label:'This account signs in through PAM or LDAP',title:'Only tick this if your database admin set the account up for PAM or LDAP. Such an account needs the password sent as you typed it. With SSL set to "verify" that is always safe. With "required" or "default" the app cannot check it is talking to the real server, so tick it only on a network you trust.',type:'checkbox',value:$('clearpw').checked},
   ...sshFields(getConn(),true),
   {key:'color',label:'Accent color (tell servers apart at a glance)',type:'color',value:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6'},
   {key:'env',label:'Environment label (e.g. Production, Dev) - optional',value:m0.env||'',maxlength:40},
@@ -2175,7 +2187,7 @@ async function saveConn(){
  if(!res||!res.name.trim())return;const n=res.name.trim();
  const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0||''});
  if(!r.ok){toast(r.error,true);return;}
- window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
+ window._newConnPrev=null;window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
  $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);
  const pwc=$('pwChip');if(pwc)pwc.style.display=(window._connPw||{})[n]?'inline':'none';passSavedMark(!res.password&&(window._connPw||{})[n]);
 }
@@ -2195,7 +2207,7 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
   {key:'password',label:'Password',type:'password',value:'',placeholder:g.conn.hasPassword?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'',saved:!!g.conn.hasPassword},
   {key:'ssl',label:'SSL',type:'select',options:[{value:'default',label:'default'},{value:'disabled',label:'disabled'},{value:'required',label:'required'},{value:'verify',label:'verify (CA and host name)'},{value:'verify-ca',label:'verify-ca (CA only - for auto-generated server certificates)'}],value:g.conn.ssl},
   {key:'sslCa',label:'CA certificate - only used by SSL "verify"; leave empty to use the system trust store',type:'file',filter:'*.pem',browseTitle:'Select CA certificate',placeholder:'e.g. C:\\certs\\server-ca.pem',value:g.conn.sslCa||''},
-  {key:'clearPw',label:'PAM / LDAP sign-in: send the password as typed. Always allowed with SSL "verify"; with "required" or "default" only when this box is ticked - the certificate of the server is not checked there, so anyone in between could read it',type:'checkbox',value:!!g.conn.clearPw},
+  {key:'clearPw',label:'This account signs in through PAM or LDAP',title:'Only tick this if your database admin set the account up for PAM or LDAP. Such an account needs the password sent as you typed it. With SSL set to "verify" that is always safe. With "required" or "default" the app cannot check it is talking to the real server, so tick it only on a network you trust.',type:'checkbox',value:!!g.conn.clearPw},
   ...sshFields(g.conn,true),
   {key:'color',label:'Accent color',type:'color',value:accMap()[n0]||'#3b82f6'},
   {key:'env',label:'Environment label (optional)',value:m0.env||'',maxlength:40},
@@ -2223,7 +2235,7 @@ async function cloneConn(){const n0=$('connlist').value;
 async function delConn(){const n=$('connlist').value;if(!n)return;await api('/api/conn-delete',{name:n});accSet(n,'');window.curAccent='';applyAccent('');refreshConns();}
 
 // connect(): open the connection, then load the schema sidebar.
-async function connect() {window._connFormTouched=true;
+async function connect() {window._connFormTouched=true;window._newConnPrev=null;
   if (anyPending()) {
     if (!(await ask('You have unsaved grid edits open. Connecting will leave them orphaned. Continue?'))) return;
   }
@@ -3314,7 +3326,11 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
- (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
+ (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
+  // A folded half opens as the divider is dragged, from where the divider is (as the sidebar's).
+  const p=$('pane_'+id),edF=p&&p.classList.contains('edfolded-editor'),resF=p&&p.classList.contains('edfolded-results');
+  if(edF||resF){const full=ew.parentElement.clientHeight-120;p.classList.remove('edfolded-editor','edfolded-results');ew.style.height=(edF?44:Math.max(80,full))+'px';edFoldSync(id);syncHl(id);}
+  const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
   const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(44,Math.min(h,Math.max(80,maxH)));ew.style.height=h+'px';syncHl(id);};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
@@ -3491,7 +3507,7 @@ const MODAL_CLOSE_OVERRIDES={mCompare:cmpCloseAndCancel,mCompareRows:cmprCloseAn
 // the tray, and a plain hide() would leave the scan running in the background uncancelled -
 // exactly the bug Escape already had before this existed.
 function modalClose(id){const fn=MODAL_CLOSE_OVERRIDES[id];if(fn)fn();else hide(id);}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=[...document.querySelectorAll('.modal.show')].filter(m=>!window._floatingMinimized[m.id]);if(open.length){modalClose(open[open.length-1].id);}}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=[...document.querySelectorAll('.modal.show')].filter(m=>!window._floatingMinimized[m.id]);if(open.length){modalClose(open[open.length-1].id);}else if(window._newConnPrev&&!$('ctx').offsetParent)cancelNewConn();}});
 function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();if(activeTab===id&&tabs.length)activate(tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
 // Each saved connection remembers its own open tabs (keyed by connection name; ad-hoc/unsaved
 // connections are keyed by host+user+port so different credentials don't collide).
@@ -5187,6 +5203,9 @@ function cellBlock(id,fromRi,fromCi,toRi,toCi){const out=[],view=viewIndices(id)
 // Pressing on a cell and moving is a selection; pressing and letting go without moving is still a
 // click, so a cell still opens the way it always did.
 function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
+ // Pressed in the cell's open editor: the drag selects its text, as in any text box - reaching the
+ // edge of the cell does not start picking the cells beside it.
+ if(e.target&&e.target.closest&&e.target.closest('input,textarea'))return;
  // Ctrl or shift held: the press belongs to the grid, not to the browser's text selection, which
  // would otherwise streak from wherever the caret last was to the cell that was clicked.
  if(e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();dropTextSelection();}
@@ -7961,6 +7980,10 @@ function sideFoldSync(){const sp=$('sideSplit');if(!sp)return;
  setFoldCaret(b,obGone?'up':'down',!obGone,obGone?'Show the objects again':'Give the sidebar to the databases');}
 (function(){function init(){const sp=$('sideSplit'),sc=$('schemas');if(!sp||!sc){setTimeout(init,300);return;}
  sp.addEventListener('mousedown',e=>{if(e.target!==sp)return;e.preventDefault();
+  // A folded list opens as the divider is dragged, from where the divider is: dragging it used to
+  // resize the other list and leave this one hidden, or move nothing at all.
+  const bc=document.body.classList,scF=bc.contains('schemas-folded'),obF=bc.contains('objs-folded');
+  if(scF||obF){const full=sc.parentElement.clientHeight-140;bc.remove('schemas-folded','objs-folded');sc.style.flex='0 0 '+(scF?0:Math.max(80,full))+'px';sideFoldSync();}
   const sy=e.clientY,sh=sc.offsetHeight,maxH=sc.parentElement.clientHeight-140;
   const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(60,Math.min(h,Math.max(80,maxH)));sc.style.flex='0 0 '+h+'px';};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};

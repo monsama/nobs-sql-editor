@@ -221,7 +221,7 @@ The CA is the last certificate printed (for MariaDB, the only one).
 **PAM and LDAP accounts** (MariaDB's `auth_pam`, MySQL Enterprise's PAM and LDAP plugins) sign in
 with the password as it is typed. The app sends it only where the server has been verified - a
 verifying mode - or, on a network you trust, over `required` or `default` when the saved
-connection has **PAM / LDAP sign-in** ticked: those modes check no certificate, so whoever sits in
+connection has **This account signs in through PAM or LDAP** ticked: those modes check no certificate, so whoever sits in
 between could pose as the server and read the password. A MariaDB server has to ask for it that
 way - set `pam_use_cleartext_plugin=ON` in its configuration. The app cannot answer PAM's other
 way of asking (the dialog plugin), and the connection error says so.
