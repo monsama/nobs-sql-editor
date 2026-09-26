@@ -331,6 +331,13 @@ Every push and pull request runs, on Windows:
   and PAM sign-in against MariaDB with `auth_pam` (on Linux, in Docker).
 
 They also run weekly, so a change on a vendor's download site is caught before a user meets it.
+Each release is also installed over the one before it, to check that saved connections, their
+passwords, the library and the settings survive the upgrade.
+
+The Rust tests reach about three quarters of the backend's lines (`cargo llvm-cov` in
+`src-tauri`, with `NOBS_TEST_DSN` set for the live tests). What they leave is mostly the thin
+command wrappers, which the GUI tests drive, and what touches the user's own settings, saved
+passwords or the network, which the GUI and download tests cover instead.
 Each published release is checked afterwards: the checksums in its notes and in `SHA256SUMS.txt` must match the files as published.
 
 ## Building from source

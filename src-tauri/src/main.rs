@@ -9137,6 +9137,29 @@ mod review_tests {
     }
 
     #[test]
+    fn a_path_from_the_save_dialog_is_written_once() {
+        let p = std::env::temp_dir().join("nobs-grant-test.txt").to_string_lossy().to_string();
+        assert!(!take_save_grant(&p), "a path nobody picked is not granted");
+        save_grants().lock().unwrap().insert(p.clone());
+        assert!(take_save_grant(&p), "the picked one is");
+        assert!(!take_save_grant(&p), "and only once");
+        let r = save_text(json!({"path": p, "content": "x"})).unwrap();
+        assert_eq!(r["ok"], false, "save_text refuses a path that was not picked: {r}");
+        assert!(!std::path::Path::new(&p).exists(), "and writes nothing");
+    }
+
+    #[test]
+    fn a_tool_is_checked_before_it_is_run() {
+        let r = check_tool(json!({"path": r"C:\Windows\System32\cmd.exe", "kind": "mysql"})).unwrap();
+        assert!(r["error"].as_str().unwrap_or("").contains("not mysql.exe"), "{r}");
+        let r = check_tool(json!({"path": r"C:\x\mysql.exe", "kind": "shell"})).unwrap();
+        assert!(r["error"].as_str().unwrap_or("").contains("unknown kind"), "{r}");
+        let r = check_tool(json!({"path": r"C:\definitely\not\here\mysql.exe", "kind": "mysql"})).unwrap();
+        assert!(r["error"].as_str().unwrap_or("").contains("no file"), "{r}");
+        assert_eq!(check_tool(json!({"path": "", "kind": "mysql"})).unwrap(), json!({"ok": true}), "emptied: nothing to check");
+    }
+
+    #[test]
     fn a_connection_saved_read_only_stays_read_only() {
         let ro = json!({"host":"db","port":"3306","user":"app","readonly":true});
         let rw = json!({"host":"db","port":"3306","user":"app","readonly":false});
