@@ -247,6 +247,17 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
     row form - with the words in the tooltip. A dialog's own action row still spells it out. */
  .nullbtn{font-size:13px;line-height:1;color:var(--muted);padding:0 7px}
  .nullbtn:hover{color:var(--fg)}
+ /* Edit row (form): each column's name above its field, the fields starting under the window's
+    title; a field and its NULL button the same height as every other control. */
+ .rfField{margin:0 0 10px}
+ .rfLabel{display:flex;align-items:baseline;gap:6px;margin:0 0 4px;font-size:12px;color:var(--muted);min-width:0}
+ .rfLabel b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .rfTag{font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+ .rfRow{display:flex;align-items:flex-start;gap:6px}
+ .rfRow textarea{flex:1;min-width:0;min-height:28px;height:28px;box-sizing:border-box;padding:5px 8px;line-height:16px;resize:vertical;font-family:var(--mono);font-size:12px;border-radius:var(--r-s)}
+ .rfRow textarea.multi{height:64px}
+ .rfRow textarea.isnull::placeholder{font-style:italic}
+ .rfRow .nullbtn{flex:0 0 28px;width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center}
  .celled{display:flex;align-items:center;width:100%;background:var(--in);outline:1px solid var(--accent);outline-offset:-1px}
  /* Over the cell, covering its text, taking none of its space. */
  .cellEditing{position:relative} .celled.over{position:absolute;inset:0;width:auto}
@@ -5115,8 +5126,10 @@ function cellClick(td,id,ri,ci,e){
  // Ctrl or shift held: this click is about which cells are picked, not about the value in one.
  // Whole rows are picked in the checkbox column, where ctrl and shift work the same way.
  if(e&&(e.ctrlKey||e.metaKey||e.shiftKey)){e.preventDefault();cellPickClick(e,id,ri,ci,td);return;}
- // A plain click starts again: whatever was picked is let go, as in any grid.
+ // A plain click starts again: whatever was picked is let go, as in any grid. The cell clicked is
+ // the one you are on, and what Ctrl or Shift picks next starts from it, as in a spreadsheet.
  if(!e||!e.shiftKey)clearCellPick(id);
+ {const t0=T(id);if(t0){t0._cellAnchor=ri+':'+ci;t0._cellCurrent=ri+':'+ci;}}
  if(td.querySelector('input,textarea'))return;
  // A result with no key is read-only: the click is for picking rows, never for an editor.
  const t=T(id);if(!(t&&t.pk&&t.pending))return;
@@ -5187,6 +5200,8 @@ function cellPickClick(e,id,ri,ci,td){const t=T(id);if(!t.cellSel)t.cellSel=new 
   cellBlock(id,ar,ac,ri,ci).forEach(k=>t.cellSel.add(k));
  }else{
   const k=ri+':'+ci;
+  // The first Ctrl+click after a plain one picks the cell you were on as well.
+  if(!t.cellSel.size&&t._cellCurrent&&t._cellCurrent!==k)t.cellSel.add(t._cellCurrent);
   if(t.cellSel.has(k))t.cellSel.delete(k);else t.cellSel.add(k);
   t._cellAnchor=k;
  }
@@ -5195,7 +5210,7 @@ function cellPickClick(e,id,ri,ci,td){const t=T(id);if(!t.cellSel)t.cellSel=new 
  // all - and Ctrl+C never reaches the results.
  const w=$('res_'+id);if(w&&document.activeElement!==w){try{w.focus({preventScroll:true});}catch(_){w.focus();}}
 }
-function clearCellPick(id){const t=T(id);if(t&&t.cellSel&&t.cellSel.size){t.cellSel.clear();t._cellAnchor=null;paintCellPick(id);}}
+function clearCellPick(id){const t=T(id);if(t)t._cellCurrent=null;if(t&&t.cellSel&&t.cellSel.size){t.cellSel.clear();t._cellAnchor=null;paintCellPick(id);}}
 // What the picked cells are worth on a clipboard: their values, in the order they are on screen,
 // tabs between the columns and a line per row - which is what a spreadsheet and a text editor both
 // expect. A NULL goes out as an empty field; the grid's own way of drawing one is not a value.
@@ -5501,18 +5516,35 @@ async function clearFilters(id){const t=T(id);t.filterClauses=[];await openRun(i
 function updateFilterBar(id){const t=T(id);const st=$('st_'+id);if(!st)return;const w=combinedFilterWhere(t);st.title=w?('WHERE '+w):'';}
 let _rf=null;
 async function rowForm(id,ri){const t=T(id);if(t.pending&&t.table)await colMeta(id);_rf={id:id,ri:ri};$('rfTitle').textContent='Edit row'+(t.table?(' - '+t.table):'');const box=$('rfFields');box.innerHTML='';
+ const types=await Promise.all(t.cols.map(c=>t.table?getColType(id,c).catch(()=>null):null));
  t.cols.forEach((c,ci)=>{const key=ri+':'+ci;const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
-  const w=document.createElement('div');w.style.display='flex';w.style.alignItems='flex-start';w.style.gap='8px';w.style.margin='4px 0';
-  const lb=document.createElement('label');lb.textContent=c+(t.pk&&t.pk.indexOf(c)>=0?' (PK)':'');lb.style.width='170px';lb.style.flex='0 0 170px';lb.style.fontSize='12px';lb.style.textAlign='right';lb.style.paddingTop='5px';lb.style.color='var(--muted)';lb.style.overflow='hidden';lb.style.textOverflow='ellipsis';
-  const ta=document.createElement('textarea');ta.id='rf_'+ci;ta.value=(cur===null?'':cur);ta.rows=(cur!=null&&String(cur).length>60)?3:1;ta.style.flex='1';ta.style.fontFamily='var(--mono)';ta.style.fontSize='12px';ta.dataset.null=(cur===null)?'1':'';
+  const gen=isGenCol(id,c),pk=!!(t.pk&&t.pk.indexOf(c)>=0),nullable=canNull(id,c)&&!gen;
+  const w=document.createElement('div');w.className='rfField';
+  // The column's name above its field, with what it is: its type, and whether it is the key, takes
+  // no NULL or is computed by the server.
+  const lb=document.createElement('label');lb.className='rfLabel';lb.htmlFor='rf_'+ci;
+  const nm=document.createElement('b');nm.textContent=c;nm.title=c;lb.appendChild(nm);
+  [types[ci]||'',pk?'key':'',!pk&&!gen&&!canNull(id,c)?'not null':'',gen?'generated':''].filter(Boolean).forEach((s,k)=>{const sp=document.createElement('span');sp.className=k===0&&types[ci]?'':'rfTag';sp.textContent=s;lb.appendChild(sp);});
+  const row=document.createElement('div');row.className='rfRow';
+  const ta=document.createElement('textarea');ta.id='rf_'+ci;ta.value=(cur===null?'':cur);ta.spellcheck=false;ta.dataset.null=(cur===null)?'1':'';
+  if(cur!=null&&(String(cur).length>60||/\n/.test(String(cur))))ta.classList.add('multi');
+  // NULL shows as NULL in the empty box, so it is not mistaken for an empty value.
+  const paintNull=()=>{const n=ta.dataset.null==='1';ta.classList.toggle('isnull',n);ta.placeholder=n?'NULL':'';};paintNull();
   // Only a field that was typed in, or given NULL, is written: a textarea hands back CRLF as LF,
   // so reading every field back rewrote each untouched multi-line value on the row.
-  ta.oninput=()=>{ta.dataset.null='';ta.dataset.touched='1';};
+  ta.oninput=()=>{ta.dataset.null='';ta.dataset.touched='1';paintNull();};
+  const setNull=()=>{ta.value='';ta.dataset.null='1';ta.dataset.touched='1';paintNull();};
+  // A double-click opens the value editor, as it does on a cell - with what the field holds now,
+  // and what is saved there comes back into the field (still for Save to pending, or Cancel).
+  ta.ondblclick=async e=>{e.preventDefault();const now=ta.dataset.null==='1'?null:ta.value;const ew=await editWidgetFor(id,c,now);
+   if(gen){viewText('Cell - '+c+'  (generated)',now==null?'':now,{readonly:true});return;}
+   viewText('Cell - '+c+(now===null?'  (currently NULL)':''),now,{onSave:v=>{ta.value=v==null?'':v;ta.dataset.null=v===null?'1':'';ta.dataset.touched='1';ta.classList.toggle('multi',String(ta.value).length>60||/\n/.test(ta.value));paintNull();},onNull:nullable?setNull:null,...ew});};
+  ta.title='Double-click to open the value editor';
   // No button beside a field that cannot hold NULL; the space is kept so the boxes still line up.
-  const nb=document.createElement('button');nb.className='sm nullbtn';nb.innerHTML='&empty;';nb.title='Set this field to NULL';nb.onclick=()=>{ta.value='';ta.dataset.null='1';ta.dataset.touched='1';};
-  if(!canNull(id,c)||isGenCol(id,c))nb.style.visibility='hidden';
-  if(isGenCol(id,c)){ta.readOnly=true;ta.title='Generated - the server computes this value';}
-  w.appendChild(lb);w.appendChild(ta);w.appendChild(nb);box.appendChild(w);});
+  const nb=document.createElement('button');nb.className='sm nullbtn';nb.innerHTML='&empty;';nb.title='Set this field to NULL';nb.onclick=setNull;
+  if(!nullable)nb.style.visibility='hidden';
+  if(gen){ta.readOnly=true;ta.title='Generated - the server computes this value';}
+  row.appendChild(ta);row.appendChild(nb);w.appendChild(lb);w.appendChild(row);box.appendChild(w);});
  show('mRowForm');}
 function rfSave(){if(!_rf)return;const t=T(_rf.id),ri=_rf.ri;if(!t.pending){hide('mRowForm');_rf=null;toast('This result is not editable (no primary key detected) - nothing was saved.',true);return;}t.cols.forEach((c,ci)=>{const ta=$('rf_'+ci);if(!ta||ta.dataset.touched!=='1')return;const orig=t.rows[ri][ci];const v=(ta.dataset.null==='1')?null:keepLineEnds(orig,ta.value);const key=ri+':'+ci;if(v===orig){if(t.pending&&key in t.pending.upd)delete t.pending.upd[key];}else{if(v===null&&!canNull(_rf.id,t.cols[ci])){/* a key or NOT NULL column is not given NULL */}else if(t.pending){t.pending.upd[key]=v;}}});hide('mRowForm');renderGrid(_rf.id);_rf=null;}
 function toggleDel(id,ri){const t=T(id);if(t.pending.del.has(ri))t.pending.del.delete(ri);else t.pending.del.add(ri);renderGrid(id);}

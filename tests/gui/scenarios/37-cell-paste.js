@@ -76,6 +76,35 @@ INSERT INTO ${DB}.t VALUES (1,'a1','b1'),(2,'a2',NULL),(3,'a3','b3');`);
     G.check('which holds those two rows', !!csv && /a1/.test(csv) && /a2/.test(csv) && !/a3/.test(csv), csv);
     G.eq('and the ticks are left as they were', t.selected.size, 0);
 
+    // The cell you are on counts: a plain click, then Ctrl+click on another, picks both; a plain
+    // click, then Shift+click, picks the block between them
+    t.cellSel = new Set(); renderGrid(id);
+    const clickAt = (r, c, mods = {}) => { const td = gridCellEl(id, r, c); cellClick(td, id, r, c, { preventDefault() {}, ctrlKey: false, shiftKey: false, metaKey: false, ...mods }); };
+    clickAt(0, A); clickAt(2, B, { ctrlKey: true });
+    G.eq('plain click, then Ctrl+click: both are picked', [...t.cellSel].sort(), ['0:' + A, '2:' + B].sort());
+    clickAt(0, A); clickAt(1, B, { shiftKey: true });
+    G.eq('plain click, then Shift+click: the block between them', [...t.cellSel].sort(), ['0:' + A, '0:' + B, '1:' + A, '1:' + B].sort());
+    clearCellPick(id); document.querySelectorAll('#res_' + id + ' td input, #res_' + id + ' td textarea').forEach(x => x.blur());
+    await G.wait(100); t.pending.upd = {}; renderGrid(id);
+
+    // Edit row (form): a double-click on a field opens the value editor, and what is saved there
+    // comes back into the field - not straight into the grid, so Cancel still cancels
+    t.pending.upd = {}; t.cellSel = new Set(); renderGrid(id);
+    await rowForm(id, 0);
+    const f = $('rf_' + A);
+    G.check('the field starts under the title, not beside a label column', f.getBoundingClientRect().left - $('rfTitle').getBoundingClientRect().left < 4,
+      [f.getBoundingClientRect().left, $('rfTitle').getBoundingClientRect().left]);
+    const nb = f.parentElement.querySelector('.nullbtn');
+    G.eq('the field and its NULL button are the same height', Math.round(f.getBoundingClientRect().height), Math.round(nb.getBoundingClientRect().height));
+    f.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); await G.until(() => $('mView').classList.contains('show'), 3000);
+    G.check('a double-click opens the value editor', $('mView').classList.contains('show'));
+    $('vText').value = 'from editor';
+    [...$('mView').querySelectorAll('button')].find(b => b.textContent === 'Save').click(); await G.wait(100);
+    G.eq('its value comes back into the field', f.value, 'from editor');
+    G.check('and nothing is staged until the form is saved', !(('0:' + A) in t.pending.upd));
+    rfSave();
+    G.eq('Save to pending stages it', cell(0, A), 'from editor');
+
     // saved, it is in the table
     t.cellSel = new Set();
     t.pending.upd = {}; renderGrid(id);
