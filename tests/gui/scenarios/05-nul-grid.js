@@ -68,7 +68,13 @@ INSERT INTO ${DB}.viewer VALUES (2, CONCAT('a',CHAR(9),'b'), NULL, NULL);`);
     switchHexTab('hex');
     G.check('nothing to say in Hex mode, where the bytes are shown',
       $('vNote').style.display === 'none' && /^0x6100$/i.test($('vText').value), { note: $('vNote').textContent, box: $('vText').value });
+    G.check('and the bytes are laid out beside it, offset, hex and ASCII',
+      $('vDump').style.display !== 'none' && /^00000000  61 00 +\|a\.\|$/.test($('vDump').textContent), $('vDump').textContent);
+    $('vText').value = '0x616263'; $('vText').dispatchEvent(new Event('input'));
+    G.check('which follows what is typed', /\|abc\|$/.test($('vDump').textContent), $('vDump').textContent);
+    $('vText').value = '0x6100'; $('vText').dispatchEvent(new Event('input'));
     switchHexTab('text');
+    G.check('and goes away in Text', $('vDump').style.display === 'none');
     G.check('and it is said again on the way back to Text',
       $('vNote').style.display !== 'none' && $('vText').value === 'a' + N, { note: $('vNote').textContent, box: JSON.stringify($('vText').value) });
     hide('mView');

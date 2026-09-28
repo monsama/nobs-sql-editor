@@ -34,7 +34,7 @@ function extractConst(src, name) {
 }
 
 const NAMES = ['sqlHead', 'useTarget', 'scriptShowsResults', 'parseSingleEditableTable', 'sqlBlankStringsAndComments', 'refreshRunTableBinding',
-  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'hexToBytes', 'hexIsUtf8', 'cellHtml', 'ctrlCharNote', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
+  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'hexToBytes', 'hexIsUtf8', 'cellHtml', 'ctrlCharNote', 'normalizeHexInput', 'hexDump', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
 const bundle = [extractConst(html, 'CTRL_NAMES'), extractConst(html, 'CTRL_RE'),
   ...NAMES.map(n => extractFunction(html, n))].join('\n');
 
@@ -128,8 +128,29 @@ test('a NUL inside text is shown, not swallowed', () => {
   const f = load({}, 'a');
   const h = f.textCellHtml('a' + String.fromCharCode(0) + 'b', 300);
   assert.match(h, /^a<span[^>]*>NUL<\/span>b$/);
-  assert.equal(f.textCellHtml('tab\there\nand <b>', 300), 'tab\there\nand &lt;b&gt;', 'tab and line break are ordinary text');
+  assert.equal(f.textCellHtml('plain words, <b> & all', 300), 'plain words, &lt;b&gt; &amp; all', 'ordinary text is only escaped');
   assert.match(f.textCellHtml('x' + String.fromCharCode(27) + 'y', 300), />ESC</);
+});
+
+// A one-line cell shows a line break or a tab as a plain space, and a space at either end as
+// nothing: 'abc ' and 'abc' drew the same, which is why a WHERE on what you can see finds no row.
+test('line breaks, tabs and spaces at the ends are drawn', () => {
+  const f = load({}, 'a');
+  const plain = h => h.replace(/<[^>]*>/g, '');
+  assert.equal(plain(f.textCellHtml('one\ntwo', 300)), 'one\u21b5two');
+  assert.match(f.textCellHtml('one\ntwo', 300), /title="Line break \(LF\)"/);
+  assert.match(f.textCellHtml('one\r\ntwo', 300), /^one<span[^>]*title="Line break \(CR LF\)">\u21b5<\/span>two$/, 'CR LF is one line break');
+  assert.match(f.textCellHtml('one\rtwo', 300), /^one<span[^>]*>CR<\/span>two$/, 'a CR on its own is a badge');
+  assert.equal(plain(f.textCellHtml('a\tb', 300)), 'a\u2192b');
+  assert.equal(plain(f.textCellHtml('abc ', 300)), 'abc\u00b7');
+  assert.equal(plain(f.textCellHtml('  abc', 300)), '\u00b7\u00b7abc');
+  assert.equal(plain(f.textCellHtml(' ab  c   ', 300)), '\u00b7ab  c\u00b7\u00b7\u00b7', 'spaces inside are text');
+  assert.equal(plain(f.textCellHtml('abc' + ' '.repeat(12), 300)), 'abc\u00b7×12', 'a long run has a count');
+  assert.match(f.textCellHtml('abc  ', 300), /title="2 spaces at the end/);
+  assert.match(f.textCellHtml('   ', 300), /^<span[^>]*title="3 spaces making up the whole value[^"]*">\u00b7\u00b7\u00b7<\/span>$/, 'counted once, not as leading and trailing');
+  assert.equal(plain(f.textCellHtml('x'.repeat(10) + '   ' + 'y', 12)), 'x'.repeat(10) + '  \u2026', 'the end of a clipped value is not its end');
+  assert.equal(plain(f.textCellHtml(' <b>\n', 300)), '\u00b7&lt;b&gt;\u21b5', 'escaped around the marks');
+  assert.equal(plain(f.cellHtml('0x61626320', false, true)), 'abc\u00b7', 'a binary value holding text too');
 });
 
 // A BINARY(n) value is padded with NULs to its width, so 'abc' in a BINARY(16) is 'abc' and thirteen
@@ -176,6 +197,23 @@ test('bytes that are not text are shown as hex', () => {
   // Text stays text
   assert.equal(f.cellHtml('0x636166c3a9', false, true), 'caf\u00e9', 'a binary column holding UTF-8 still reads as text');
   assert.match(f.cellHtml('0x6100', false, true), /^a<span[^>]*>NUL<\/span>$/);
+});
+
+// The Hex tab holds the bytes as one run of digits. Beside it, the view every hex editor has.
+test('the Hex tab has an offset / hex / ASCII view of the bytes', () => {
+  const f = load({}, 'a');
+  assert.equal(f.hexDump('0x61626300ff7e7f20', 65536), '00000000  61 62 63 00 ff 7e 7f 20                           |abc..~. |');
+  const two = f.hexDump('0x' + '41'.repeat(17), 65536).split('\n');
+  assert.equal(two.length, 2);
+  assert.equal(two[0], '00000000  41 41 41 41 41 41 41 41  41 41 41 41 41 41 41 41  |AAAAAAAAAAAAAAAA|');
+  assert.match(two[1], /^00000010  41 {48}\|A\|$/);
+  assert.equal(f.hexDump('61 62\n63', 65536).split('|')[1], 'abc', 'what the box accepts, spaces and all');
+  assert.equal(f.hexDump('0x', 65536), '(0 bytes)');
+  assert.equal(f.hexDump('0x6', 65536), null, 'half a byte is not hex yet');
+  assert.equal(f.hexDump('0xzz', 65536), null);
+  const long = f.hexDump('0x' + '00'.repeat(100), 32).split('\n');
+  assert.equal(long.length, 3, 'stops at the limit');
+  assert.match(long[2], /^\u2026 68 more bytes/);
 });
 
 // Only the start of a long value is decoded, and that cut can fall inside a character. That is the
