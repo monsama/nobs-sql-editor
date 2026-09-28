@@ -685,7 +685,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div class="modal floating" id="mView"><div class="box" style="width:1000px;max-width:95vw;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mView')" title="Drag to move"><h3 id="vTitle" style="margin:0 0 10px">Value</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mView')" title="Maximize" id="maxBtn_mView" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mView')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <img id="vImg" style="display:none;max-width:100%;max-height:340px;margin-bottom:6px;border:1px solid var(--bd);border-radius:var(--r-s);flex:none">
  <div id="vNote" style="display:none;font-size:11px;color:var(--log-warn);margin-bottom:4px;flex:none"></div>
- <textarea id="vText" spellcheck="false" style="width:100%;height:520px;flex:1;min-height:0;font-family:var(--mono);font-size:12px"></textarea>
+ <textarea id="vText" spellcheck="false" oninput="updateHexDump()" style="width:100%;height:520px;flex:1;min-height:0;font-family:var(--mono);font-size:12px"></textarea>
+ <pre id="vDump" style="display:none;flex:none;max-height:220px;overflow:auto;margin:6px 0 0;padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--in);font-family:var(--mono);font-size:12px;line-height:1.35;white-space:pre;user-select:text"></pre>
  <select id="vSelect" style="width:100%;display:none;padding:8px;font-size:13px;flex:none"></select>
  <div id="vMulti" style="width:100%;display:none;max-height:520px;overflow:auto;padding:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--in);box-sizing:border-box;font-size:13px;flex:1;min-height:0"></div>
  <input id="vDate" style="width:100%;display:none;padding:8px;font-size:13px;box-sizing:border-box;flex:none">
@@ -4376,7 +4377,7 @@ function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
 // the "0x.." string exactly as before - editing, Apply, and SQL generation are untouched, since
 // that hex form is what makes round-tripping a value with a real embedded NUL byte safe (a raw
 // NUL in the actual SQL text risks truncation when passed as a command-line argument).
-const CTRL_NAMES={0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',8:'BS',11:'VT',12:'FF',14:'SO',15:'SI',16:'DLE',17:'DC1',18:'DC2',19:'DC3',20:'DC4',21:'NAK',22:'SYN',23:'ETB',24:'CAN',25:'EM',26:'SUB',27:'ESC',28:'FS',29:'GS',30:'RS',31:'US',127:'DEL',128:'PAD',129:'HOP',130:'BPH',131:'NBH',132:'IND',133:'NEL',134:'SSA',135:'ESA',136:'HTS',137:'HTJ',138:'VTS',139:'PLD',140:'PLU',141:'RI',142:'SS2',143:'SS3',144:'DCS',145:'PU1',146:'PU2',147:'STS',148:'CCH',149:'MW',150:'SPA',151:'EPA',152:'SOS',153:'SGCI',154:'SCI',155:'CSI',156:'ST',157:'OSC',158:'PM',159:'APC',160:'NBSP',173:'SHY',8203:'ZWSP',8206:'LRM',8207:'RLM',8232:'LS',8233:'PS',8234:'LRE',8235:'RLE',8236:'PDF',8237:'LRO',8238:'RLO',8288:'WJ',8294:'LRI',8295:'RLI',8296:'FSI',8297:'PDI',65279:'BOM'};
+const CTRL_NAMES={0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',8:'BS',11:'VT',13:'CR',12:'FF',14:'SO',15:'SI',16:'DLE',17:'DC1',18:'DC2',19:'DC3',20:'DC4',21:'NAK',22:'SYN',23:'ETB',24:'CAN',25:'EM',26:'SUB',27:'ESC',28:'FS',29:'GS',30:'RS',31:'US',127:'DEL',128:'PAD',129:'HOP',130:'BPH',131:'NBH',132:'IND',133:'NEL',134:'SSA',135:'ESA',136:'HTS',137:'HTJ',138:'VTS',139:'PLD',140:'PLU',141:'RI',142:'SS2',143:'SS3',144:'DCS',145:'PU1',146:'PU2',147:'STS',148:'CCH',149:'MW',150:'SPA',151:'EPA',152:'SOS',153:'SGCI',154:'SCI',155:'CSI',156:'ST',157:'OSC',158:'PM',159:'APC',160:'NBSP',173:'SHY',8203:'ZWSP',8206:'LRM',8207:'RLM',8232:'LS',8233:'PS',8234:'LRE',8235:'RLE',8236:'PDF',8237:'LRO',8238:'RLO',8288:'WJ',8294:'LRI',8295:'RLI',8296:'FSI',8297:'PDI',65279:'BOM'};
 // c: the character's code; n: how many of it in a row.
 function ctrlBadge(c,n){const ctl=c<32||(c>=127&&c<160),code=c.toString(16).toUpperCase();
  return '<span class="cellmark" style="background:#4a3a1f;color:#e8c589;border-radius:var(--r-s);padding:0 3px;font-size:10px;font-weight:600;margin:0 1px" title="'
@@ -4385,7 +4386,21 @@ function ctrlBadge(c,n){const ctl=c<32||(c>=127&&c<160),code=c.toString(16).toUp
 // Text holding a control character (a NUL, say) showed it as nothing at all, so 'a<NUL>b' looked
 // like 'ab'. Marked the same way as above. Each match is a run of one character.
 const CTRL_RE=/([\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xA0\xAD\u200B\u200E\u200F\u2028-\u202E\u2060\u2066-\u2069\uFEFF])\1*/g;
-function textCellHtml(s,maxChars){const h=esc(clip(s,maxChars));return h.search(CTRL_RE)<0?h:h.replace(CTRL_RE,m=>ctrlBadge(m.charCodeAt(0),m.length));}
+// Besides those, what a one-line cell would otherwise swallow is drawn faintly: a line break as
+// U+21B5 and a tab as U+2192, which white-space:nowrap shows as a plain space, and spaces at either
+// end, which it shows as nothing - 'abc ' drew exactly like 'abc', the commonest reason a WHERE
+// finds no row. Only the ends are marked; a space between words is text. A line break is CR LF or
+// LF; a CR on its own, the one a Windows file leaves behind, is a badge. The end of a clipped
+// value is not its end, so its trailing spaces are not marked.
+function textCellHtml(s,maxChars){
+ const str=String(s),cut=str.length>maxChars,shown=cut?str.slice(0,maxChars):str,more=cut?'\u2026':'';
+ const lead=/^ */.exec(shown)[0].length,trail=(cut||lead===shown.length)?0:/ *$/.exec(shown)[0].length;
+ const mark=(txt,title)=>'<span class="cellmark" style="color:#888" title="'+title+'">'+txt+'</span>';
+ const spaces=(n,where)=>n?mark(n>3?'\u00b7\u00d7'+n:'\u00b7'.repeat(n),n+' space'+(n>1?'s':'')+' '+where+' - shown as nothing otherwise'):'';
+ const mid=esc(shown.slice(lead,shown.length-trail)).replace(new RegExp(CTRL_RE.source+'|\\r\\n|[\\t\\n\\r]','g'),m=>
+  m==='\r\n'||m==='\n'?mark('\u21b5','Line break ('+(m==='\n'?'LF':'CR LF')+')'):m==='\t'?mark('\u2192','Tab'):ctrlBadge(m.charCodeAt(0),m.length));
+ return spaces(lead,lead===shown.length?'making up the whole value':'at the start')+mid+spaces(trail,'at the end')+more;
+}
 // What a <textarea> cannot show. The grid marks a control character with a badge above, but the
 // cell editor is a plain textarea, where the same byte takes no space at all - so a value the grid
 // shows as a<NUL>b reads in there as "ab", and one that ends in a NUL looks like it just ends.
@@ -4869,6 +4884,34 @@ function hexToStrictText(hexStr){
 // Validation matters as much as the tidying: hexToBytes() slices off two characters and runs
 // parseInt on each pair, so "zz" silently became byte 0 and a stray character turned into a hole
 // in the data. An odd number of digits is half a byte and is not a value either.
+// What a hex editor shows beside the bytes: offset, sixteen bytes, and those bytes as ASCII with a
+// dot for anything not printable. A long run of hex digits is unreadable past a line or two, and
+// this is how a byte is found at all. Read-only, under the box that is edited; null for text that
+// is not hex (yet - it is redrawn as it is typed). Past maxBytes it stops and says how many more.
+function hexDump(hex,maxBytes){
+ const n=normalizeHexInput(hex);if(n===null)return null;
+ const body=n.slice(2),total=body.length/2,shown=Math.min(total,maxBytes);
+ if(!total)return '(0 bytes)';
+ const lines=[];
+ for(let off=0;off<shown;off+=16){
+  let h='',a='';
+  for(let i=off;i<off+16;i++){
+   if(i<shown){const x=body.substr(i*2,2),b=parseInt(x,16);h+=x+' ';a+=b>=0x20&&b<0x7f?String.fromCharCode(b):'.';}
+   else h+='   ';
+   if(i===off+7)h+=' ';
+  }
+  lines.push(off.toString(16).padStart(8,'0')+'  '+h+' |'+a+'|');
+ }
+ if(total>shown)lines.push('\u2026 '+(total-shown)+' more bytes, not shown here - the box above holds all of them');
+ return lines.join('\n');
+}
+function updateHexDump(){
+ const d=$('vDump');if(!d)return;
+ const on=!!(_vHexState&&_vHexState.kind==='binText'&&_vHexState.mode==='hex');
+ d.style.display=on?'block':'none';if(!on)return;
+ const t=hexDump($('vText').value,65536);
+ d.textContent=t==null?'Not hex (yet): two digits per byte, spaces allowed.':t;
+}
 function normalizeHexInput(s){
  const t=String(s==null?'':s).replace(/\s+/g,'');
  const body=/^0[xX]/.test(t)?t.slice(2):t;
@@ -4955,6 +4998,7 @@ function updateHexTabButtons(){
  // Only Text mode hides control characters; in Hex mode the bytes are right there in the box.
  const ta=$('vText');
  if(_vHexState.kind==='binText'&&ta)setVNote(_vHexState.mode==='text'?ctrlCharNote(ta.value,true):'');
+ updateHexDump();
 }
 function switchHexTab(mode){
  if(!_vHexState||_vHexState.mode===mode)return;
@@ -5012,7 +5056,7 @@ function viewText(title,text,opts){opts=opts||{};$('vTitle').textContent=title;c
   // the widget if dragged smaller). Every other mView mode still needs it (long text, SET/BLOB).
   box.style.resize=opts.dateType?'none':'';
  }
- ta.style.display='none';sel.style.display='none';multi.style.display='none';dt.style.display='none';hexTabs.style.display='none';img.style.display='none';img.removeAttribute('src');_vHexState=null;setVNote('');
+ ta.style.display='none';sel.style.display='none';multi.style.display='none';dt.style.display='none';hexTabs.style.display='none';img.style.display='none';img.removeAttribute('src');_vHexState=null;setVNote('');updateHexDump();
  // Checkbox mode: SET columns, whose valid values are any comma-joined COMBINATION of the
  // column's defined members - unlike ENUM (exactly one value), a single dropdown can't represent
  // that, but a checkbox per member can, mirroring how Heidi/Workbench edit SET data.
