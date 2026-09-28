@@ -78,6 +78,16 @@ INSERT INTO ${DB}.viewer VALUES (2, CONCAT('a',CHAR(9),'b'), NULL, NULL);`);
     G.check('an ordinary value is opened without a note', $('vNote').style.display === 'none', $('vNote').textContent);
     hide('mView');
 
+    // A BINARY(n) value padded with NULs to its width, and bytes that are no text at all, as the
+    // server really sends them: the padding is one badge with a count, and the bytes are hex.
+    await G.run(`CREATE TABLE ${DB}.pad (id INT PRIMARY KEY, b BINARY(8), h VARBINARY(4));
+INSERT INTO ${DB}.pad VALUES (1, 'abc', 0xFF00);`);
+    const tp = await G.openTable(DB, 'pad');
+    const padCell = gridCellEl(tp.id, 0, tp.cols.indexOf('b'));
+    G.check('BINARY padding is one badge with a count', padCell.querySelectorAll('.cellmark').length === 1 &&
+      padCell.innerText.replace(/\s+/g, ' ').trim() === 'abcNUL ×5', padCell.innerHTML);
+    G.eq('bytes that are not text are shown as hex', gridCellEl(tp.id, 0, tp.cols.indexOf('h')).innerText.trim(), '0xff00');
+
     // What the clipboard is told, and what it is told about. None of this can be checked by
     // reading the clipboard - the app is not allowed to - so what is checked is what the app says,
     // which is the part that was missing in the first place.

@@ -34,7 +34,7 @@ function extractConst(src, name) {
 }
 
 const NAMES = ['sqlHead', 'useTarget', 'scriptShowsResults', 'parseSingleEditableTable', 'sqlBlankStringsAndComments', 'refreshRunTableBinding',
-  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'cellHtml', 'ctrlCharNote', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
+  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'hexToBytes', 'hexIsUtf8', 'cellHtml', 'ctrlCharNote', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
 const bundle = [extractConst(html, 'CTRL_NAMES'), extractConst(html, 'CTRL_RE'),
   ...NAMES.map(n => extractFunction(html, n))].join('\n');
 
@@ -132,6 +132,65 @@ test('a NUL inside text is shown, not swallowed', () => {
   assert.match(f.textCellHtml('x' + String.fromCharCode(27) + 'y', 300), />ESC</);
 });
 
+// A BINARY(n) value is padded with NULs to its width, so 'abc' in a BINARY(16) is 'abc' and thirteen
+// of them - which drew as thirteen badges, pushing the value itself out of a narrow column.
+test('a run of the same control character is one badge with a count', () => {
+  const f = load({}, 'a');
+  const N = String.fromCharCode(0);
+  const h = f.textCellHtml('abc' + N.repeat(13), 300);
+  assert.equal((h.match(/<span/g) || []).length, 1, 'one badge for the run');
+  assert.match(h, /^abc<span[^>]*title="[^"]*13 in a row[^"]*">NUL ×13<\/span>$/);
+  assert.equal((f.textCellHtml('a' + N + 'b' + N + 'c', 300).match(/>NUL</g) || []).length, 2, 'NULs apart stay apart');
+  assert.match(f.textCellHtml(N + N + String.fromCharCode(27), 300), />NUL ×2<.*>ESC</, 'a run ends where the character changes');
+  assert.match(f.cellHtml('0x616263' + '00'.repeat(13), false, true), /^abc<span[^>]*>NUL ×13<\/span>$/, 'and so does a binary cell');
+});
+
+// What most often makes a WHERE miss the value on screen is not a NUL but a character that looks
+// like a space or like nothing: a no-break space, a zero-width space, a BOM from a pasted file.
+test('invisible characters are shown, not only control characters', () => {
+  const f = load({}, 'a');
+  const ch = c => String.fromCharCode(c);
+  const cases = [[0x7F, 'DEL'], [0x85, 'NEL'], [0x9F, 'APC'], [0xA0, 'NBSP'], [0xAD, 'SHY'], [0x200B, 'ZWSP'],
+    [0x200E, 'LRM'], [0x202E, 'RLO'], [0x2028, 'LS'], [0x2060, 'WJ'], [0x2069, 'PDI'], [0xFEFF, 'BOM']];
+  for (const [c, name] of cases)
+    assert.match(f.textCellHtml('x' + ch(c) + 'y', 300), new RegExp('^x<span[^>]*>' + name + '</span>y$'), name);
+  assert.match(f.textCellHtml(ch(0xA0), 300), /title="Invisible character \(U\+00A0\)/);
+  assert.match(f.textCellHtml(ch(0x85), 300), /title="Control character \(0x85\)/);
+  // Characters that are written with these, or are simply text
+  const family = '\u{1F468}\u200d\u{1F469}\u200d\u{1F467}';
+  assert.equal(f.textCellHtml(family, 300), family, 'the joiner inside an emoji sequence is left alone');
+  assert.equal(f.textCellHtml('\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645', 300), '\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645', 'and so is ZWNJ in Persian');
+  assert.equal(f.textCellHtml('caf\u00e9 \u00ab\u00a1\u00bb \u2014 \u20ac', 300), 'caf\u00e9 \u00ab\u00a1\u00bb \u2014 \u20ac', 'ordinary non-ASCII text is text');
+});
+
+// A binary value that is not UTF-8 - a hash, a UUID, an image - was decoded anyway, every byte that
+// is not text becoming U+FFFD, so 0xff00 and 0xfe00 drew the same. It is shown as its bytes now.
+test('bytes that are not text are shown as hex', () => {
+  const f = load({}, 'a');
+  const plain = h => h.replace(/<[^>]*>/g, '');
+  assert.equal(plain(f.cellHtml('0xff00', false, true)), '0xff00');
+  assert.notEqual(f.cellHtml('0xff00', false, true), f.cellHtml('0xfe00', false, true), 'different bytes look different');
+  assert.doesNotMatch(f.cellHtml('0x89504e470d0a1a0a', false, true), /\ufffd|>SUB</, 'an image header is not decoded into badges and replacement characters');
+  assert.equal(plain(f.cellHtml('0x636166e9', false, false)), '0x636166e9', 'a text column whose bytes are not UTF-8 (latin1, say) too');
+  assert.match(plain(f.cellHtml('0x' + 'ff'.repeat(400), false, true)), /^0x(ff){150}\u2026$/, 'a long one is clipped like any value');
+  // Text stays text
+  assert.equal(f.cellHtml('0x636166c3a9', false, true), 'caf\u00e9', 'a binary column holding UTF-8 still reads as text');
+  assert.match(f.cellHtml('0x6100', false, true), /^a<span[^>]*>NUL<\/span>$/);
+});
+
+// Only the start of a long value is decoded, and that cut can fall inside a character. That is the
+// cut, not a value that is not text.
+test('a long text value cut inside a character still reads as text', () => {
+  const f = load({}, 'a');
+  const eAcute = 'c3a9';
+  for (let pad = 0; pad < 4; pad++) {
+    const hex = '0x' + '61'.repeat(pad) + eAcute.repeat(2000);
+    const h = f.cellHtml(hex, false, true);
+    assert.doesNotMatch(h, /^<span/, 'not shown as hex, with ' + pad + ' leading bytes');
+    assert.ok(h.endsWith('\u2026') && h.length <= 302, 'clipped to the width shown');
+  }
+});
+
 // A zero-byte binary value is "0x" - the prefix and nothing else - which misses the hex branch's
 // one-or-more-digits test and used to be printed as those two characters, the wire format leaking
 // into the grid. The column's declared type decides, because a VARCHAR really can hold "0x".
@@ -161,6 +220,10 @@ test('the cell editor is told about control characters it cannot show', () => {
   assert.match(many, /3 control characters \(NUL ×2, ESC\), which take no space/);
   assert.doesNotMatch(f.ctrlCharNote('a' + N, false), /Hex/, 'an ordinary text column has no Hex tab to point at');
   assert.equal(f.ctrlCharNote(null, false), '', 'a NULL cell has no text to describe');
+  // A run counts every character in it, and a no-break space is not "no space" - it looks like one.
+  assert.match(f.ctrlCharNote('abc' + N.repeat(13), true), /13 control characters \(NUL ×13\), which take no space/);
+  assert.match(f.ctrlCharNote('a\u00a0b\u200bc', false), /2 hidden characters \(NBSP, ZWSP\), which show as nothing or as a plain space in the box above/);
+  assert.match(f.ctrlCharNote('\ufeffid', false), /1 hidden character \(BOM\), which shows as nothing/);
 });
 
 // Which editor a value gets, and the rule it has to agree with: litAs() writes a hex literal only

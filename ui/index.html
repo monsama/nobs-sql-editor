@@ -4362,22 +4362,30 @@ async function openRun(id){const t=T(id);const where=combinedFilterWhere(t);cons
 
 // ---- editable grid with pending changes ----
 function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
-// Decodes a "0x.." hex-encoded cell value (our OWN display encoding for text containing real
-// control characters) back into readable text, marking ONLY the actual control-character byte
-// positions with a small inline badge - like MySQL Workbench does - instead of hex-dumping the
-// whole value. Splits at control-byte positions (always unambiguous single ASCII bytes that can
-// never occur inside a multi-byte UTF-8 sequence) and decodes each segment properly as UTF-8, so
-// accented/non-ASCII text around the control character stays readable, not garbled.
+// How the grid draws what it cannot draw as plain text. Two kinds of value:
+// - Text holding characters that show as nothing, or as an ordinary space: the control characters
+//   (C0, DEL, C1), and the invisible Unicode ones that most often make a WHERE miss the value on
+//   screen - no-break space, soft hyphen, zero-width space, word joiner, BOM, the bidi marks. Each
+//   is drawn as a badge naming it, and a run of the same one as one badge with a count, so a
+//   BINARY(16) holding 'abc' reads "abc NUL ×13" rather than thirteen badges in a row.
+// - Bytes that are not UTF-8 at all - a hash, a UUID, an image, latin1 text: shown as the hex they
+//   are. They used to be decoded anyway, every stray byte turning into U+FFFD, so two different
+//   values could look the same and neither looked like what was stored.
+// ZWJ and ZWNJ are left as they are: emoji and several scripts are written with them.
 // IMPORTANT: this is a DISPLAY-ONLY transform. The underlying value (t.rows[ri][ci]) is left as
 // the "0x.." string exactly as before - editing, Apply, and SQL generation are untouched, since
 // that hex form is what makes round-tripping a value with a real embedded NUL byte safe (a raw
 // NUL in the actual SQL text risks truncation when passed as a command-line argument).
-const CTRL_NAMES={0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',8:'BS',11:'VT',12:'FF',14:'SO',15:'SI',16:'DLE',17:'DC1',18:'DC2',19:'DC3',20:'DC4',21:'NAK',22:'SYN',23:'ETB',24:'CAN',25:'EM',26:'SUB',27:'ESC',28:'FS',29:'GS',30:'RS',31:'US'};
-function ctrlBadge(b){return '<span class="cellmark" style="background:#4a3a1f;color:#e8c589;border-radius:var(--r-s);padding:0 3px;font-size:10px;font-weight:600;margin:0 1px" title="Control character (0x'+b.toString(16).padStart(2,'0').toUpperCase()+') - not printable text">'+CTRL_NAMES[b]+'</span>';}
+const CTRL_NAMES={0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',8:'BS',11:'VT',12:'FF',14:'SO',15:'SI',16:'DLE',17:'DC1',18:'DC2',19:'DC3',20:'DC4',21:'NAK',22:'SYN',23:'ETB',24:'CAN',25:'EM',26:'SUB',27:'ESC',28:'FS',29:'GS',30:'RS',31:'US',127:'DEL',128:'PAD',129:'HOP',130:'BPH',131:'NBH',132:'IND',133:'NEL',134:'SSA',135:'ESA',136:'HTS',137:'HTJ',138:'VTS',139:'PLD',140:'PLU',141:'RI',142:'SS2',143:'SS3',144:'DCS',145:'PU1',146:'PU2',147:'STS',148:'CCH',149:'MW',150:'SPA',151:'EPA',152:'SOS',153:'SGCI',154:'SCI',155:'CSI',156:'ST',157:'OSC',158:'PM',159:'APC',160:'NBSP',173:'SHY',8203:'ZWSP',8206:'LRM',8207:'RLM',8232:'LS',8233:'PS',8234:'LRE',8235:'RLE',8236:'PDF',8237:'LRO',8238:'RLO',8288:'WJ',8294:'LRI',8295:'RLI',8296:'FSI',8297:'PDI',65279:'BOM'};
+// c: the character's code; n: how many of it in a row.
+function ctrlBadge(c,n){const ctl=c<32||(c>=127&&c<160),code=c.toString(16).toUpperCase();
+ return '<span class="cellmark" style="background:#4a3a1f;color:#e8c589;border-radius:var(--r-s);padding:0 3px;font-size:10px;font-weight:600;margin:0 1px" title="'
+  +(ctl?'Control character (0x'+code.padStart(2,'0')+')':'Invisible character (U+'+code.padStart(4,'0')+')')+(n>1?', '+n+' in a row':'')+' - not printable text">'
+  +CTRL_NAMES[c]+(n>1?' \u00d7'+n:'')+'</span>';}
 // Text holding a control character (a NUL, say) showed it as nothing at all, so 'a<NUL>b' looked
-// like 'ab'. Marked the same way as above.
-const CTRL_RE=/[\x00-\x08\x0B\x0C\x0E-\x1F]/g;
-function textCellHtml(s,maxChars){const h=esc(clip(s,maxChars));return h.search(CTRL_RE)<0?h:h.replace(CTRL_RE,ch=>ctrlBadge(ch.charCodeAt(0)));}
+// like 'ab'. Marked the same way as above. Each match is a run of one character.
+const CTRL_RE=/([\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xA0\xAD\u200B\u200E\u200F\u2028-\u202E\u2060\u2066-\u2069\uFEFF])\1*/g;
+function textCellHtml(s,maxChars){const h=esc(clip(s,maxChars));return h.search(CTRL_RE)<0?h:h.replace(CTRL_RE,m=>ctrlBadge(m.charCodeAt(0),m.length));}
 // What a <textarea> cannot show. The grid marks a control character with a badge above, but the
 // cell editor is a plain textarea, where the same byte takes no space at all - so a value the grid
 // shows as a<NUL>b reads in there as "ab", and one that ends in a NUL looks like it just ends.
@@ -4388,11 +4396,12 @@ function ctrlCharNote(s,hasHexTab){
  if(typeof s!=='string')return '';
  const found=s.match(CTRL_RE);
  if(!found)return '';
- const counts={};
- found.forEach(ch=>{const n=CTRL_NAMES[ch.charCodeAt(0)];counts[n]=(counts[n]||0)+1;});
- const named=Object.keys(counts).map(n=>counts[n]>1?n+' ×'+counts[n]:n).join(', ');
- const n=found.length;
- return 'This value holds '+n+' control character'+(n>1?'s':'')+' ('+named+'), which take'+(n>1?'':'s')+' no space in the box above'
+ const counts={};let n=0,ctl=true;
+ found.forEach(run=>{const c=run.charCodeAt(0),k=CTRL_NAMES[c];counts[k]=(counts[k]||0)+run.length;n+=run.length;if(c>=160)ctl=false;});
+ const named=Object.keys(counts).map(k=>counts[k]>1?k+' ×'+counts[k]:k).join(', ');
+ // A no-break space is not nothing in there - it looks like any other space, which is the trouble.
+ return 'This value holds '+n+(ctl?' control character':' hidden character')+(n>1?'s':'')+' ('+named+'), '
+  +(ctl?'which take'+(n>1?'':'s')+' no space':'which show'+(n>1?'':'s')+' as nothing or as a plain space')+' in the box above'
   +(hasHexTab?' - switch to Hex to see or edit the bytes.'
    :n>1?' - editing the text around them leaves them as they are.':' - editing the text around it leaves it as it is.');
 }
@@ -4402,24 +4411,14 @@ function decodeCtrlCharCell(hexStr,maxChars){
  // value used to be turned into a byte array first, on every scroll frame, for every blob cell
  // in view - a few MB each - just to show the first 300 characters of it.
  const full=hexStr.slice(2),cap=((maxChars||0)+2)*8;const hex=full.length>cap?full.slice(0,cap):full;
- const bytes=[];for(let i=0;i<hex.length;i+=2){bytes.push(parseInt(hex.substr(i,2),16));}
- const decoder=new TextDecoder('utf-8',{fatal:false});
- let html='',shown=0,segStart=0,truncated=false;
- for(let i=0;i<=bytes.length;i++){
-  const isCtrl=i<bytes.length&&CTRL_NAMES.hasOwnProperty(bytes[i]);
-  if(isCtrl||i===bytes.length){
-   if(i>segStart){
-    const segText=decoder.decode(new Uint8Array(bytes.slice(segStart,i)));
-    if(shown+segText.length>maxChars){html+=esc(segText.slice(0,Math.max(0,maxChars-shown)));shown=maxChars;truncated=true;}
-    else{html+=esc(segText);shown+=segText.length;}
-   }
-   if(isCtrl&&!truncated){html+=ctrlBadge(bytes[i]);shown++;}
-   segStart=i+1;
-  }
-  if(truncated)break;
- }
- if(truncated||hex.length<full.length)html+='\u2026';
- return html;
+ const bytes=new Uint8Array(hex.length/2);for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(hex.substr(i*2,2),16);
+ // Streaming, when the value was cut short: a character split by the cut is not an error.
+ let text;
+ try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes,{stream:hex.length<full.length});}
+ catch(e){return '<span style="font-family:var(--mono)"><span style="opacity:.55">0x</span>'+esc(clip(full,maxChars))+'</span>';}
+ // Enough bytes were taken for more characters than are shown, so a cut value is clipped - and
+ // says so - by textCellHtml; this only covers one whose kept bytes happened to be shorter.
+ return textCellHtml(text,maxChars)+(hex.length<full.length&&text.length<=maxChars?'\u2026':'');
 }
 // A binary column holding no bytes arrives as a bare "0x" - the prefix with nothing after it. The
 // hex branch below needs at least one digit, so such a value used to fall through to the plain-text
