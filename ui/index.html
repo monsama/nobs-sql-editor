@@ -849,7 +849,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none;flex-wrap:nowrap;gap:8px"><span class="muted">Database</span><select id="accDb" style="width:260px" onchange="accLoad()"></select><input id="accFilter" type="search" placeholder="Filter accounts" style="width:220px" oninput="accRender()"><span class="muted" id="accCount" style="margin-left:auto;font-size:12px"></span></div>
  <div id="accList" style="flex:1;min-height:0;overflow:auto;margin-top:8px"></div>
  <div class="row" style="justify-content:flex-end;flex:none;margin-top:10px"><button onclick="hide('mAccess')">Close</button></div></div></div>
-<div class="modal floating" id="mInspect"><div class="box" style="width:900px;max-width:95vw;height:680px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInspect')" title="Drag to move"><h3 style="margin:0 0 10px">Inspect</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mInspect')" title="Maximize" id="maxBtn_mInspect" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInspect')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mInspect"><div class="box" style="width:1200px;max-width:95vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:50px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInspect')" title="Drag to move"><h3 style="margin:0 0 10px">Inspect</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mInspect')" title="Maximize" id="maxBtn_mInspect" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInspect')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="upanel" style="flex:1;min-height:0">
   <div class="uhead"><div class="uhead-t"><div id="inspTitle" class="utitle"></div><div id="inspSub" class="usub"></div></div></div>
   <section class="usec"><div class="usec-h"><span>Details</span></div><div id="inspInfo" class="ukv"></div></section>
@@ -858,7 +858,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <section class="usec"><div class="usec-h"><span>Referenced by</span></div><div id="inspRef"></div></section>
  </div>
  <div class="row" style="flex:none;margin-top:10px"><button onclick="hide('mInspect');window._insp&&openDdl(window._insp.db,'table',window._insp.name)">Show CREATE</button><button class="write" onclick="hide('mInspect');window._insp&&designTable(window._insp.name,window._insp.db)">Design / Alter...</button><span style="flex:1"></span><button onclick="hide('mInspect')">Close</button></div></div></div>
-<div class="modal floating" id="mTxLog"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:140px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mTxLog')" title="Drag to move"><h3 style="margin:0 0 10px">Not committed yet</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mTxLog')" title="Maximize" id="maxBtn_mTxLog" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mTxLog')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mTxLog"><div class="box" style="width:1200px;max-width:95vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:140px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mTxLog')" title="Drag to move"><h3 style="margin:0 0 10px">Not committed yet</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mTxLog')" title="Maximize" id="maxBtn_mTxLog" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mTxLog')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="txLogSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
  <div id="txLogList" class="clist" style="flex:1;min-height:0"></div>
  <div class="row" style="flex:none;margin-top:10px"><span class="muted" style="font-size:12px">Nothing here is permanent until Commit; Rollback undoes all of it.</span><span style="flex:1"></span><button class="warn" id="txLogRollback" onclick="txLogEnd('rollback')" title="Undo everything in this transaction">Rollback</button><button class="go" id="txLogCommit" onclick="txLogEnd('commit')" title="Make everything in this transaction permanent">Commit</button><button onclick="hide('mTxLog')">Close</button></div></div></div>
@@ -870,7 +870,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end;flex:none"><button onclick="copyUserTransfer()">Copy</button><button onclick="saveUserTransferFile()">Save to file...</button><button onclick="hide('mUserTransfer')">Close</button></div>
 </div></div>
 
-<div class="modal floating" id="mProcessList"><div class="box" style="width:900px;max-width:96vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:140px" id="mProcessListBox"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mProcessList')" title="Drag to move"><h3 style="margin:0 0 10px">Server processes</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mProcessList')" title="Maximize" id="maxBtn_mProcessList" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mProcessList')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mProcessList"><div class="box" style="width:1200px;max-width:96vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:140px" id="mProcessListBox"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mProcessList')" title="Drag to move"><h3 style="margin:0 0 10px">Server processes</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mProcessList')" title="Maximize" id="maxBtn_mProcessList" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mProcessList')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><button onclick="refreshProcessList()">Refresh</button><label title="This connection's own SHOW PROCESSLIST row is filtered out by default, since it's always present and can never actually be killed - check this to reveal it anyway." style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="plShowHidden" onchange="refreshProcessList()"> Show hidden</label><label style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:12px;color:var(--muted)"><input type="checkbox" id="plAutoRefresh" onchange="plToggleAutoRefresh()"> Auto-refresh (3s)</label><span id="plStatus" class="muted" style="margin-left:8px"></span></div>
  <div id="plGrid" class="clist" style="margin-top:8px;flex:1;min-height:0"></div>
  <div class="row" style="justify-content:flex-end;flex:none"><button onclick="hide('mProcessList')">Close</button></div>
@@ -892,7 +892,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end"><button onclick="hide('mErd')">Close</button></div>
 </div></div>
 
-<div class="modal floating" id="mHist"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mHist')" title="Drag to move"><h3 style="margin:0 0 10px">Query history</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mHist')" title="Maximize" id="maxBtn_mHist" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mHist')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mHist"><div class="box" style="width:1200px;max-width:95vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mHist')" title="Drag to move"><h3 style="margin:0 0 10px">Query history</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mHist')" title="Maximize" id="maxBtn_mHist" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mHist')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="histList" class="clist" style="flex:1;min-height:0"></div>
  <div class="row" style="flex:none"><button class="warn" onclick="clearHistory()">Clear history</button><span style="flex:1"></span><button onclick="hide('mHist')">Close</button></div></div></div>
 <div class="modal floating" id="mPlan"><div class="box" style="width:780px;max-width:95vw;height:560px;display:flex;flex-direction:column;overflow:hidden;top:70px;left:160px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPlan')" title="Drag to move"><h3 id="planTitle" style="margin:0 0 10px">Query plan</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPlan')" title="Maximize" id="maxBtn_mPlan" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPlan')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -954,7 +954,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div class="setrow"><div class="setrl"><div class="setrt">Results font</div><div class="setnote">Used in result grids. Defaults to the interface font.</div></div><div class="setrc"><select id="setGridFont" onchange="uiFontSet('grid',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Interface font</div><div class="setnote">Used in menus, lists, buttons and dialogs.</div></div><div class="setrc"><select id="setUiFont" onchange="uiFontSet('ui',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Interface zoom</div><div class="setnote" id="setZoomNote">Scales the entire window, like Ctrl + and Ctrl - in a browser.</div></div><div class="setrc"><select id="setZoom" onchange="uiZoomSet(this.value)"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100% (default)</option><option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Default appearance</div><div class="setnote">Restores the layout, theme, fonts, text sizes, zoom and notification duration to their defaults. Connections, the query library, history and pinned tables are not affected.</div></div><div class="setrc"><button class="sm" onclick="resetAppearance()">Restore defaults</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Default appearance</div><div class="setnote">Restores the layout, the size and place of every window, the theme, fonts, text sizes, zoom and notification duration to their defaults. Connections, the query library, history and pinned tables are not affected.</div></div><div class="setrc"><button class="sm" onclick="resetAppearance()">Restore defaults</button></div></div>
   </div>
  </section>
  <section class="setpage" data-p="data">
@@ -1042,7 +1042,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="cdnote">The server stops a statement run from the editor once it has taken this long. MariaDB stops any statement; MySQL only a SELECT. Empty or 0: no limit.</div>
  </div>
  <div class="cdfoot"><button type="button" id="cdTestBtn" onclick="cdTest()" data-ic="plug">Test connection</button><span class="cdmsg" id="cdMsg"></span><span style="flex:1"></span><button class="go" id="cdOkBtn" onclick="cdOk()">Save</button><button onclick="cdClose(null)">Cancel</button></div></div></div>
-<div class="modal floating" id="mLib"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mLib')" title="Drag to move"><h3 style="margin:0 0 10px">Query library</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mLib')" title="Maximize" id="maxBtn_mLib" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mLib')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+<div class="modal floating" id="mLib"><div class="box" style="width:1200px;max-width:95vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mLib')" title="Drag to move"><h3 style="margin:0 0 10px">Query library</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mLib')" title="Maximize" id="maxBtn_mLib" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mLib')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none"><input id="libName" placeholder="Name for the current query" maxlength="80" style="flex:1" onkeydown="if(event.key==='Enter')libSaveCurrent()"><button class="go" onclick="libSaveCurrent()">Save current query</button></div>
  <div class="row" style="flex:none"><input id="libSearch" placeholder="Search saved queries..." oninput="libRender()" style="flex:1"></div>
  <div id="libList" class="clist" style="flex:1;min-height:0"></div>
@@ -1337,6 +1337,7 @@ function floatDragMove(e){
  floatApplyPos(_floatDrag.id);
 }
 function floatDragEnd(){
+ if(_floatDrag)dlgGeomSave(_floatDrag.id);
  _floatDrag=null;
  document.removeEventListener('mousemove',floatDragMove);
  document.removeEventListener('mouseup',floatDragEnd);
@@ -1457,6 +1458,29 @@ function floatToggleMaximize(id){
  }
  floatBringToFront(id);
 }
+// ---- A floating window's size and place, kept
+// Dragged, or resized by its corner, a window opens that way again - the next time, and after a
+// restart. Only what was changed is kept: a window never resized stores no size, so a default
+// changed later still reaches it. Restore defaults in Settings forgets it all (APPEARANCE_KEYS).
+function dlgGeomAll(){try{const g=JSON.parse(localStorage.getItem('dlgGeom')||'{}');return g&&typeof g==='object'?g:{};}catch(e){return {};}}
+function dlgGeomSave(id){const m=$(id),box=m&&m.querySelector('.box'),d=window._floatingDefaultSize[id];if(!box||!d)return;
+ // A maximized window is kept at the size Restore takes it back to.
+ const s=window._floatingMaxState[id]||box.style,g={};
+ if(s.width!==d.width||s.height!==d.height){g.width=s.width;g.height=s.height;}
+ if(window._floatingPos[id])g.pos=window._floatingPos[id];
+ const all=dlgGeomAll();if(g.width||g.pos)all[id]=g;else delete all[id];
+ try{if(Object.keys(all).length)localStorage.setItem('dlgGeom',JSON.stringify(all));else localStorage.removeItem('dlgGeom');}catch(e){}}
+function dlgGeomApply(id){const box=$(id).querySelector('.box'),g=dlgGeomAll()[id];if(!box||!g||window._floatingMaxState[id])return;
+ if(g.width){box.style.width=g.width;box.style.height=g.height;}
+ if(g.pos&&!window._floatingPos[id])window._floatingPos[id]=g.pos;}
+// A place kept from a bigger window, or a box grown since, would leave part of it off screen: it is
+// moved in as far as that needs, and no further.
+function floatKeepOnScreen(id){const box=$(id).querySelector('.box'),p=window._floatingPos[id];if(!box||!p)return;
+ const r=box.getBoundingClientRect();
+ const left=Math.max(0,Math.min(p.left,window.innerWidth-r.width)),top=Math.max(0,Math.min(p.top,window.innerHeight-r.height));
+ if(left!==p.left||top!==p.top){window._floatingPos[id]={top,left};floatApplyPos(id);}}
+// A resize by the corner ends with the button let go over the box; a drag is kept by floatDragEnd.
+document.addEventListener('mouseup',e=>{const box=e.target&&e.target.closest&&e.target.closest('.modal.floating.show>.box');if(box&&!_floatDrag)dlgGeomSave(box.parentElement.id);},true);
 function show(id){
  const el=$(id);
  document.body.appendChild(el);
@@ -1467,7 +1491,7 @@ function show(id){
   // looking state that would otherwise occur since neither classList.add('show') above nor the
   // position-apply below touches box.style.display at all.
   if(window._floatingMinimized[id]) floatRestore(id);
-  else { floatBringToFront(id); if(!window._floatingPos[id]){floatCenterX(id);floatCenterY(id);} floatApplyPos(id); }
+  else { floatBringToFront(id); dlgGeomApply(id); if(!window._floatingPos[id]){floatCenterX(id);floatCenterY(id);} floatApplyPos(id); floatKeepOnScreen(id); }
  }
 }
 function hide(id){
@@ -1478,9 +1502,9 @@ function hide(id){
   if(box)box.style.display='';
   floatRenderTray();
  }
- // Always reset back to default size on close - reopening a window later should start fresh at
- // its normal size rather than carrying over whatever a manual drag-resize (or an un-restored
- // Maximize) last left it at. Position is left alone; only size is reset.
+ // The size and place it was given are kept (dlgGeomSave) and come back when it next opens; the box
+ // goes back to its default size, so an un-restored Maximize is not what it opens with.
+ dlgGeomSave(id);
  delete window._floatingMaxState[id];
  const d=window._floatingDefaultSize&&window._floatingDefaultSize[id];
  if(box&&d){box.style.width=d.width;box.style.height=d.height;box.style.maxWidth=d.maxWidth;box.style.maxHeight=d.maxHeight;const btn=$('maxBtn_'+id);if(btn)btn.title='Maximize';}
@@ -1672,9 +1696,9 @@ function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;
 // back out of, and "Clear all app data" is far too big a hammer: it takes the connections with it.
 // One reset for all of it - the layout, the theme and the message timing here, the fonts, text sizes
 // and zoom through uiSizesReset(). A setting added to Appearance belongs in one of the two.
-const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','objCollapsed','ovFolded','theme','toastMs'];
+const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','objCollapsed','ovFolded','theme','toastMs','dlgGeom'];
 async function resetAppearance(){
- if(!(await ask('Restore the default appearance?\n\nThe layout, theme, fonts, text sizes, zoom and notification duration are reset to their defaults. Connections, the query library, history and pinned tables are not affected.')))return;
+ if(!(await ask('Restore the default appearance?\n\nThe layout, the size and place of every window, the theme, fonts, text sizes, zoom and notification duration are reset to their defaults. Connections, the query library, history and pinned tables are not affected.')))return;
  // What is on screen now, without waiting for a restart.
  try{setSideFolded(false);}catch(e){}
  try{setLogFolded(false);}catch(e){}
@@ -1685,6 +1709,11 @@ async function resetAppearance(){
  if($('cfgToastMs'))$('cfgToastMs').value='6000';
  // the Databases / Objects divider, and either list folded away
  try{sideSplitReset();}catch(e){}
+ // every window at its default size, and centred - the open ones now, the rest when they next open
+ document.querySelectorAll('.modal.floating').forEach(m=>{const id=m.id,box=m.querySelector('.box'),d=window._floatingDefaultSize[id];
+  if(window._floatingMaxState[id])floatToggleMaximize(id);delete window._floatingPos[id];
+  if(box&&d){box.style.width=d.width;box.style.height=d.height;}
+  if(m.classList.contains('show')){floatCenterX(id);floatCenterY(id);}});
  // Forgotten after the screen is put back, which stores what it shows: nothing is left to hold
  // today's defaults, so a default changed later reaches this app too.
  APPEARANCE_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
