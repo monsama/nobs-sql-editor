@@ -5521,6 +5521,16 @@ function genColMsg(c){return 'Column "'+c+'" is generated - the server computes 
 function canNull(id,colName){const t=T(id);if(!t)return true;
  if(t.pk&&t.pk.indexOf(colName)>=0)return false;
  return !(t.colNull&&(colName in t.colNull)&&!t.colNull[colName]);}
+// Whether a column can be given an empty string: not a generated one, nor one whose type has no
+// empty value - numbers, dates and times, BIT, JSON, spatial, MariaDB's INET and UUID, and an ENUM
+// without '' among its members. Strict mode refuses '' there; without it the server quietly makes
+// it 0 or a zero date. When the type is not known it is offered, and the server has the last word.
+function canEmpty(id,colName){const t=T(id);if(!t)return true;
+ if(isGenCol(id,colName))return false;
+ const ty=String((t.colTypes&&t.colTypes[colName])||'').trim();
+ if(/^(tinyint|smallint|mediumint|int|integer|bigint|decimal|dec|numeric|fixed|float|double|real|bit|bool|boolean|serial|date|datetime|timestamp|time|year|json|geometry|point|linestring|polygon|multipoint|multilinestring|multipolygon|geometrycollection|geomcollection|inet4|inet6|uuid|vector)\b/i.test(ty))return false;
+ const en=/^enum\((.*)\)$/is.exec(ty);if(en)return /(^|,)''(,|$)/.test(en[1]);
+ return true;}
 // A new row is different in one way: NULL into an auto-increment column asks for the next number,
 // so it is offered there even though the column is a NOT NULL key.
 function canNullIns(id,colName){const t=T(id);if(!t)return true;
@@ -5973,10 +5983,13 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // Whether this column takes NULL - a round trip the first time per table, then cached.
  if(editable&&t.table)await colMeta(id);
  // Picked cells still on screen can all be given NULL or an empty value at once - staged like any
- // edit, for Apply. NULL is offered when at least one of them can hold it, and counts and touches
- // only those - the NOT NULL, key and generated ones are left out of it, not skipped after the fact.
+ // edit, for Apply. NULL and empty are each offered when at least one of them can hold it, and count
+ // and touch only those - the NOT NULL, key, generated, numeric, date and such are left out, not
+ // skipped after the fact.
  const pickView=new Set(viewIndices(id)),pickKeys=(editable&&t.cellSel)?[...t.cellSel].filter(k=>pickView.has(+k.split(':')[0])):[],npick=pickKeys.length;
  const nullKeys=npick>1?pickKeys.filter(k=>{const c=t.cols[+k.split(':')[1]];return canNull(id,c)&&!isGenCol(id,c);}):[],pickNull=nullKeys.length>0;
+ const emptyKeys=npick>1?pickKeys.filter(k=>canEmpty(id,t.cols[+k.split(':')[1]])):[];
+ const pickedLabel=n=>(n===npick?npick+' picked cells':n+' of '+npick+' picked cells');
  // Right-clicked inside several picked cells, or on one of several ticked rows: the menu is about
  // all of them, so what acts on this one cell or row alone is left out. Outside them it is not.
  const multi=(npick>1&&pickKeys.includes(key))||(nsel>1&&!!t.selected&&t.selected.has(ri));
@@ -5997,8 +6010,8 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  const items=[
   // this cell (or the picked cells)
   !multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),
-  !multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],
-  pickNull&&['Set '+(nullKeys.length===npick?npick+' picked cells':nullKeys.length+' of '+npick+' picked cells')+' to NULL',()=>setUpdMany(id,nullKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')],
+  !multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&canEmpty(id,t.cols[ci])&&['Set empty',()=>setUpd(id,ri,ci,'')],
+  pickNull&&['Set '+pickedLabel(nullKeys.length)+' to NULL',()=>setUpdMany(id,nullKeys,null)],emptyKeys.length>0&&['Set '+pickedLabel(emptyKeys.length)+' to empty',()=>setUpdMany(id,emptyKeys,'')],
   '-',
   // copy
   !multi&&['Copy value',()=>{window._cellClipboard=[[cur]];copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
@@ -6243,7 +6256,7 @@ async function insCellMenu(e,id,ii,col){e.preventDefault();const t=T(id);if(t.ta
  const c1=window._cellClipboard,one=c1&&cellClipCount()===1?c1.flat().find(v=>v!==undefined):undefined;
  const items=[['Edit value...',()=>editIns(null,id,ii,col)],
   canNullIns(id,col)&&['Set NULL',()=>{t.pending.ins[ii][col]=null;renderGrid(id);}],
-  ['Set empty',()=>{t.pending.ins[ii][col]='';renderGrid(id);}],'-',
+  canEmpty(id,col)&&['Set empty',()=>{t.pending.ins[ii][col]='';renderGrid(id);}],'-',
   ['Copy value',()=>{window._cellClipboard=[[cur===undefined?null:cur]];clipWrite(cellCopyValue(cur));log('Copied value.');}],
   one!==undefined&&!isGenCol(id,col)&&['Paste value',()=>{t.pending.ins[ii][col]=one;renderGrid(id);}],
   fitsHere&&['Paste row into this new row',()=>pasteRowIntoIns(id,ii)],'-',

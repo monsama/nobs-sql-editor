@@ -6,8 +6,8 @@
   const DB = 'nobs_gui_setnull';
   try {
     await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB};
-CREATE TABLE ${DB}.p (id INT PRIMARY KEY, n VARCHAR(10) NULL, nn VARCHAR(10) NOT NULL, m VARCHAR(10) NULL);
-INSERT INTO ${DB}.p VALUES (1,'a','a','a'),(2,'b','b','b');`);
+CREATE TABLE ${DB}.p (id INT PRIMARY KEY, n VARCHAR(10) NULL, nn VARCHAR(10) NOT NULL, m VARCHAR(10) NULL, q INT NULL, e ENUM('x','y') NULL);
+INSERT INTO ${DB}.p VALUES (1,'a','a','a',1,'x'),(2,'b','b','b',2,'y');`);
     const t = await G.openTable(DB, 'p');
     const i = t.id;
     const col = c => t.cols.indexOf(c);
@@ -92,6 +92,19 @@ INSERT INTO ${DB}.p VALUES (1,'a','a','a'),(2,'b','b','b');`);
     G.check('NULL is not offered when none of the picked cells can hold it', ![...document.querySelectorAll('#ctx > .item')].some(d => /picked cells to NULL/.test(d.textContent)));
     $('ctx').style.display = 'none';
     G.take();
+
+    // --- empty goes only where the column's type has an empty value
+    t.pending = { upd: {}, del: new Set(), ins: [] }; t.cellSel = new Set(); renderGrid(i); await G.wait(100);
+    G.check('a number cell is not offered empty', !(await menuOf('q')).includes('Set empty'));
+    G.check('nor an ENUM without an empty member', !(await menuOf('e')).includes('Set empty'));
+    G.check('a text cell is', (await menuOf('n')).includes('Set empty'));
+    t.cellSel = new Set(['0:' + col('n'), '0:' + col('q'), '0:' + col('e')]);
+    await cellMenu({ preventDefault() {}, clientX: 40, clientY: 40 }, i, 0, col('n'));
+    const em = [...document.querySelectorAll('#ctx > .item')];
+    G.check('picked across them, the menu counts only the text cell', em.some(d => d.textContent === 'Set 1 of 3 picked cells to empty'), em.map(d => d.textContent));
+    em.find(d => d.textContent === 'Set 1 of 3 picked cells to empty').click();
+    await G.wait(100);
+    G.eq('and empties only that one', Object.entries(t.pending.upd), [['0:' + col('n'), '']]);
     t.pending = { upd: {}, del: new Set(), ins: [] }; t.cellSel = new Set(); renderGrid(i);
   } finally {
     await G.A('/api/script', { sql: `DROP DATABASE IF EXISTS ${DB}` });
