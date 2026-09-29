@@ -29,11 +29,13 @@ The exe finds out at startup whether it runs from a package (`store_package` in 
 - **No client tool download.** Store policy does not allow an app to download programs that extend
   it, so the "Download MariaDB / MySQL client tools" buttons are hidden. Tools that are installed
   or selected by path are found and used as in any other install.
-- **Settings live in the package.** Windows keeps what a packaged app writes under AppData in
-  `%LOCALAPPDATA%\Packages\monsama.NOBSSQLEditor_<id>\LocalCache`. The app sees that merged with
-  the usual folders, so a setup.exe install's saved connections show up in the Store copy - but
-  what either one changes afterwards, the other does not see, and uninstalling the Store copy
-  deletes its settings. "Open folder" sends Explorer to the package's copy.
+- **New settings live in the package.** Windows keeps the files and folders a packaged app
+  creates under AppData in `%LOCALAPPDATA%\Packages\monsama.NOBSSQLEditor_<id>\LocalCache`, shown
+  to the app merged with the usual folders, and deletes them when the app is uninstalled. Files
+  that were already there - a setup.exe install's settings folder - are changed in place, so on a
+  machine that had the setup.exe first, both copies share one set of settings and connections,
+  and uninstalling the Store copy leaves them. "Open folder" sends Explorer to whichever of the
+  two holds the folder.
 - **Passwords are shared.** They are in Windows Credential Manager, which is not virtualized.
 - **WebView2 is not bundled.** It is part of Windows 11 and of every updated Windows 10, and the
   package requires Windows 10 1809 or later.
