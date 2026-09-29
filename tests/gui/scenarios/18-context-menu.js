@@ -26,7 +26,7 @@
     let m = await open(i, 0, 0);
     G.check('nothing copied, so nothing to paste', !m.some(x => /^Paste/.test(x)), m);
     G.check('nothing ticked, so no command about a selection', !m.some(x => /selected/.test(x)), m);
-    G.check('a table with a key can still be edited from here', m.includes('Set empty'), m);
+    G.check('a table with a key can still be edited from here', m.includes('Edit value...') && m.includes('Delete row'), m);
     // NULL is offered only in a column that can hold it - never the key, nor a NOT NULL column
     G.check('and "Set NULL" goes with whether the column takes NULL', m.includes('Set NULL') === canNull(i, T(i).cols[0]), m);
     G.check('and no separator is left doubled or dangling', !parts().join(',').includes('sep,sep') && parts()[parts().length - 1] !== 'sep', parts());
