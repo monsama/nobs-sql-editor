@@ -64,6 +64,10 @@ Apart from those, the application makes these network requests:
   (`api.github.com`) for the latest release of this project, to show a notice
   when a newer version exists. It sends nothing beyond the request itself, and
   can be switched off under Settings -> Updates.
+- **Installing an update,** only when the user clicks Install on that notice:
+  the installer and `SHA256SUMS.txt` of the latest release, from GitHub
+  (`github.com`, `objects.githubusercontent.com`). The installer runs only
+  when its SHA-256 matches the one listed.
 - **Client tools download,** only when the user clicks the button in Settings:
   - the MariaDB client tools, from mariadb.org (`downloads.mariadb.org` and
     `mirror.mariadb.org`);

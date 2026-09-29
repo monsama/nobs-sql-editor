@@ -150,6 +150,7 @@
    carets to give it all to one, double-click to put it back. */
 #sideSplit{height:13px;cursor:row-resize;background:var(--panel2);border-bottom:1px solid var(--bd);flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:0}
 #sideSplit:hover{background:var(--bd2)}
+#side>:not(#schemas):not(#objects),.tabpane>:not(.edwrap):not(.result){flex-shrink:0}
 body.objs-folded #objects,body.objs-folded #objFilterRow{display:none !important}
 body.objs-folded #schemas{flex:1 1 auto}
 body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
@@ -517,7 +518,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ovupd{color:var(--muted);font-size:11px}
  .ovwhere{color:var(--muted);font-size:12px}
  .ovgap{flex:1}
- .ovsrv{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:20px}
+ /* The four server tiles go four, two or one to a row, whichever the overview's width allows: as
+    many as fitted made three and left the fourth alone on a row, stretched across all of it. */
+ #overview{container-type:inline-size}
+ .ovsrv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}
+ @container (max-width:980px){.ovsrv{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @container (max-width:480px){.ovsrv{grid-template-columns:minmax(0,1fr)}}
  .ovsg{min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:10px 14px 8px}
  .ovsh{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
  .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:21px}
@@ -528,6 +534,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ovr.warn .v{color:var(--warn)}
  /* Parts the server from what is on it, so the page reads as two things rather than one long one. */
  .ovsep{display:none}
+ .qfbar{gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px;font-size:12px} .qfchip{display:inline-flex;align-items:center;gap:2px;height:28px;box-sizing:border-box;max-width:100%;border:1px solid var(--bd);border-left:3px solid var(--accent);border-radius:var(--r-s);background:var(--panel2);padding:1px 2px 1px 8px}
+ .qft{font-family:var(--mono);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0} .qfx{border:0;background:none;color:var(--muted);padding:0 5px;font-size:14px;line-height:1;cursor:pointer;min-height:0;height:100%} .qfx:hover{color:var(--danger)}
+ .ovsec{margin-bottom:22px} .ovsec .ovsrv{margin-bottom:0} .ovfold{cursor:pointer;user-select:none;flex-wrap:wrap} .ovfold:hover .ovcaret{color:var(--fg)}
+ .ovcaret{color:var(--muted);font-size:12px;width:12px;flex:none} .ovsec.folded .ovbody{display:none} .ovsec.folded>.ovtop{margin-bottom:0}
+ .ovtopnote{font-size:12px;margin:0;line-height:1.6} .ovtopnote code{font-family:var(--mono)} table.ovtopq{margin-bottom:0;table-layout:fixed} table.ovtopq th:first-child{width:46%}
+ table.ovtopq td.ovq{font-family:var(--mono);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0} table.ovtopq tbody tr{cursor:pointer} table.ovtopq td.ovbad{color:var(--danger);font-weight:600}
  /* How big a database is compared with the biggest one here - the numbers alone make that a
     reading exercise, and which ones are worth attention is the point of the list. */
  .szbar{height:3px;border-radius:2px;background:var(--bd2);margin-top:3px}
@@ -620,7 +632,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div id="bar">
  <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
-  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
+  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <button class="sm go" id="updInstall" style="margin:0 4px 0 8px" onclick="installUpdate()" title="Download this version, check it against the SHA-256 its release lists, and install it. The app closes while it installs.">Install</button> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
@@ -875,7 +887,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="flex:none"><button class="warn" onclick="clearHistory()">Clear history</button><span style="flex:1"></span><button onclick="hide('mHist')">Close</button></div></div></div>
 <div class="modal floating" id="mPlan"><div class="box" style="width:780px;max-width:95vw;height:560px;display:flex;flex-direction:column;overflow:hidden;top:70px;left:160px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPlan')" title="Drag to move"><h3 id="planTitle" style="margin:0 0 10px">Query plan</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPlan')" title="Maximize" id="maxBtn_mPlan" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPlan')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="planBody" style="overflow:auto;flex:1;min-height:0"></div>
- <div class="row" style="justify-content:flex-end;flex:none"><button onclick="hide('mPlan')">Close</button></div></div></div>
+ <div class="row" style="justify-content:flex-end;flex:none;align-items:center"><span id="planNote" class="muted" style="flex:1;font-size:12px"></span><button id="planMeasureBtn" onclick="planMeasure()" title="Run the query and show what really happened at each step - the rows read and the time taken - beside what the plan expected">Measure</button><button onclick="hide('mPlan')">Close</button></div></div></div>
 <div class="modal floating" id="mChart"><div class="box viz-root" style="width:860px;max-width:95vw;height:560px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:140px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mChart')" title="Drag to move"><h3 id="chartTitle" style="margin:0 0 10px">Chart</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mChart')" title="Maximize" id="maxBtn_mChart" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mChart')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="row" style="flex:none;gap:8px;align-items:center;flex-wrap:wrap"><select id="chartType" onchange="chartDraw()"><option value="bar">Bars</option><option value="line">Line</option></select><span class="muted">along</span><select id="chartX" onchange="chartDraw()"></select><span class="muted">of</span><span id="chartSeries" style="display:inline-flex;gap:10px;flex-wrap:wrap"></span></div>
  <div id="chartLegend" style="flex:none;display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 2px"></div>
@@ -919,6 +931,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Check for updates at startup</div><div class="setnote">Checks GitHub for a newer release when the app starts and shows a notice in the toolbar. Nothing is downloaded or installed automatically.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Check for updates</div><div class="setnote">Checks GitHub for a newer release now.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
+  </div>
+  <div class="setgroup">Running queries</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Such a statement changes or removes every row of its table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
   </div>
   <div class="setgroup">Notifications</div>
   <div class="setcard">
@@ -1009,6 +1025,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setgroup">Options</div>
   <div class="cdrow"><label class="cdf">Environment label<input id="cd_env" maxlength="40" placeholder="e.g. Production, Dev"></label></div>
   <label class="cdck"><input type="checkbox" id="cd_ro"> Read-only / safe mode - block all writes</label>
+  <div class="cdrow"><label class="cdf">Time limit for queries, in seconds<input id="cd_limit" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="none" oninput="this.value=this.value.replace(/\D+/g,'')"></label></div>
+  <div class="cdnote">The server stops a statement run from the editor once it has taken this long. MariaDB stops any statement; MySQL only a SELECT. Empty or 0: no limit.</div>
  </div>
  <div class="cdfoot"><button type="button" id="cdTestBtn" onclick="cdTest()" data-ic="plug">Test connection</button><span class="cdmsg" id="cdMsg"></span><span style="flex:1"></span><button class="go" id="cdOkBtn" onclick="cdOk()">Save</button><button onclick="cdClose(null)">Cancel</button></div></div></div>
 <div class="modal floating" id="mLib"><div class="box" style="width:900px;max-width:95vw;height:600px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mLib')" title="Drag to move"><h3 style="margin:0 0 10px">Query library</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mLib')" title="Maximize" id="maxBtn_mLib" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mLib')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
@@ -1062,7 +1080,7 @@ function logLineCls(l){
 }
 function logLinesHtml(lines){return lines.map(l=>{const c=logLineCls(l);return '<div class="ln'+(c?' '+c:'')+'">'+esc(l)+'</div>';}).join('');}
 function connMeta(){return window._connMeta||{};}
-function connMetaSet(n,m){window._connMeta=window._connMeta||{};if(m){const cur=window._connMeta[n]||{};window._connMeta[n]={accent:cur.accent||'',env:m.env||'',readonly:!!m.readonly};}else{delete window._connMeta[n];}}
+function connMetaSet(n,m){window._connMeta=window._connMeta||{};if(m){const cur=window._connMeta[n]||{};window._connMeta[n]={accent:cur.accent||'',env:m.env||'',readonly:!!m.readonly,timeLimit:+(m.timeLimit!=null?m.timeLimit:cur.timeLimit)||0};}else{delete window._connMeta[n];}}
 window.readOnly=false;window.curEnv='';
 // Pure DOM rendering for the env chip - no side effects on window.readOnly/curEnv, so it's
 // safe to call for a merely-selected (not yet connected) connection as a preview, same as the
@@ -1142,7 +1160,7 @@ function renderBrowseCs(){
 }
 function roBlock(){if(window.readOnly){toast('This connection is marked READ-ONLY (safe mode). Writes are disabled.\nUncheck "Read-only" in the saved connection to allow changes.',true);return true;}return false;}
 function accMap(){const m=window._connMeta||{};const o={};for(const k in m){if(m[k]&&m[k].accent)o[k]=m[k].accent;}return o;}
-function accSet(n,c){window._connMeta=window._connMeta||{};const cur=window._connMeta[n]||{};window._connMeta[n]={accent:c||'',env:cur.env||'',readonly:!!cur.readonly};}
+function accSet(n,c){window._connMeta=window._connMeta||{};const cur=window._connMeta[n]||{};window._connMeta[n]={accent:c||'',env:cur.env||'',readonly:!!cur.readonly,timeLimit:+cur.timeLimit||0};}
 function hexA(hex,a){hex=(hex||'').replace('#','');if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');const v=parseInt(hex,16);if(isNaN(v)||hex.length!==6)return '';return 'rgba('+((v>>16)&255)+','+((v>>8)&255)+','+(v&255)+','+a+')';}
 function applyAccent(color){const bar=$('bar');if(!bar)return;if(!color){bar.style.borderTop='';bar.style.borderBottom='';bar.style.boxShadow='';return;}bar.style.borderTop='2px solid '+color;bar.style.borderBottom='';bar.style.boxShadow='';}
 window.curAccent='';
@@ -1645,7 +1663,7 @@ function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;
 // back out of, and "Clear all app data" is far too big a hammer: it takes the connections with it.
 // One reset for all of it - the layout, the theme and the message timing here, the fonts, text sizes
 // and zoom through uiSizesReset(). A setting added to Appearance belongs in one of the two.
-const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','objCollapsed','theme','toastMs'];
+const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','objCollapsed','ovFolded','theme','toastMs'];
 async function resetAppearance(){
  if(!(await ask('Restore the default appearance?\n\nThe layout, theme, fonts, text sizes, zoom and notification duration are reset to their defaults. Connections, the query library, history and pinned tables are not affected.')))return;
  // What is on screen now, without waiting for a restart.
@@ -1673,7 +1691,7 @@ async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis perman
  try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}try{await uiZoomSet(1,true);}catch(e){}
  log('Cleared '+n+' local entr'+(n===1?'y':'ies')+', the saved connections and the library. Reloading...');setTimeout(()=>location.reload(),500);}
 function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));}
-async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
+async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
  await refreshToolsStatus();setTimeout(()=>refreshToolsStatus(false,true),50);}
@@ -2191,7 +2209,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 function connMenu(e){e.stopPropagation();if(!$('connlist').value){toast('Select a saved connection first.',true);return;}const b=e.currentTarget.getBoundingClientRect();const isP=($('connlist').value===window._primaryConn);const n=$('connlist').value,hasPw=!!(window._connPw&&window._connPw[n]);const items=[['Edit\u2026',()=>editConn()],['Clone\u2026',()=>cloneConn()],[(isP?'Unset primary':'Set as primary'),()=>setPrimary()],hasPw&&['Clear saved password',()=>forgetPassword()]];if(!document.body.classList.contains('disconnected')){items.push('-');items.push(['Connect with other details\u2026',()=>toggleConnForm()]);}items.push('-');items.push(['Delete\u2026',()=>delConn()]);menu(b.left,b.bottom+2,items,{local:true});}
 async function forgetPassword(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}if(!(await ask('Remove the saved password for "'+n+'"? You will need to enter it the next time you connect.')))return;const g=await api('/api/conn-get',{name:n});if(!g.ok){toast('Could not load connection.',true);return;}const r=await api('/api/conn-save',{name:n,conn:{host:g.conn.host,port:g.conn.port,user:g.conn.user,ssl:g.conn.ssl,sslCa:g.conn.sslCa,password:'',...sshOf(g.conn)},savepw:false});if(r.ok){log('Removed saved password for '+n+'.');if(window._connPw)window._connPw[n]=false;if($('connlist').value===n){setPass('');passSavedMark(false);}dropActiveIfSaved(n,'The saved password of the connection you were on was removed');}else toast(r.error||'Could not remove the saved password.',true);}
 async function setPrimary(){const n=$('connlist').value;if(!n){toast('Select a connection first.',true);return;}const target=(n===window._primaryConn)?'':n;const r=await api('/api/conn-primary',{name:target});if(!r.ok){toast(r.error||'Could not set the default connection.',true);return;}await refreshConns();$('connlist').value=n;updatePrimeBtn();log(target?('Primary connection set: '+n+' (opens on startup)'):'Primary connection cleared.');}
-async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly};const o=document.createElement('option');o.value=c.name;
+async function refreshConns(){const r=await api('/api/conn-list');const sel=$('connlist');sel.innerHTML='<option value="" disabled hidden>Connections</option>';const n=(r.ok&&r.items)?r.items.length:0;window._primaryConn='';window._connMeta={};window._connPw={};if(r.ok)r.items.forEach(c=>{if(c.primary)window._primaryConn=c.name;window._connPw[c.name]=!!c.hasPassword;window._connMeta[c.name]={accent:c.accent||'',env:c.env||'',readonly:!!c.readonly,timeLimit:+c.timeLimit||0};const o=document.createElement('option');o.value=c.name;
   // Just the name: the environment and READ-ONLY are the tag beside it, in the box and in its
   // list (openConnList), and repeating them made the entry read as part of the name.
   o.textContent=c.name;
@@ -2249,7 +2267,7 @@ async function pickConn() {
         setPass('');
         const _pw = !!r.conn.hasPassword;
         window._connMeta = window._connMeta || {};
-        window._connMeta[n] = {accent:r.accent||'', env:r.env||'', readonly:!!r.readonly};
+        window._connMeta[n] = {accent:r.accent||'', env:r.env||'', readonly:!!r.readonly, timeLimit:+r.timeLimit||0};
         // Persistent, tied only to which connection is currently selected - not to whether
         // you're actually connected. Deliberately does NOT defer to connStatus the way an
         // earlier version did: that meant the indicator only ever showed AFTER connecting,
@@ -2303,7 +2321,7 @@ function connDialog(o){return new Promise(resolve=>{if(_cd)_cd.resolve(null);con
  $('cd_savepw').checked=!!v.savepw;$('cd_ssl').value=v.ssl||'default';set('cd_ca',v.sslCa);$('cd_clearpw').checked=!!v.clearPw;
  $('cd_useSsh').checked=!!v.sshHost;set('cd_sshHost',v.sshHost);set('cd_sshPort',v.sshPort);set('cd_sshUser',v.sshUser);set('cd_sshKey',v.sshKey);
  const sp=$('cd_sshPass');set('cd_sshPass','');sp.placeholder=v.hasSshPassword?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'only if the server asks for one';sp.classList.toggle('pwsaved',!!v.hasSshPassword);
- set('cd_env',v.env);$('cd_ro').checked=!!v.ro;
+ set('cd_env',v.env);$('cd_ro').checked=!!v.ro;set('cd_limit',+v.timeLimit>0?+v.timeLimit:'');
  cdSync();show('mConn');const nm=$('cd_name');nm.focus();nm.select();});}
 function cdSync(){const ssl=$('cd_ssl').value;
  $('cd_caWrap').style.display=/^verify/.test(ssl)?'':'none';$('cd_sslNote').textContent=SSL_NOTES[ssl]||'';
@@ -2311,7 +2329,7 @@ function cdSync(){const ssl=$('cd_ssl').value;
 function cdVals(){const g=id=>$(id).value,ssh=$('cd_useSsh').checked;
  return {name:g('cd_name'),host:g('cd_host').trim(),port:g('cd_port').trim(),user:g('cd_user'),password:g('cd_pass'),ssl:g('cd_ssl'),sslCa:/^verify/.test(g('cd_ssl'))?g('cd_ca').trim():'',
   clearPw:$('cd_clearpw').checked&&g('cd_ssl')!=='disabled',useSsh:ssh,sshHost:ssh?g('cd_sshHost').trim():'',sshPort:ssh?g('cd_sshPort').trim():'',sshUser:ssh?g('cd_sshUser').trim():'',
-  sshKey:ssh?g('cd_sshKey').trim():'',sshPassword:ssh?g('cd_sshPass'):'',color:$('cd_color').value,env:g('cd_env'),ro:$('cd_ro').checked,savepw:$('cd_savepw').checked};}
+  sshKey:ssh?g('cd_sshKey').trim():'',sshPassword:ssh?g('cd_sshPass'):'',color:$('cd_color').value,env:g('cd_env'),ro:$('cd_ro').checked,timeLimit:Math.max(0,Math.floor(+g('cd_limit')||0)),savepw:$('cd_savepw').checked};}
 function cdClose(res){hide('mConn');const c=_cd;_cd=null;if(c)c.resolve(res);}
 function cdOk(){const v=cdVals();if(!v.name.trim()){toast('Enter a name for the connection.',true);$('cd_name').focus();return;}
  if(!v.host){toast('Enter the server host.',true);$('cd_host').focus();return;}cdClose(v);}
@@ -2328,9 +2346,9 @@ async function saveConn(){
  const dn=n0||($('user').value+'@'+$('host').value);
  const pw0=!!(n0&&(window._connPw||{})[n0]),c0=getConn();
  const res=await connDialog({title:'Save connection',okText:'Save',savedName:n0,values:{name:dn,host:$('host').value,port:$('port').value,user:$('user').value,password:$('pass').value,savedPw:pw0,
-  ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,...sshOf(c0),color:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6',env:m0.env||'',ro:!!m0.readonly,savepw:n0?!!($('pass').value||pw0):true}});
+  ssl:$('ssl').value,sslCa:$('sslca').value,clearPw:$('clearpw').checked,...sshOf(c0),color:n0?(accMap()[n0]||'#3b82f6'):'#3b82f6',env:m0.env||'',ro:!!m0.readonly,timeLimit:+m0.timeLimit||0,savepw:n0?!!($('pass').value||pw0):true}});
  if(!res||!res.name.trim())return;const n=res.name.trim();
- const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0||''});
+ const r=await api('/api/conn-save',{name:n,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,timeLimit:+res.timeLimit||0,savepw:!!res.savepw,keepFrom:n0||''});
  if(!r.ok){toast(r.error,true);return;}
  window._newConnPrev=null;window.curAccent=res.color;applyAccent(res.color);log('Saved connection: '+n);await refreshConns();$('connlist').value=n;applyEnv(n);
  $('host').value=res.host;$('port').value=res.port;$('user').value=res.user;$('ssl').value=res.ssl;$('sslca').value=res.sslCa||'';$('clearpw').checked=!!res.clearPw;sslCaToggle();sshSet(sshRes(res));setPass(res.password);
@@ -2345,11 +2363,11 @@ async function editConn(){const n0=$('connlist').value;if(!n0){toast('Select a s
  const g=await api('/api/conn-get',{name:n0});if(!g.ok){toast('Could not load connection.',true);return;}
  const m0=connMeta()[n0]||{};
  const res=await connDialog({title:'Edit connection',okText:'Save',savedName:n0,values:{name:n0,host:g.conn.host,port:g.conn.port,user:g.conn.user,password:'',savedPw:!!g.conn.hasPassword,
-  ssl:g.conn.ssl,sslCa:g.conn.sslCa,clearPw:!!g.conn.clearPw,...sshOf(g.conn),hasSshPassword:!!g.conn.hasSshPassword,color:accMap()[n0]||'#3b82f6',env:m0.env||'',ro:!!m0.readonly,savepw:!!g.conn.hasPassword}});
+  ssl:g.conn.ssl,sslCa:g.conn.sslCa,clearPw:!!g.conn.clearPw,...sshOf(g.conn),hasSshPassword:!!g.conn.hasSshPassword,color:accMap()[n0]||'#3b82f6',env:m0.env||'',ro:!!m0.readonly,timeLimit:+m0.timeLimit||0,savepw:!!g.conn.hasPassword}});
  if(!res||!res.name.trim())return;const nn=res.name.trim();
  // The connection you are on, if it is this one - as it was when you connected.
  const act=!document.body.classList.contains('disconnected')&&window._activeConnName===n0?window._activeConn:null;
- const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,savepw:!!res.savepw,keepFrom:n0});if(!r.ok){toast(r.error,true);return;}
+ const r=await api('/api/conn-save',{name:nn,conn:{host:res.host,port:res.port,user:res.user,password:res.password,ssl:res.ssl,sslCa:res.sslCa,clearPw:!!res.clearPw,...sshOf(sshRes(res))},accent:res.color,env:(res.env||'').trim(),readonly:!!res.ro,timeLimit:+res.timeLimit||0,savepw:!!res.savepw,keepFrom:n0});if(!r.ok){toast(r.error,true);return;}
  if(nn!==n0){await api('/api/conn-delete',{name:n0});}
  window.curAccent=res.color;applyAccent(res.color);await refreshConns();$('connlist').value=nn;applyEnv(nn);
  // If this connection is the one currently loaded into the (largely internal, now rarely
@@ -2728,7 +2746,7 @@ async function fetchNextBatch(id){
  try{
   const r=await api('/api/fetch-cursor-batch',{cursorId:t.cursorId,requestId:t.cursorReqId,pageSize:PAGE_BATCH});
   if(stale())return;
-  if(!r.ok){toast(r.error,true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
+  if(!r.ok){toast(timeLimitNote(r.error),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
   t.rows=(t.rows||[]).concat(r.rows);
   t.hasMore=!!r.hasMore;
   if(!t.hasMore){t.cursorId=null;t.cursorReqId=null;} // server already closed it once exhausted
@@ -3024,17 +3042,55 @@ function overviewFilteredSortedRows() {
 // information_schema.GLOBAL_STATUS (MariaDB) or performance_schema.global_status (MySQL 8), which
 // are not in the same place in both.
 async function loadServerInfo(){
- const vars="SELECT VERSION() v, @@version_comment vc, @@hostname hn, @@port pt, @@character_set_server cs, @@collation_server co, @@time_zone tz, @@max_connections mc, @@innodb_buffer_pool_size bp, @@read_only ro, CURRENT_USER() cu, NOW() nw, @@datadir dd, @@max_allowed_packet mp";
+ const vars="SELECT VERSION() v, @@version_comment vc, @@hostname hn, @@port pt, @@character_set_server cs, @@collation_server co, @@time_zone tz, @@max_connections mc, @@innodb_buffer_pool_size bp, @@read_only ro, CURRENT_USER() cu, NOW() nw, @@datadir dd, @@max_allowed_packet mp, @@performance_schema ps";
  const want=['Uptime','Threads_connected','Threads_running','Questions','Slow_queries','Aborted_connects','Aborted_clients',
   'Max_used_connections','Innodb_buffer_pool_read_requests','Innodb_buffer_pool_reads','Created_tmp_tables','Created_tmp_disk_tables',
   'Bytes_sent','Bytes_received','Com_select','Com_insert','Com_update','Com_delete','Table_locks_waited','Connections'];
  const stat="SHOW GLOBAL STATUS WHERE Variable_name IN ('"+want.join("','")+"')";
- const [a,b]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null)]);
+ const [a,b,c]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null),api('/api/query',{sql:TOP_QUERIES_SQL}).catch(()=>null)]);
  if(!a||!a.ok||!a.rows.length)return null;
  const r=a.rows[0],st={};
  if(b&&b.ok)b.rows.forEach(x=>{st[String(x[0])]=+x[1]||0;});
- return {v:r[0],vc:r[1],hn:r[2],pt:r[3],cs:r[4],co:r[5],tz:r[6],mc:r[7],bp:r[8],ro:r[9],cu:r[10],nw:r[11],dd:r[12],mp:r[13],st};
+ return {v:r[0],vc:r[1],hn:r[2],pt:r[3],cs:r[4],co:r[5],tz:r[6],mc:r[7],bp:r[8],ro:r[9],cu:r[10],nw:r[11],dd:r[12],mp:r[13],ps:String(r[14])==='1'||/^on$/i.test(String(r[14])),st,
+  top:c&&c.ok?{rows:c.rows}:{error:(c&&c.error)||'no answer'}};
 }
+// The statements the server spent the most time on, from performance_schema's digests: one row per
+// statement shape, its values replaced by ?, summed since the server started (or the figures were
+// last reset). The app's own questions - SHOW, SET, and whatever reads information_schema or
+// performance_schema - are left out, or opening the overview would put itself at the top.
+const TOP_QUERIES_SQL="SELECT SCHEMA_NAME, DIGEST_TEXT, COUNT_STAR, SUM_TIMER_WAIT, SUM_ROWS_EXAMINED, SUM_ROWS_SENT, SUM_NO_INDEX_USED, SUM_CREATED_TMP_DISK_TABLES, LAST_SEEN"
+ +" FROM performance_schema.events_statements_summary_by_digest WHERE DIGEST_TEXT IS NOT NULL"
+ +" AND DIGEST_TEXT NOT REGEXP '^(SHOW|SET|USE|COMMIT|ROLLBACK|START|BEGIN|KILL|SELECT @@|SELECT CONNECTION_ID|SELECT VERSION)'"
+ +" AND DIGEST_TEXT NOT LIKE '%information\\_schema%' AND DIGEST_TEXT NOT LIKE '%performance\\_schema%'"
+ +" ORDER BY SUM_TIMER_WAIT DESC LIMIT 10";
+// performance_schema counts time in picoseconds.
+function fmtPsTime(ps){const s=(+ps||0)/1e12;
+ if(s<0.001)return (s*1000).toFixed(2)+' ms';if(s<1)return (s*1000).toFixed(s<0.01?1:0)+' ms';if(s<60)return s.toFixed(s<10?2:1)+' s';
+ const m=Math.floor(s/60);if(m<60)return m+'m '+Math.round(s%60)+'s';const h=Math.floor(m/60);if(h<48)return h+'h '+(m%60)+'m';return Math.floor(h/24)+'d '+(h%24)+'h';}
+// The costliest statements, as a table under the server's figures - or why there are none.
+function topQueriesHtml(s){const top=s&&s.top;if(!top)return '';
+ let body;
+ if(top.error){const denied=/denied|1142|1227/i.test(top.error);
+  body='<div class="muted ovtopnote">'+(denied?'This account may not read performance_schema, where the server keeps these figures. It needs SELECT on performance_schema.*.'
+   :'The server did not say: '+esc(top.error))+'</div>';}
+ else if(!s.ps){
+  // With performance_schema off - MariaDB's default - the digest table is there, and empty.
+  body='<div class="muted ovtopnote">performance_schema is off on this server'+(/mariadb/i.test(String(s.v))?' (MariaDB turns it off by default)':'')+', so it keeps no figures per query. '
+   +'To have them, set <code>performance_schema=ON</code> in the server\'s configuration and restart it.</div>';}
+ else if(!top.rows.length)body='<div class="muted ovtopnote">No statements recorded since the server started, or since these figures were last reset.</div>';
+ else{window._topQueries=top.rows;
+  const most=Math.max(1,...top.rows.map(r=>+r[3]||0));
+  body='<table class="ovgrid ovtopq"><thead><tr><th>Statement</th><th>Database</th><th class=num>Runs</th><th class=num>Total time</th><th class=num>Average</th><th class=num title="Rows the server read for each row it sent back">Read per row sent</th><th class=num title="Runs that read a table without using an index">No index</th></tr></thead><tbody>'
+   +top.rows.map((r,i)=>{const n=+r[2]||0,exam=+r[4]||0,sent=+r[5]||0,noix=+r[6]||0;
+    const ratio=sent?exam/sent:(exam?Infinity:0),rat=ratio===Infinity?fmtCount(exam)+' read, none sent':ratio>=10?fmtCount(ratio):ratio?ratio.toFixed(1):'';
+    return '<tr data-q="'+i+'" title="'+esc(String(r[1]||''))+'\n\nClick to open it in a new tab"><td class="ovq">'+esc(clip(String(r[1]||''),160))+'</td><td>'+esc(r[0]==null?'':String(r[0]))+'</td>'
+     +'<td class=num>'+fmtCount(n)+'</td><td class=num>'+esc(fmtPsTime(r[3]))+'<div class="szbar"><i style="width:'+Math.max(1,Math.round((+r[3]||0)/most*100))+'%"></i></div></td>'
+     +'<td class=num>'+esc(fmtPsTime(n?(+r[3]||0)/n:0))+'</td><td class="num'+(ratio>=1000?' ovbad':'')+'">'+esc(rat)+'</td>'
+     +'<td class="num'+(noix&&noix>=n/2?' ovbad':'')+'">'+(noix?fmtCount(noix)+(n?' ('+fmtPct(noix,n)+')':''):'')+'</td></tr>';}).join('')
+   +'</tbody></table><div class="muted" style="margin-top:6px;font-size:11px">Since the server started, or since these figures were last reset. Values are shown as ?. Click a statement to open it in a new tab; Explain there shows how it is run.</div>';}
+ return ovSection('top','<h2>Costliest queries</h2>',body);}
+function openTopQuery(i){const r=(window._topQueries||[])[i];if(!r)return;
+ openTab('Costly query',String(r[1]||'')+';',r[0]==null?null:String(r[0]),false);}
 // "3d 4h", "4h 12m", "12m" - the exact seconds of an uptime are noise.
 function fmtUptime(sec){sec=+sec||0;const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);
  if(d)return d+'d '+h+'h';if(h)return h+'h '+m+'m';if(m)return m+'m';return sec+'s';}
@@ -3106,12 +3162,23 @@ function serverInfoHtml(raw){
  if(!c.length)return '';
  const where=s?(String(s.hn||'')+(s.pt?(':'+s.pt):'')):'';
  const warns=[...c.join('').matchAll(/class="ovr warn"[^>]*><span class="l">([^<]*)</g)].map(m=>m[1]);
- let head='<div class="ovtop"><div class="ovtitle"><h2>Server</h2>'+(where?'<span class="ovwhere">'+esc(where)+'</span>':'')+
+ let head='<div class="ovtitle"><h2>Server</h2>'+(where?'<span class="ovwhere">'+esc(where)+'</span>':'')+
   (warns.length?'<span class="utag uwarn" title="'+esc('Worth a look: '+warns.join(', ')+' - hover each for why')+'">'+warns.length+' to look at</span>':'')+'</div><span class="ovgap"></span>';
  if(raw)head+='<span class="ovupd">Updated '+esc(overviewTimeAgo(raw.fetchedAt))+'</span>';
- head+='<button class="sm" title="Read the server figures and the database list again" onclick="showOverview(true)">Refresh</button></div>';
- return head+'<div class="ovsrv">'+c.join('')+'</div><div class="ovsep"></div>';
+ head+='<button class="sm" title="Read the server figures and the database list again" onclick="showOverview(true)">Refresh</button>';
+ return ovSection('server',head,'<div class="ovsrv">'+c.join('')+'</div>');
 }
+// The overview's three parts - the server, its databases, the costliest queries - each fold away
+// with a click on their heading, and stay folded: which ones is kept per browser. What sits in a
+// heading (Refresh, the filter box) works without folding anything.
+function ovFolded(k){try{return JSON.parse(localStorage.getItem('ovFolded')||'[]').includes(k);}catch(e){return false;}}
+function ovFoldToggle(k,e){if(e&&e.target.closest('button,input,select,a'))return;
+ let s=[];try{s=JSON.parse(localStorage.getItem('ovFolded')||'[]');}catch(_){}
+ const on=!s.includes(k);s=s.filter(x=>x!==k);if(on)s.push(k);try{localStorage.setItem('ovFolded',JSON.stringify(s));}catch(_){}
+ const sec=e&&e.currentTarget&&e.currentTarget.parentElement;
+ if(sec){sec.classList.toggle('folded',on);const c=sec.querySelector('.ovcaret');if(c)c.textContent=on?'▸':'▾';}}
+function ovSection(k,head,body){const f=ovFolded(k);
+ return '<div class="ovsec'+(f?' folded':'')+'"><div class="ovtop ovfold" title="Click to fold or unfold" onclick="ovFoldToggle(\''+k+'\',event)"><span class="ovcaret">'+(f?'▸':'▾')+'</span>'+head+'</div><div class="ovbody">'+body+'</div></div>';}
 function renderOverview() {
     const ov = $('overview');
     if (!ov) return;
@@ -3133,12 +3200,10 @@ function renderOverview() {
     const rows = [...sorted.filter(r => !OV_SYS.test(String(r[0]))), ...sorted.filter(r => OV_SYS.test(String(r[0])))];
     const { col: sortCol, dir: sortDir } = window._overviewSort;
 
-    let h = serverInfoHtml(raw);
-    h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
-    h += '<h2 style="margin:0">Databases (' + rows.length + (rows.length !== allCount ? (' of ' + allCount) : '') + ')</h2>';
-    h += '<input id="overviewFilter" placeholder="Filter databases..." style="width:200px" oninput="renderOverview()" value="' + esc(filterValue) + '">';
-    h += '</div>';
-    h += '<table class="ovgrid"><thead><tr>' + H.map((x, i) => {
+    const server = serverInfoHtml(raw);
+    const dbHead = '<h2>Databases (' + rows.length + (rows.length !== allCount ? (' of ' + allCount) : '') + ')</h2>'
+        + '<input id="overviewFilter" placeholder="Filter databases..." style="width:200px" oninput="renderOverview()" value="' + esc(filterValue) + '">';
+    let h = '<table class="ovgrid"><thead><tr>' + H.map((x, i) => {
         const isNum = i >= 1 && i <= 8;
         const arrow = i === sortCol ? (sortDir > 0 ? ' \u25B2' : ' \u25BC') : '';
         return '<th' + (isNum ? ' class=num' : '') + ' style="cursor:pointer;user-select:none" onclick="overviewSetSort(' + i + ')" title="Click to sort">' + esc(x) + arrow + '</th>';
@@ -3164,7 +3229,9 @@ function renderOverview() {
             + '<td class=num>' + fmtCount(sum(7)) + '</td><td class=num>' + fmtCount(sum(8)) + '</td><td></td><td></td></tr>';
     }
     h += '</tbody></table><div class="muted" style="margin-top:10px;font-size:11px">Click a row to browse that database. Click a column header to sort by it.</div>';
-    ov.innerHTML = h;
+    // The costliest queries before the databases: ten rows at most, where the list of databases
+    // can run to hundreds and would push anything under it out of sight.
+    ov.innerHTML = server + topQueriesHtml(window._serverInfo) + ovSection('dbs', dbHead, h);
 
     if (hadFocus) {
         const newFilterEl = $('overviewFilter');
@@ -3174,6 +3241,7 @@ function renderOverview() {
         }
     }
 
+    [...ov.querySelectorAll('tr[data-q]')].forEach(tr => { tr.onclick = () => openTopQuery(+tr.dataset.q); });
     [...ov.querySelectorAll('tr[data-db]')].forEach(tr => {
         tr.onclick = () => {
             const db = tr.getAttribute('data-db');
@@ -3482,15 +3550,27 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on a connection of its own, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
-  '<div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
+  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
   // A folded half opens as the divider is dragged, from where the divider is (as the sidebar's).
   const p=$('pane_'+id),edF=p&&p.classList.contains('edfolded-editor'),resF=p&&p.classList.contains('edfolded-results');
-  if(edF||resF){const full=ew.parentElement.clientHeight-120;p.classList.remove('edfolded-editor','edfolded-results');ew.style.height=(edF?44:Math.max(80,full))+'px';edFoldSync(id);syncHl(id);}
-  const sy=e.clientY,sh=ew.offsetHeight,maxH=ew.parentElement.clientHeight-120;
-  const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(44,Math.min(h,Math.max(80,maxH)));ew.style.height=h+'px';syncHl(id);};
+  // The height the editor and the grid share: the pane's, less the divider, the toolbars and the
+  // status line, measured - a fixed allowance for them squeezed them near the bottom (the sidebar's).
+  if(edF||resF)p.classList.remove('edfolded-editor','edfolded-results');
+  const res=$('res_'+id);let room=p.clientHeight;
+  for(const c of p.children){if(c===ew||c===res)continue;const cs=getComputedStyle(c);if(cs.display!=='none')room-=c.offsetHeight+(parseFloat(cs.marginTop)||0)+(parseFloat(cs.marginBottom)||0);}
+  const maxH=Math.max(80,room-60);
+  if(edF||resF){ew.style.height=(edF?44:maxH)+'px';edFoldSync(id);syncHl(id);}
+  // Dragged past either end it folds that half away, as its caret would, and dragged back it opens
+  // again, in the same drag: past the top once the editor would be under half its smallest height
+  // (44px), past the bottom once the grid would be under half of 60px.
+  const sy=e.clientY,sh=edF?44:resF?maxH:ew.offsetHeight;
+  const mv=ev=>{const raw=sh+(ev.clientY-sy),fold=raw<22?'editor':raw>room-30?'results':'';
+   const now=p.classList.contains('edfolded-editor')?'editor':p.classList.contains('edfolded-results')?'results':'';
+   if(fold!==now){p.classList.remove('edfolded-editor','edfolded-results');if(fold)p.classList.add('edfolded-'+fold);edFoldSync(id);}
+   if(!fold)ew.style.height=Math.max(44,Math.min(raw,maxH))+'px';syncHl(id);};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
  ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);});ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
@@ -3686,7 +3766,10 @@ function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.string
   // Apply and the putting back of the old version when the new one fails, and running it on MySQL
   // dropped the routine with nothing to restore it from.
   ddl:t.ddl?{type:t.ddl.type,db:t.ddl.db,name:t.ddl.name,orig:t.ddl.orig,sqlMode:t.ddl.sqlMode}:undefined,
-  gen:t.ddl?(t.ddlApplied!=null?t.ddlApplied:t.genSql):undefined})));}catch(e){return;}
+  gen:t.ddl?(t.ddlApplied!=null?t.ddlApplied:t.genSql):undefined,
+  // A table tab's quick filters, which its saved text already holds as a WHERE: without them the
+  // restored tab showed no blocks, and the next quick filter built a WHERE without the old ones.
+  filters:t.table&&!t.sqlEdited&&t.filterClauses&&t.filterClauses.length?t.filterClauses.slice():undefined})));}catch(e){return;}
  try{localStorage.setItem('session:'+k,json);return;}catch(e){}
  try{const h=hist();localStorage.setItem('history',JSON.stringify(h.slice(0,20)));localStorage.setItem('session:'+k,json);return;}catch(e){}
  if(!window._sessionSaveWarned){window._sessionSaveWarned=true;const m='The open tabs could not be saved - the browser storage for this app is full. Copy anything you need out of them before closing the app.';toast(m,true);log(m);}}
@@ -3697,6 +3780,7 @@ function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=l
   // Plain query tabs could be arbitrary/heavy, so those restore WITHOUT auto-running; a clear
   // status message replaces what would otherwise look like a blank, broken result.
   const id=openTab(t.title,t.sql,t.db,!!t.table,t.table,t.ddl||null);if(t.ddl&&t.gen!=null)T(id).genSql=t.gen;
+  if(t.table&&Array.isArray(t.filters)&&t.filters.length){T(id).filterClauses=t.filters.filter(x=>typeof x==='string');updateFilterBar(id);}
   if(!t.table){const st=$('st_'+id);if(st)st.textContent='Restored - not yet run. Click Run Query.';}
 });}}
 // Closes every tab without the "unsaved changes" prompt - only called right after the user has
@@ -3795,7 +3879,7 @@ async function explainTab(id){
 // steps around them (joins, sorts, groupings, subqueries) are its branches. MySQL and MariaDB
 // shape the JSON differently, so the drawing walks what it is given rather than a fixed layout.
 const PLAN_ACCESS={ALL:['bad','full table scan'],index:['warn','full index scan'],range:['ok','index range'],index_merge:['ok','several indexes merged'],ref:['good','index lookup'],ref_or_null:['good','index lookup'],eq_ref:['good','one row per join, by a unique key'],const:['good','one row'],system:['good','one row'],fulltext:['ok','fulltext index'],unique_subquery:['good','unique subquery lookup'],index_subquery:['good','subquery by index']};
-const PLAN_STEP={query_block:'Query',nested_loop:'Join',ordering_operation:'Sort (ORDER BY)',grouping_operation:'Group (GROUP BY)',duplicates_removal:'Remove duplicates',union_result:'Union',query_specifications:'Parts of the union',materialized_from_subquery:'Derived table',attached_subqueries:'Subqueries',subqueries:'Subqueries',having_subqueries:'Subqueries in HAVING',optimized_away_subqueries:'Subqueries, optimized away',filesort:'Sort',temporary_table:'Temporary table',read_sorted_file:'Read the sorted rows',windowing:'Window functions','block-nl-join':'Join (block nested loop)',buffer_type:'Join buffer'};
+const PLAN_STEP={query_block:'Query',query_optimization:'Planning',nested_loop:'Join',ordering_operation:'Sort (ORDER BY)',grouping_operation:'Group (GROUP BY)',duplicates_removal:'Remove duplicates',union_result:'Union',query_specifications:'Parts of the union',materialized_from_subquery:'Derived table',attached_subqueries:'Subqueries',subqueries:'Subqueries',having_subqueries:'Subqueries in HAVING',optimized_away_subqueries:'Subqueries, optimized away',filesort:'Sort',temporary_table:'Temporary table',read_sorted_file:'Read the sorted rows',windowing:'Window functions','block-nl-join':'Join (block nested loop)',buffer_type:'Join buffer'};
 // Keys that are details of a step, not steps of their own.
 const PLAN_SKIP=new Set(['cost_info','used_columns','possible_keys','used_key_parts','key_parts','ref','r_loops','r_rows','r_filtered','r_total_time_ms','r_table_time_ms','r_other_time_ms','r_engine_stats','sort_key','partitions']);
 function planNum(v){const n=+v;return isNaN(n)?String(v):(n>=100||Number.isInteger(n))?fmtCount(Math.round(n)):String(+n.toPrecision(3));}
@@ -3807,7 +3891,13 @@ function planAccess(t){const a=t.access_type||'';if(a==='table')return 'ALL';
 function planTable(t){const a=planAccess(t),k=PLAN_ACCESS[a]||['',''],rows=t.rows_examined_per_scan!=null?t.rows_examined_per_scan:t.rows;
  const cost=t.cost_info&&t.cost_info.prefix_cost!=null?t.cost_info.prefix_cost:t.cost;
  const facts=[];if(t.key)facts.push('key '+t.key);else if(t.possible_keys)facts.push('could use '+[].concat(t.possible_keys).join(', '));
- if(rows!=null)facts.push(planNum(rows)+' row'+(+rows===1?'':'s'));if(t.filtered!=null&&+t.filtered<100)facts.push(planNum(t.filtered)+'% kept');
+ // Measured (MariaDB's ANALYZE): what was read beside what was expected, and the time it took.
+ const got=t.r_rows!=null;
+ if(got){const miss=planMiss(rows,t.r_rows);
+  facts.push((miss?'!! ':'')+'read '+planNum(t.r_rows)+' row'+(+t.r_rows===1?'':'s')+(+t.r_loops>1?' × '+planNum(t.r_loops)+' loops':'')+(rows!=null?' (expected '+planNum(rows)+')':''));
+  if(t.r_filtered!=null&&+t.r_filtered<100)facts.push(planNum(t.r_filtered)+'% kept');
+  const ms=(+t.r_table_time_ms||0)+(+t.r_other_time_ms||0);if(t.r_table_time_ms!=null||t.r_other_time_ms!=null)facts.push(planMs(ms));}
+ else{if(rows!=null)facts.push(planNum(rows)+' row'+(+rows===1?'':'s'));if(t.filtered!=null&&+t.filtered<100)facts.push(planNum(t.filtered)+'% kept');}
  if(cost!=null)facts.push('cost '+planNum(cost));
  ['using_index','using_filesort','using_temporary_table','using_join_buffer','using_index_condition','using_MRR'].forEach(f=>{if(t[f])facts.push(f.replace(/^using_/,'').replace(/_/g,' '));});
  return '<div class="pcard '+k[0]+'"><b>'+esc(t.table_name||'?')+'</b> <span class="pacc">'+esc(a)+(k[1]?' - '+esc(k[1]):'')+'</span>'+
@@ -3822,6 +3912,7 @@ function planNode(k,v){if(k==='table')return planItems(v);
  if(Array.isArray(v)){const inner=v.map(planItems).join('');return inner?'<li><div class="pstep">'+esc(PLAN_STEP[k]||k.replace(/_/g,' '))+'</div><ul>'+inner+'</ul></li>':'';}
  const facts=[];if(v.select_id!=null)facts.push('select #'+v.select_id);
  const qc=v.cost_info&&v.cost_info.query_cost!=null?v.cost_info.query_cost:(k==='query_block'?v.cost:null);if(qc!=null)facts.push('cost '+planNum(qc));
+ if(v.r_total_time_ms!=null)facts.push('took '+planMs(v.r_total_time_ms));
  ['using_filesort','using_temporary_table'].forEach(f=>{if(v[f])facts.push(f.replace(/^using_/,'').replace(/_/g,' '));});
  const inner=planItems(v);
  return '<li><div class="pstep">'+esc(PLAN_STEP[k]||k.replace(/_/g,' '))+(facts.length?' <span class="pfacts">'+esc(facts.join(' · '))+'</span>':'')+'</div>'+(inner?'<ul>'+inner+'</ul>':'')+'</li>';}
@@ -3831,12 +3922,72 @@ function planHtml(json){let plan;try{plan=typeof json==='string'?JSON.parse(json
  const scans=[];(function walk(o){if(!o||typeof o!=='object')return;if(Array.isArray(o)){o.forEach(walk);return;}if(o.table_name&&planAccess(o)==='ALL')scans.push(o.table_name);Object.keys(o).forEach(k=>walk(o[k]));})(plan);
  const head=scans.length?'<div class="psum bad">'+scans.length+' table'+(scans.length===1?' is':'s are')+' read in full: '+esc(scans.join(', '))+'</div>':'<div class="psum good">No table is read in full.</div>';
  return head+'<ul class="plan">'+Object.keys(plan).map(k=>planNode(k,plan[k])).join('')+'</ul><details class="pjson"><summary>The plan as the server gave it (JSON)</summary><pre>'+esc(JSON.stringify(plan,null,2))+'</pre></details>';}
+let _planCtx=null;
 async function planShow(id,stmt){const t=T(id);if(!t)return;
  await sessFree(t);
  const r=await api('/api/query',{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t),session:sessOf(t)});
+ _planCtx={id,stmt};
  $('planTitle').textContent='Query plan - '+t.title;
  $('planBody').innerHTML=r.ok&&r.rows&&r.rows.length?planHtml(r.rows[0][0]):'<div class="unone">'+esc(r.error||'The server gave no plan for this statement.')+'</div>';
+ const reads=planReadsOnly(stmt),b=$('planMeasureBtn');b.disabled=!reads;b.textContent='Measure';
+ $('planNote').textContent=reads?'Estimates. Measure runs the query and shows what really happened.':'Only a query that reads can be measured: measuring runs it.';
  show('mPlan');}
+// Whether measuring would only read: a SELECT, TABLE or VALUES, or a WITH that ends in one.
+// ANALYZE and EXPLAIN ANALYZE run the statement, so an UPDATE measured would be an UPDATE made.
+function planReadsOnly(stmt){let b=sqlBlankStringsAndComments(sqlHead(stmt));
+ for(let p='';p!==b;){p=b;b=b.replace(/\([^()]*\)/g,' ');}
+ if(/^\s*(select|table|values)\b/i.test(b))return !/\bfor\s+(update|share)\b|\block\s+in\s+share\s+mode\b|\binto\s+(outfile|dumpfile|@)/i.test(b);
+ return /^\s*with\b/i.test(b)&&!/\b(update|delete|insert|replace)\b/i.test(b);}
+// An estimate is off when it is ten times too many or too few rows - where a plan goes wrong.
+function planMiss(want,got){want=+want;got=+got;if(!(want>=0)||!(got>=0))return false;const a=Math.max(want,1),b=Math.max(got,1);return a/b>=10||b/a>=10;}
+function planMs(ms){ms=+ms||0;return ms>=1000?(ms/1000).toFixed(ms>=10000?1:2)+' s':ms>=10?Math.round(ms)+' ms':ms.toFixed(ms>=1?1:2)+' ms';}
+// Runs the query to measure it. MariaDB answers ANALYZE FORMAT=JSON: the plan's JSON with r_
+// figures in it, drawn as the plan is. MySQL (8.0.18 on) answers EXPLAIN ANALYZE: a tree of lines,
+// each with what it expected and what it did.
+async function planMeasure(){const c=_planCtx,t=c&&T(c.id);if(!t||!planReadsOnly(c.stmt))return;
+ const b=$('planMeasureBtn');b.disabled=true;b.textContent='Measuring…';$('planNote').textContent='Running the query…';
+ try{await sessFree(t);
+  const r=await api('/api/query',{sql:(window.mariadb?'ANALYZE FORMAT=JSON ':'EXPLAIN ANALYZE ')+c.stmt,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()});
+  if(_planCtx!==c)return;
+  if(!r.ok){const old=!window.mariadb&&/syntax|1064/i.test(r.error||'');
+   $('planNote').textContent='';
+   $('planBody').insertAdjacentHTML('afterbegin','<div class="psum bad">'+esc(old?'This server cannot measure a query: EXPLAIN ANALYZE came with MySQL 8.0.18.':'Measuring failed: '+timeLimitNote(r.error||'no answer'))+'</div>');return;}
+  const out=r.rows&&r.rows.length?String(r.rows[0][0]==null?'':r.rows[0][0]):'';
+  $('planTitle').textContent='Query plan, measured - '+t.title;
+  $('planBody').innerHTML=window.mariadb?planHtml(out):planAnalyzeHtml(out);
+  $('planNote').textContent='Measured by running the query. "!!" marks where the plan expected ten times too many or too few rows.';
+ }finally{if(_planCtx===c){b.disabled=false;b.textContent='Measure again';}}}
+// MySQL's EXPLAIN ANALYZE as a tree: one card per line, indented as the server indents it, with the
+// rows each step really returned beside the rows it expected, its loops and its time.
+//   -> Table scan on t  (cost=0.55 rows=3) (actual time=0.0231..0.0283 rows=3 loops=1)
+function planAnalyzeSteps(text){const root={kids:[]},stack=[{depth:-1,node:root}];
+ for(const line of String(text).split('\n')){const m=/^(\s*)->\s?(.*)$/.exec(line);if(!m)continue;
+  const depth=m[1].length,rest=m[2];
+  const label=rest.replace(/\s+\((cost|actual|never)[^)]*\)/g,'').trim();
+  const est=/\(cost=[\d.e+-]+(?:\.\.[\d.e+-]+)? rows=([\d.e+-]+)\)/.exec(rest)||/\brows=([\d.e+-]+)\)(?=\s*\(actual)/.exec(rest);
+  const act=/\(actual time=([\d.e+-]+)\.\.([\d.e+-]+) rows=([\d.e+-]+) loops=(\d+)\)/.exec(rest);
+  const node={label,est:est?+est[1]:null,rows:act?+act[3]:null,loops:act?+act[4]:null,ms:act?(+act[2])*(+act[4]):null,never:/never executed/.test(rest),kids:[]};
+  while(stack.length>1&&stack[stack.length-1].depth>=depth)stack.pop();
+  stack[stack.length-1].node.kids.push(node);stack.push({depth,node});}
+ return root.kids;}
+function planAnalyzeKind(label){
+ if(/^Table scan\b/i.test(label))return 'bad';if(/^(Covering )?index scan\b/i.test(label))return 'warn';
+ if(/index range scan|^Index range/i.test(label))return 'ok';
+ if(/^(Single-row |Covering |Unique )?index lookup|^Constant row|^Rows fetched before execution|^Zero rows/i.test(label))return 'good';return '';}
+function planAnalyzeHtml(text){const steps=planAnalyzeSteps(text);
+ if(!steps.length)return '<div class="muted">The server did not answer with a plan this can read.</div><pre>'+esc(text)+'</pre>';
+ const scans=[],misses=[];(function walk(ns){ns.forEach(n=>{const s=/^Table scan on (\S+)/i.exec(n.label);if(s&&!n.never)scans.push(s[1]);if(!n.never&&planMiss(n.est,n.rows))misses.push(n);walk(n.kids);});})(steps);
+ const item=n=>{const k=planAnalyzeKind(n.label),facts=[];
+  if(n.never)facts.push('never run');
+  else if(n.rows!=null){const miss=planMiss(n.est,n.rows);facts.push((miss?'!! ':'')+planNum(n.rows)+' row'+(n.rows===1?'':'s')+(n.loops>1?' × '+planNum(n.loops)+' loops':'')+(n.est!=null?' (expected '+planNum(n.est)+')':''));facts.push(planMs(n.ms));}
+  else if(n.est!=null)facts.push('expected '+planNum(n.est)+' row'+(n.est===1?'':'s'));
+  const card=n.kids.length&&!k?'<div class="pstep">'+esc(n.label)+(facts.length?' <span class="pfacts">'+esc(facts.join(' · '))+'</span>':'')+'</div>'
+   :'<div class="pcard '+k+'">'+esc(n.label)+(facts.length?'<div class="pfacts">'+esc(facts.join(' · '))+'</div>':'')+'</div>';
+  return '<li>'+card+(n.kids.length?'<ul>'+n.kids.map(item).join('')+'</ul>':'')+'</li>';};
+ const total=steps[0].ms;
+ const head='<div class="psum '+(scans.length?'bad':'good')+'">'+(total!=null?'Took '+esc(planMs(total))+'. ':'')+(scans.length?scans.length+' table'+(scans.length===1?' was':'s were')+' read in full: '+esc(scans.join(', '))+'.':'No table was read in full.')
+  +(misses.length?' '+misses.length+' step'+(misses.length===1?'':'s')+' expected ten times too many or too few rows (!!) - ANALYZE TABLE brings the statistics up to date.':'')+'</div>';
+ return head+'<ul class="plan">'+steps.map(item).join('')+'</ul><details class="pjson"><summary>What the server answered</summary><pre>'+esc(text)+'</pre></details>';}
 // ---- a chart of the result ----
 // Bars or a line from the rows the grid shows, in its order and with its filters - so sorting or
 // filtering the grid is how the chart is shaped, and the grid beside it is its table. The first
@@ -4046,7 +4197,7 @@ async function runScriptResults(id,sql,reqId,seq){
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const writes=stmts.some(s=>!/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));
  if(writes&&roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
- const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:sessOf(t)},t.abortCtrl.signal);
+ const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
  if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
  if(stale())return;
  t.table=null;t.pk=null;t.pending=null;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;t.exact=false;
@@ -4057,7 +4208,7 @@ async function runScriptResults(id,sql,reqId,seq){
  else{t.cols=[];t.rows=[];$('res_'+id).innerHTML='';renderResultSetTabs(id);updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';}
  const n=t.resultSets.length;
  if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';log('SCRIPT OK ('+stmts.length+' statements, '+n+' results)');}
- else{st.className='status err';st.textContent=(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
+ else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
  if(writes&&t.db)loadObjects(t.db);
 }
 function showResultSet(id,i){
@@ -4081,8 +4232,41 @@ function renderResultSetTabs(id){
  el.innerHTML=(sets.length>1?sets.map((s,i)=>{const n=q?s.rows.filter(r=>rowHasText(r,q)).length:null;return '<button class="sm" style="'+(i===t.resultIdx?'border-color:var(--accent);font-weight:600':'')+(n===0?';opacity:.55':'')+'" title="'+esc('Statement '+s.statement+': '+s.sql)+'" onclick="showResultSet(\''+id+'\','+i+')">Result '+(i+1)+' ('+(n!=null?fmtCount(n)+' of ':'')+fmtCount(s.rowCount)+')</button>';}).join(''):'')
   +(cur&&cur.truncated?'<span class="muted">Showing the first '+fmtCount(cur.rows.length)+' of '+fmtCount(cur.rowCount)+' rows.</span>':'');
 }
+// The UPDATE and DELETE statements of a run that have no WHERE of their own, and so change or
+// remove every row of their table. A WHERE in a subquery, a string or a comment does not count; a
+// WITH in front is read past. A JOIN ... ON narrows the rows as a WHERE would, so one with a JOIN
+// is not counted. Every step keeps the text the same length, so a position in it is one in the SQL.
+function unfilteredWrites(stmts){const out=[],ID='(?:`(?:[^`]|``)*`|[\\w$]+)';
+ for(const s of stmts){const head=sqlHead(s);
+  let b=sqlBlankStringsAndComments(head).replace(/`(?:[^`]|``)*`/g,m=>'x'.repeat(m.length));
+  for(let p='';p!==b;){p=b;b=b.replace(/\([^()]*\)/g,m=>' '.repeat(m.length));}
+  const m=/^\s*(?:with\s+(?:recursive\s+)?(?:[^\s,]+\s+as\s*,?\s*)+)?(update|delete)\b/i.exec(b);
+  if(!m||/\b(where|join)\b/i.test(b))continue;
+  const n=new RegExp('^(?:update|delete)\\s+(?:(?:low_priority|quick|ignore)\\s+)*(?:from\\s+)?('+ID+'(?:\\s*\\.\\s*'+ID+')?)','i').exec(head.slice(m.index+m[0].length-m[1].length));
+  out.push({verb:m[1].toUpperCase(),table:n?n[1]:''});}
+ return out;}
+function noWhereAskOn(){try{return localStorage.getItem('noWhereAsk')!=='off';}catch(e){return true;}}
+function setNoWhereAsk(on){try{localStorage.setItem('noWhereAsk',on?'on':'off');}catch(e){}}
+// Asked before such a run, unless switched off in Settings. A read-only connection is not asked:
+// the statement is refused there anyway.
+async function okToRunUnfiltered(t,stmts){
+ if(!noWhereAskOn()||window.browseCharset||(window._activeConn?window._activeReadOnly:window.readOnly))return true;
+ const w=unfilteredWrites(stmts);if(!w.length)return true;
+ const what=x=>(x.verb==='DELETE'?'DELETE FROM ':'UPDATE ')+(x.table||'?');
+ let msg=w.length===1?what(w[0])+' has no WHERE, so it '+(w[0].verb==='DELETE'?'removes every row from':'changes every row of')+' the table.\n\nRun it anyway?'
+  :'These statements have no WHERE, so each one changes or removes every row of its table:\n\n'+w.map(x=>'  '+what(x)).join('\n')+'\n\nRun them anyway?';
+ if(t&&t.txOn)msg+='\n\nThis tab is in a transaction, so it can still be rolled back.';
+ return await ask(msg);}
+// The connection's time limit for the statements run in the editor, in seconds (0: none).
+function timeLimitSec(){const n=window._activeConnName||'';const v=n?+((connMeta()[n]||{}).timeLimit||0):0;return v>0?Math.floor(v):0;}
+// A statement stopped by that limit says so in the server's own words; what to do about it is added.
+function timeLimitNote(err){err=String(err==null?'':err);
+ if(!/maximum statement execution time exceeded|max_statement_time exceeded/i.test(err))return err;
+ const s=timeLimitSec();return err+'\n\nThe connection\'s time limit'+(s?' ('+s+' s)':'')+' stopped it. Edit the connection to change the limit.';}
 // runSql(): send the editor SQL to the server and show the rows (or the error).
-async function runSql(id,sql,paging){const t=T(id);if(!t)return;if(sql!=null&&sql!==t.curRun){t.prevRun=t.curRun;t.curRun=sql;}const st=$('st_'+id);st.className='status';st.textContent='Running\u2026';
+async function runSql(id,sql,paging){const t=T(id);if(!t)return;
+ if(!paging&&!(await okToRunUnfiltered(t,splitStmts(String(sql==null?'':sql)).filter(s=>!isCommentOnly(s))))){const s0=$('st_'+id);if(s0){s0.className='status';s0.textContent='Not run.';}return;}
+ if(sql!=null&&sql!==t.curRun){t.prevRun=t.curRun;t.curRun=sql;}const st=$('st_'+id);st.className='status';st.textContent='Running\u2026';
  addHistory(sql);
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const lastStmt=(stmts[stmts.length-1]||sql).trim();
@@ -4145,10 +4329,10 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;if(sql!=null&&sq
       // statement - but extending the CLI's own "$$" convention this far tested cleanly, while
       // still being implausible to ever collide with real SQL content.
       const leadingSql=stmts.slice(0,-1).map(s=>'DELIMITER $$$$$$$$\n'+s+'\n$$$$$$$$\nDELIMITER ;').join('\n');
-      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t)},t.abortCtrl.signal);
+      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
-      if(!scriptR.ok){st.className='status err';st.textContent=scriptR.error;$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     }
     const _q=(leadingAreAllUse&&stmts.length>1?sql:lastStmt).trim().replace(/;+\s*$/,'');
     // pageSize is always sent for the main Run path: the backend opens a server-side cursor for
@@ -4158,10 +4342,10 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;if(sql!=null&&sq
     // the same call, or else the one the query is sent with.
     const runDb=dbOf(t);
     const tableDb=(leadingAreAllUse&&useTarget(stmts))||runDb;
-    t.lastRunQ={sql:_q,db:runDb};const r=await api('/api/query',{sql:_q,db:runDb,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:sessOf(t)},t.abortCtrl.signal);
+    t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:sessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
-    if(!r.ok){st.className='status err';st.textContent=r.error;$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
@@ -4201,7 +4385,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;if(sql!=null&&sq
   } else {
     if(roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
     const continueOnError=!!($('coe_'+id)&&$('coe_'+id).checked);
-    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:sessOf(t)},t.abortCtrl.signal);
+    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
     if(r.aborted){if(T(id)){st.className='status';st.textContent='Cancelled.';}return;}
     if(stale())return;
     if(r.failures){
@@ -4226,7 +4410,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;if(sql!=null&&sq
       }
       if(t.db)loadObjects(t.db);
     } else if(r.ok){st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
-    else{st.className='status err';st.textContent=r.error;log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
+    else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
   }
  } finally {
   if(!stale()){t.runningReqId=null;t.abortCtrl=null;setRunning(id,false);}
@@ -5693,7 +5877,7 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   !multi&&editable&&!sel&&['Delete row',()=>{if(!t.pending.del.has(ri))toggleDel(id,ri);}],
   editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],
   '-'];
- if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length)items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);
+ if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length){if(t.filterClauses.length>1)items.push(['Remove filter',t.filterClauses.map((c,i)=>[clip(c,60),()=>removeFilterClause(id,i)])]);items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);}
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   // The key is followed into the database it names, on every column it has; a part that is NULL
   // points nowhere.
@@ -5859,9 +6043,19 @@ function qfSub(id,col,val){const q=qid(col);const lv=lit(val);
 // Adds one more ANDed condition to the table tab's active quick filter (does not replace the
 // existing ones) - lets right-clicking two different cells build up a compound WHERE, matching
 // how Heidi's quick-filter stacking works. Re-picking the exact same condition is a no-op.
-async function addFilterClause(id,clause){const t=T(id);if(!t.filterClauses)t.filterClauses=[];if(t.filterClauses.includes(clause))return;t.filterClauses.push(clause);await openRun(id);log('Filter: '+t.filterClauses.join(' AND '));}
-async function clearFilters(id){const t=T(id);t.filterClauses=[];await openRun(id);log('Filter cleared.');}
-function updateFilterBar(id){const t=T(id);const st=$('st_'+id);if(!st)return;const w=combinedFilterWhere(t);st.title=w?('WHERE '+w):'';}
+async function addFilterClause(id,clause){const t=T(id);if(!t.filterClauses)t.filterClauses=[];if(t.filterClauses.includes(clause))return;t.filterClauses.push(clause);updateFilterBar(id);await openRun(id);log('Filter: '+t.filterClauses.join(' AND '));}
+async function clearFilters(id){const t=T(id);t.filterClauses=[];updateFilterBar(id);await openRun(id);log('Filter cleared.');}
+// The quick filters in force, as blocks above the grid: each one is taken off on its own with its x,
+// and the rest stay. They used to be visible only in the status line's tooltip, and could only all
+// go at once.
+function updateFilterBar(id){const t=T(id);if(!t)return;const st=$('st_'+id),w=combinedFilterWhere(t);if(st)st.title=w?('WHERE '+w):'';
+ const bar=$('qf_'+id);if(!bar)return;const cs=t.filterClauses||[];
+ if(!cs.length){bar.style.display='none';bar.innerHTML='';return;}
+ bar.style.display='flex';
+ bar.innerHTML='<span class="muted">Filtered by</span>'+cs.map((c,i)=>'<span class="qfchip" title="'+esc(c)+'"><span class="qft">'+esc(clip(c,80))+'</span><button class="qfx" title="Remove this filter" aria-label="Remove this filter" onclick="removeFilterClause(\''+id+'\','+i+')">&times;</button></span>').join('')
+  +(cs.length>1?'<button class="sm" title="Remove every filter" onclick="clearFilters(\''+id+'\')">Clear all</button>':'');}
+async function removeFilterClause(id,i){const t=T(id);if(!t||!t.filterClauses||!(i>=0&&i<t.filterClauses.length))return;
+ t.filterClauses.splice(i,1);updateFilterBar(id);await openRun(id);log(t.filterClauses.length?'Filter: '+t.filterClauses.join(' AND '):'Filter cleared.');}
 let _rf=null;
 async function rowForm(id,ri){const t=T(id);if(t.pending&&t.table)await colMeta(id);_rf={id:id,ri:ri};$('rfTitle').textContent='Edit row'+(t.table?(' - '+t.table):'');const box=$('rfFields');box.innerHTML='';
  const types=await Promise.all(t.cols.map(c=>t.table?getColType(id,c).catch(()=>null):null));
@@ -8280,9 +8474,22 @@ function sideFoldSync(){const sp=$('sideSplit');if(!sp)return;
   // A folded list opens as the divider is dragged, from where the divider is: dragging it used to
   // resize the other list and leave this one hidden, or move nothing at all.
   const bc=document.body.classList,scF=bc.contains('schemas-folded'),obF=bc.contains('objs-folded');
-  if(scF||obF){const full=sc.parentElement.clientHeight-140;bc.remove('schemas-folded','objs-folded');sc.style.flex='0 0 '+(scF?0:Math.max(80,full))+'px';sideFoldSync();}
-  const sy=e.clientY,sh=sc.offsetHeight,maxH=sc.parentElement.clientHeight-140;
-  const mv=ev=>{let h=sh+(ev.clientY-sy);h=Math.max(60,Math.min(h,Math.max(80,maxH)));sc.style.flex='0 0 '+h+'px';};
+  // The height the two lists share: the sidebar's, less the headers, filter rows and this divider,
+  // measured. It used to be taken as the sidebar's less 140px, which is less than those rows need,
+  // so near the bottom the rows were squeezed and the lists moved before the divider stopped.
+  const ob=$('objects');
+  if(scF||obF)bc.remove('schemas-folded','objs-folded');
+  let room=sc.parentElement.clientHeight;
+  for(const c of sc.parentElement.children){if(c===sc||c===ob)continue;const cs=getComputedStyle(c);if(cs.display!=='none')room-=c.offsetHeight+(parseFloat(cs.marginTop)||0)+(parseFloat(cs.marginBottom)||0);}
+  const maxH=Math.max(80,room-60);
+  if(scF||obF){sc.style.flex='0 0 '+(scF?0:maxH)+'px';sideFoldSync();}
+  // Past either end the list there folds away, and comes back when dragged back (as the editor's):
+  // once it would be under half its smallest height, 60px.
+  const sy=e.clientY,sh=scF?0:obF?maxH:sc.offsetHeight;
+  const mv=ev=>{const raw=sh+(ev.clientY-sy),fold=raw<30?'schemas':raw>room-30?'objs':'';
+   const now=bc.contains('schemas-folded')?'schemas':bc.contains('objs-folded')?'objs':'';
+   if(fold!==now){bc.remove('schemas-folded','objs-folded');if(fold)bc.add(fold+'-folded');sideFoldSync();}
+   if(fold==='objs')sc.style.flex='';else if(!fold)sc.style.flex='0 0 '+Math.max(60,Math.min(raw,maxH))+'px';};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});}
  init();})();
@@ -8478,8 +8685,9 @@ document.body.classList.add('disconnected');
 // ---- update notice ----
 // A fixed card in the bottom-left corner, not part of the top bar: at common window widths the
 // bar has almost no room left, and a notice there pushed it onto a second line.
-// Says when a newer release exists and links to it; nothing is downloaded or installed. Asked once
-// per start unless switched off in Settings, and a version the user hid stays hidden.
+// Says when a newer release exists and links to it, and installs it when its Install button is
+// clicked - never on its own. Asked once per start unless switched off in Settings, and a version
+// the user hid stays hidden.
 let _update=null;
 // How long a message stays in the bottom right corner, in milliseconds; 0 keeps it until it is
 // clicked. An error is given twice as long, as it always was.
@@ -8507,6 +8715,21 @@ async function openUpdatePage(){
  if(window.__TAURI__){const r=await api('/api/open-release-page',{url:_update.url});if(r&&!r.ok)toast(r.error||'Could not open the release page.',true);}
  else window.open(_update.url,'_blank','noopener');
 }
+// Installs the version the notice names, when asked to. The installer is downloaded from the
+// release, checked against the SHA-256 the release lists and started, and the app closes so the
+// files it replaces are free (update_install).
+async function installUpdate(){
+ if(!_update||!_update.newer)return;
+ const open=tabs.some(t=>t.txOn||t.txSession);
+ if(!(await ask('Install version '+_update.latest+' now?\n\nIt is downloaded from its release on GitHub and checked against the SHA-256 the release lists. Then the app closes while it is installed, and starts again when it is done.'
+  +(anyPending()?'\n\nChanges not yet applied in your tabs will be lost.':'')+(open?'\n\nOpen transactions will be rolled back.':''))))return;
+ const b=$('updInstall');if(b){b.disabled=true;b.textContent='Downloading…';}
+ let r=null;try{r=await api('/api/update-install');}catch(e){}
+ if(!r||!r.ok){if(b){b.disabled=false;b.textContent='Install';}toast('The update was not installed: '+((r&&r.error)||'no answer'),true);return;}
+ log('Installing version '+r.version+' ('+r.file+').');
+ tabs.filter(t=>t.runningReqId).forEach(t=>{cancelQuery(t.id);});
+ tabs.forEach(closeCursorFor);saveSession();
+ await api('/api/quit');}
 function dismissUpdate(){if(!_update)return;try{localStorage.setItem('updateDismissed',_update.latest);}catch(e){}const el=$('updNote');if(el)el.style.display='none';}
 setTimeout(()=>{checkForUpdate(false);},3000);
 window.addEventListener('beforeunload',e=>{saveSession();if(anyPending()){e.preventDefault();e.returnValue='';return '';}});

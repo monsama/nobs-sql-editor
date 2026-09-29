@@ -90,6 +90,9 @@ Export files are kept wherever you saved them.
 **Connections**
 - Saved connection profiles with a per-connection accent color and environment label.
 - **Read-only / safe mode** for production servers: every statement is checked by the app's backend before it is sent, not only greyed out in the interface.
+- A **time limit** per saved connection: the server stops a statement run from the editor once it
+  has taken that long (`max_statement_time` on MariaDB, for any statement; `max_execution_time` on
+  MySQL, which applies it to SELECT only).
 - SSH tunnels through the system's OpenSSH client (key, agent or password; host aliases and
   ProxyJump from `~/.ssh/config` work too).
 - SSL/TLS modes up to full certificate verification, and PAM or LDAP sign-in over TLS.
@@ -101,7 +104,12 @@ Export files are kept wherever you saved them.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
   script with several SELECTs, shows each result in a tab of its own.
 - Explain draws the plan: every table read as a card, a full scan in red and an index lookup in
-  green, with the joins, sorts and subqueries around them.
+  green, with the joins, sorts and subqueries around them. **Measure** runs the query and shows
+  what really happened at each step - the rows read and the time taken - beside what was expected
+  (`ANALYZE FORMAT=JSON` on MariaDB, `EXPLAIN ANALYZE` on MySQL 8.0.18 and later). Only a query
+  that reads is measured.
+- An UPDATE or DELETE without a WHERE of its own asks before it runs (it changes or removes every
+  row of its table). The question can be switched off in Settings → General.
 - Your own fonts and text sizes for the editor, the results and the interface, and an interface
   zoom (Settings → General).
 - Query history, and a reusable query library with export and import.
@@ -127,8 +135,10 @@ Export files are kept wherever you saved them.
   and PK / FK / UQ marks, and crow's-foot lines to the exact rows a key joins (pointing at one
   names the key). Fit to the window, and export as PNG or SVG.
 - Table maintenance (check, analyze, optimize; repair where the table's engine supports it).
-- Server overview: the server's figures, with what is worth a look marked, and every database with
-  its size, row count and character set - yours first. The process list, with kill.
+- Server overview: the server's figures, with what is worth a look marked; the ten statements the
+  server spent the most time on, from `performance_schema` (which MariaDB turns off by default -
+  the overview says so); and every database with its size, row count and character set - yours
+  first. Each part folds away. The process list, with kill.
 - Right-click menus offer what fits: nothing is created in or dropped from the server's own
   databases, and several picked cells or rows get the commands for all of them.
 
@@ -273,7 +283,14 @@ the config file override the defaults.
 
 A few seconds after it starts, the app asks GitHub (`api.github.com`) for the latest release of
 [nobs-sql-editor](https://github.com/monsama/nobs-sql-editor/releases). If a newer version exists, a small
-notice with a link appears in the bottom-left corner. Nothing is downloaded or installed.
+notice with a link appears in the bottom-left corner. Nothing is downloaded or installed unless
+you click its **Install** button.
+
+**Install** downloads the installer of the new release - the setup.exe if that is how this copy
+was installed, the MSI otherwise - and checks it against the SHA-256 the same release lists in
+`SHA256SUMS.txt`. A mismatch installs nothing. The app then closes, the installer runs (the MSI asks
+for administrator rights), and the app starts again. The checksum shows the download arrived whole
+and is the file the release build produced; it is not a signature (see [CODE_SIGNING.md](CODE_SIGNING.md)).
 
 Hide the notice with its **×** and it stays hidden until the next version. Switch the check off,
 or run it by hand, under **Settings → General**.
@@ -285,6 +302,7 @@ Apart from your database servers and SSH hosts, the app contacts:
 | Host | When | What for |
 |---|---|---|
 | `api.github.com` | at start (can be switched off) | the update check above |
+| `github.com`, `objects.githubusercontent.com` | only when you click Install on the update notice | the new release |
 | `downloads.mariadb.org`, `dlm.mariadb.com` or a MariaDB mirror | only when you ask for it in Settings | MariaDB client tools |
 | `dev.mysql.com`, `cdn.mysql.com`, `downloads.mysql.com` | only when you ask for it in Settings | MySQL client tools |
 

@@ -1047,6 +1047,25 @@ impl Db {
         match self { Db::Own(c) => (c, None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
     }
 }
+// The time limit a saved connection gives the statements run from the editor, in seconds; 0 for
+// none. A day at most: the server takes far more, but a longer "limit" is a typing mistake.
+fn time_limit_of(req: &Value) -> u64 {
+    req["timeLimit"].as_u64().or_else(|| req["timeLimit"].as_f64().filter(|n| *n >= 0.0).map(|n| n as u64)).unwrap_or(0).min(86_400)
+}
+// Puts that limit on the connection about to run them. MariaDB has max_statement_time, in seconds,
+// for every statement; MySQL has max_execution_time, in milliseconds, which only a SELECT obeys.
+// Whichever the server does not know it refuses, and the other is tried. Only the editor's own runs
+// carry a limit (the page sends it with them); the app's queries run without one. A tab's
+// transaction keeps its connection between runs, so there even no limit is set, to take off one an
+// earlier run left.
+fn apply_time_limit(c: &mut Db, req: &Value) {
+    if req.get("timeLimit").is_none() { return; }
+    let secs = time_limit_of(req);
+    if secs == 0 && !c.in_session() { return; }
+    if c.query_drop(format!("SET SESSION max_statement_time = {secs}")).is_err() {
+        let _ = c.query_drop(format!("SET SESSION max_execution_time = {}", secs * 1000));
+    }
+}
 fn db_for(req: &Value) -> Result<Db, String> {
     match req["session"].as_str().filter(|s| !s.is_empty()) {
         Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"])?)),
@@ -1962,6 +1981,7 @@ async fn query(req: Value) -> R {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let mut c = db_for(&req)?;
+        apply_time_limit(&mut c, &req);
         // A failed USE is the answer, not something to step over. Dropping the schema the app is
         // pointed at made every query after it run with no database at all, so the server replied
         // "No database selected" - a puzzle about the statement instead of the plain truth, which
@@ -2586,6 +2606,7 @@ async fn script(req: Value) -> R {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
         }
         let mut c = db_for(&req)?;
+        apply_time_limit(&mut c, &req);
         let db = req["db"].as_str().unwrap_or("");
         if !db.is_empty() {
             c.query_drop(format!("USE {}", sql_id(db))).map_err(db_err)?;
@@ -2664,6 +2685,7 @@ async fn script_results(req: Value) -> R {
         }
         let max_rows = req["maxRows"].as_u64().unwrap_or(1000).max(1) as usize;
         let mut c = db_for(&req)?;
+        apply_time_limit(&mut c, &req);
         if let Some(db) = req["db"].as_str().filter(|d| !d.is_empty()) {
             c.query_drop(format!("USE {}", sql_id(db))).map_err(db_err)?;
         }
@@ -3679,7 +3701,7 @@ async fn conn_list(_req: Value) -> R {
         json!({
             "name": c["name"], "host": c["host"], "port": c["port"], "user": c["user"], "ssl": c["ssl"],
             "sslCa": c["sslCa"], "clearPw": c["clearPw"].as_bool().unwrap_or(false), "sshHost": c["sshHost"], "sshPort": c["sshPort"], "sshUser": c["sshUser"], "sshKey": c["sshKey"],
-            "accent": c["accent"], "env": c["env"], "readonly": c["readonly"].as_bool().unwrap_or(false),
+            "accent": c["accent"], "env": c["env"], "readonly": c["readonly"].as_bool().unwrap_or(false), "timeLimit": c["timeLimit"].as_u64().unwrap_or(0),
             "primary": c["primary"].as_bool().unwrap_or(false), "hasPassword": has_password
         })
     }).collect();
@@ -3695,7 +3717,7 @@ async fn conn_get(req: Value) -> R {
             Ok(json!({"ok":true,"conn":{"host":c["host"],"port":c["port"],"user":c["user"],"ssl":c["ssl"],"sslCa":c["sslCa"],"clearPw":c["clearPw"].as_bool().unwrap_or(false),
                 "hasPassword":!db_pw_get(&name).is_empty(),
                 "sshHost":c["sshHost"],"sshPort":c["sshPort"],"sshUser":c["sshUser"],"sshKey":c["sshKey"],"hasSshPassword":!ssh_pw_get(&name).is_empty()},
-                "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false)}))
+                "accent":c["accent"],"env":c["env"],"readonly":c["readonly"].as_bool().unwrap_or(false),"timeLimit":c["timeLimit"].as_u64().unwrap_or(0)}))
         }
         None => Ok(json!({"ok":false})),
     }
@@ -3729,6 +3751,7 @@ async fn conn_save(req: Value) -> R {
         "accent": req.get("accent").cloned().unwrap_or(Value::Null),
         "env": req.get("env").cloned().unwrap_or(Value::Null),
         "readonly": req.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false),
+        "timeLimit": time_limit_of(&req),
         "primary": was_primary
     }));
     save_profiles(&list);
@@ -5645,8 +5668,9 @@ fn download_mysql_tools_blocking() -> R {
 }
 
 // ---------- update notice ----------
-// The app says when a newer release exists and links to it. It never downloads or installs
-// anything itself. The UI asks once per start unless that is switched off in Settings.
+// The app says when a newer release exists and links to it. It downloads and installs one only
+// when asked to from that notice (update_install). The UI asks once per start unless that is
+// switched off in Settings.
 const RELEASES_REPO: &str = "monsama/nobs-sql-editor";
 fn release_is_newer(latest: &str, current: &str) -> bool {
     let key = |v: &str| -> Vec<u64> {
@@ -5702,6 +5726,87 @@ fn open_release_page(req: Value) -> R {
     #[cfg(all(unix, not(target_os = "macos")))]
     { std::process::Command::new("xdg-open").arg(url).spawn().map_err(|e| e.to_string())?; }
     Ok(json!({"ok": true}))
+}
+
+// ---------- installing an update ----------
+// Asked for from the update notice, never on its own. The installer comes from this app's own
+// latest release on GitHub - the one kind of file this copy was installed with: the setup.exe for
+// a copy it installed (it leaves uninstall.exe beside the app), the MSI for one under Program
+// Files without it. Its SHA-256 has to match the SHA256SUMS.txt the same release carries, which
+// the build writes in the same run. That shows the download arrived whole and is the file CI
+// built; it is not a signature (CODE_SIGNING.md). The installer is then started and the app quits,
+// so that the files it replaces are not in use.
+#[derive(Debug, PartialEq)]
+enum InstallKind { Nsis, Msi }
+fn install_kind(exe: &std::path::Path, program_files: &[std::path::PathBuf]) -> Option<InstallKind> {
+    let dir = exe.parent()?;
+    if dir.join("uninstall.exe").is_file() { return Some(InstallKind::Nsis); }
+    let low = |p: &std::path::Path| p.to_string_lossy().to_lowercase();
+    if program_files.iter().any(|pf| !pf.as_os_str().is_empty() && low(dir).starts_with(&low(pf))) { return Some(InstallKind::Msi); }
+    None
+}
+// The asset of a release to install with, by its name as GitHub lists it: (name, download URL).
+fn pick_update_asset(release: &Value, kind: &InstallKind) -> Option<(String, String)> {
+    let prefix = format!("https://github.com/{}/releases/download/", RELEASES_REPO).to_lowercase();
+    release["assets"].as_array()?.iter().find_map(|a| {
+        let name = a["name"].as_str()?.to_string();
+        let url = a["browser_download_url"].as_str()?.to_string();
+        let low = name.to_lowercase();
+        let fits = match kind { InstallKind::Nsis => low.ends_with("-setup.exe"), InstallKind::Msi => low.ends_with(".msi") };
+        (fits && url.to_lowercase().starts_with(&prefix)).then_some((name, url))
+    })
+}
+// The SHA-256 SHA256SUMS.txt gives for a file: lines of "<hash>  <name>", as sha256sum writes them.
+fn sha256_listed(sums: &str, name: &str) -> Option<String> {
+    sums.lines().find_map(|l| {
+        let (h, n) = l.trim().split_once(char::is_whitespace)?;
+        let n = n.trim().trim_start_matches('*');
+        (n.eq_ignore_ascii_case(name) && h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit())).then(|| h.to_lowercase())
+    })
+}
+
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle) -> R {
+    let current = app.package_info().version.to_string();
+    tokio::task::spawn_blocking(move || {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let pf: Vec<std::path::PathBuf> = ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"].iter()
+            .filter_map(std::env::var_os).map(std::path::PathBuf::from).collect();
+        let Some(kind) = install_kind(&exe, &pf) else {
+            return Ok(json!({"ok": false, "error": "This copy was not installed with the setup.exe or the MSI, so it cannot install an update. Download the new version from the release page."}));
+        };
+        let client = reqwest::blocking::Client::builder().user_agent("NOBSSQL-Desktop")
+            .timeout(std::time::Duration::from_secs(300)).build().map_err(|e| e.to_string())?;
+        let get = |url: &str| client.get(url).send().and_then(|r| r.error_for_status());
+        let rel: Value = get(&format!("https://api.github.com/repos/{}/releases/latest", RELEASES_REPO))
+            .and_then(|r| r.json()).map_err(|e| format!("Could not ask GitHub for the release: {e}"))?;
+        let tag = rel["tag_name"].as_str().unwrap_or("").to_string();
+        if !release_is_newer(&tag, &current) { return Ok(json!({"ok": false, "error": format!("You already have the latest version ({current}).")})); }
+        let Some((name, url)) = pick_update_asset(&rel, &kind) else {
+            return Ok(json!({"ok": false, "error": format!("Release {tag} has no {} to install.", if kind == InstallKind::Nsis { "setup.exe" } else { "MSI" })}));
+        };
+        let sums_url = rel["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str() == Some("SHA256SUMS.txt")))
+            .and_then(|x| x["browser_download_url"].as_str()).map(String::from);
+        let Some(sums_url) = sums_url else { return Ok(json!({"ok": false, "error": format!("Release {tag} lists no SHA256SUMS.txt, so its installer cannot be checked. Nothing was installed.")})); };
+        let sums = get(&sums_url).and_then(|r| r.text()).map_err(|e| format!("Could not download SHA256SUMS.txt: {e}"))?;
+        let Some(want) = sha256_listed(&sums, &name) else { return Ok(json!({"ok": false, "error": format!("SHA256SUMS.txt of {tag} does not list {name}. Nothing was installed.")})); };
+        let bytes = get(&url).and_then(|r| r.bytes()).map_err(|e| format!("Could not download {name}: {e}"))?;
+        if let Err(e) = verify_sha256(&bytes, &want) { return Ok(json!({"ok": false, "error": format!("{name}: {e}. Nothing was installed.")})); }
+        let dir = std::env::temp_dir().join("nobs-sql-editor-update");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let file = dir.join(&name);
+        std::fs::write(&file, &bytes).map_err(|e| format!("Could not save {name}: {e}"))?;
+        // /P: the setup.exe's passive mode (a progress bar, no questions); /R: start the app again
+        // when done. msiexec /passive is the same for the MSI, which asks for administrator rights.
+        let mut cmd = match kind {
+            InstallKind::Nsis => { let mut c = std::process::Command::new(&file); c.args(["/P", "/R"]); c }
+            InstallKind::Msi => { let mut c = std::process::Command::new("msiexec"); c.arg("/i").arg(&file).arg("/passive"); c }
+        };
+        cmd.spawn().map_err(|e| format!("Could not start the installer: {e}"))?;
+        log_line(&format!("update_install: {name} started"));
+        Ok(json!({"ok": true, "version": tag.trim_start_matches(['v', 'V']), "file": name, "msi": kind == InstallKind::Msi}))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -5853,7 +5958,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -6606,6 +6711,47 @@ mod tests {
         assert!(!release_is_newer("v1.1.0", "1.2.0"), "an older release is not an update");
         assert!(!release_is_newer("v1.2", "1.2.0"), "1.2 and 1.2.0 are the same version");
         assert!(!release_is_newer("", "1.2.0"));
+    }
+
+    // An update is installed the way this copy was: the setup.exe leaves uninstall.exe beside the
+    // app, the MSI puts it under Program Files without one, and anything else is not updated.
+    #[test]
+    fn an_update_is_installed_the_way_the_copy_was() {
+        let d = tempfile::tempdir().unwrap();
+        let exe = d.path().join("nobs-sql-editor.exe");
+        assert_eq!(install_kind(&exe, &[]), None, "a copy run from a build folder");
+        assert_eq!(install_kind(&exe, &[d.path().to_path_buf()]), Some(InstallKind::Msi));
+        std::fs::write(d.path().join("uninstall.exe"), b"").unwrap();
+        assert_eq!(install_kind(&exe, &[]), Some(InstallKind::Nsis));
+        assert_eq!(install_kind(&exe, &[std::path::PathBuf::new()]), Some(InstallKind::Nsis), "an empty Program Files is no match");
+    }
+
+    #[test]
+    fn the_installer_comes_from_this_apps_release_and_its_listed_checksum() {
+        let base = format!("https://github.com/{RELEASES_REPO}/releases/download/v1.6.0/");
+        let rel = json!({"assets": [
+            {"name": "NOBS.SQL.Editor_1.6.0_x64_en-US.msi", "browser_download_url": format!("{base}NOBS.SQL.Editor_1.6.0_x64_en-US.msi")},
+            {"name": "NOBS.SQL.Editor_1.6.0_x64-setup.exe", "browser_download_url": format!("{base}NOBS.SQL.Editor_1.6.0_x64-setup.exe")},
+            {"name": "SHA256SUMS.txt", "browser_download_url": format!("{base}SHA256SUMS.txt")}]});
+        assert_eq!(pick_update_asset(&rel, &InstallKind::Nsis).unwrap().0, "NOBS.SQL.Editor_1.6.0_x64-setup.exe");
+        assert_eq!(pick_update_asset(&rel, &InstallKind::Msi).unwrap().0, "NOBS.SQL.Editor_1.6.0_x64_en-US.msi");
+        let elsewhere = json!({"assets": [{"name": "x-setup.exe", "browser_download_url": "https://example.com/x-setup.exe"}]});
+        assert_eq!(pick_update_asset(&elsewhere, &InstallKind::Nsis), None, "only from this app's own releases");
+        let h = "a".repeat(64);
+        let sums = format!("{h}  NOBS.SQL.Editor_1.6.0_x64-setup.exe\r\n{}  NOBS.SQL.Editor_1.6.0_x64_en-US.msi\n", "B".repeat(64));
+        assert_eq!(sha256_listed(&sums, "NOBS.SQL.Editor_1.6.0_x64-setup.exe").as_deref(), Some(h.as_str()));
+        assert_eq!(sha256_listed(&sums, "NOBS.SQL.Editor_1.6.0_x64_en-US.msi"), Some("b".repeat(64)), "read in lower case");
+        assert_eq!(sha256_listed(&sums, "other.exe"), None);
+        assert_eq!(sha256_listed("abc  NOBS.SQL.Editor_1.6.0_x64-setup.exe", "NOBS.SQL.Editor_1.6.0_x64-setup.exe"), None, "not a SHA-256");
+    }
+
+    #[test]
+    fn a_time_limit_is_whole_seconds_up_to_a_day() {
+        assert_eq!(time_limit_of(&json!({})), 0);
+        assert_eq!(time_limit_of(&json!({"timeLimit": 30})), 30);
+        assert_eq!(time_limit_of(&json!({"timeLimit": 2.7})), 2);
+        assert_eq!(time_limit_of(&json!({"timeLimit": -5})), 0);
+        assert_eq!(time_limit_of(&json!({"timeLimit": 10_000_000})), 86_400);
     }
 
     // The page is opened through the shell, so nothing but this app's own release pages.

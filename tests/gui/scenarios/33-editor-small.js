@@ -19,8 +19,21 @@
     await addFilterClause(t.id, '`id` = 1'); await G.until(() => !t.runningReqId);
     await addFilterClause(t.id, "`s` = 'a'"); await G.until(() => !t.runningReqId);
     G.eq('two quick filters are on', t.filterClauses.length, 2);
+    // Each is a block above the grid, taken off on its own with its x.
+    const bar = $('qf_' + t.id), chips = () => [...bar.querySelectorAll('.qfchip')];
+    G.check('both show as blocks above the grid', bar.style.display !== 'none' && chips().length === 2, chips().length);
+    chips()[0].querySelector('.qfx').click(); await G.until(() => !t.runningReqId && t.filterClauses.length === 1);
+    G.eq('its x takes off that one filter', t.filterClauses, ["`s` = 'a'"]);
+    G.check('and the query keeps the other', /WHERE `s` = 'a'/.test(ed.value) && !/`id` = 1/.test(ed.value), ed.value);
+    G.eq('one block is left', chips().length, 1);
+    saveSession('nobs_gui_small');
+    const saved = (JSON.parse(localStorage.getItem('session:nobs_gui_small') || '[]').find(x => x.table === 't' && x.db === DB) || {}).filters;
+    localStorage.removeItem('session:nobs_gui_small');
+    G.eq('the tab is saved with the filter left, for the next start', saved, ["`s` = 'a'"]);
+    await addFilterClause(t.id, '`id` = 1'); await G.until(() => !t.runningReqId);
     edSetAll(t.id, `SELECT id FROM ${DB}.t ORDER BY id DESC`);
     G.eq('a query loaded into the tab clears them', t.filterClauses.length, 0);
+    G.check('and their blocks', bar.style.display === 'none', bar.style.display);
     await openRun(t.id); await G.until(() => !t.runningReqId);
     await addFilterClause(t.id, '`id` = 2'); await G.until(() => !t.runningReqId);
     ed.value = 'SELECT 1'; ed.dispatchEvent(new Event('input'));

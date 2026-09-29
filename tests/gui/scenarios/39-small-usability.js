@@ -217,6 +217,12 @@
     const y1 = sp.getBoundingClientRect().top + 5;
     mouse(sp, 'mousedown', y1); mouse(document, 'mousemove', y1 + 120); mouse(document, 'mouseup', y1 + 120);
     G.check('and the databases, dragged the other way', getComputedStyle(sc).display !== 'none' && sc.offsetHeight > 40, sc.offsetHeight);
+    // dragged past the end, the list there folds away as its caret would, and back in the same drag
+    const y4 = sp.getBoundingClientRect().top + 5, room = sc.parentElement.clientHeight;
+    mouse(sp, 'mousedown', y4); mouse(document, 'mousemove', y4 + room);
+    G.check('dragged to the bottom, the objects fold away', document.body.classList.contains('objs-folded') && getComputedStyle(ob).display === 'none');
+    mouse(document, 'mousemove', y4); mouse(document, 'mouseup', y4);
+    G.check('and dragged back up, they are there again', !document.body.classList.contains('objs-folded') && ob.offsetHeight > 0, ob.offsetHeight);
     sideSplitReset();
 
     // the same between a tab's editor and its results
@@ -225,6 +231,11 @@
     const y2 = es.getBoundingClientRect().top + 5;
     mouse(es, 'mousedown', y2); mouse(document, 'mousemove', y2 + 100); mouse(document, 'mouseup', y2 + 100);
     G.check('a folded editor opens when its divider is dragged', !$('pane_' + q).classList.contains('edfolded-editor') && ew.offsetHeight > 44, ew.offsetHeight);
+    const y3 = es.getBoundingClientRect().top + 5, h3 = ew.offsetHeight;
+    mouse(es, 'mousedown', y3); mouse(document, 'mousemove', y3 - h3 - 10);
+    G.check('dragged to the top, the editor folds away', $('pane_' + q).classList.contains('edfolded-editor'));
+    mouse(document, 'mousemove', y3 - h3 + 150); mouse(document, 'mouseup', y3 - h3 + 150);
+    G.check('and dragged back down, it opens again', !$('pane_' + q).classList.contains('edfolded-editor') && ew.offsetHeight > 44, ew.offsetHeight);
     closeTab(q);
   } finally {
     await G.run(`DROP DATABASE IF EXISTS ${DB}`);
