@@ -5307,6 +5307,14 @@ fn open_folder(req: Value) -> R {
         _ => return Ok(json!({"ok":false,"error":"unknown folder"})),
     };
     let _ = std::fs::create_dir_all(&dir);
+    // Created first, so that in the Store package it exists where Explorer is sent.
+    let dir = match (store_package(), dirs::config_dir(), dirs::data_local_dir()) {
+        (Some(family), Some(roaming), Some(local)) if test_data_dir().is_none() => {
+            let real = store_real_dir(&dir, &roaming, &local, &family);
+            if real.is_dir() { real } else { dir }
+        }
+        _ => dir,
+    };
     #[cfg(windows)]
     let opener = "explorer";
     #[cfg(not(windows))]
@@ -5435,6 +5443,7 @@ fn verify_sha256(bytes: &[u8], want: &str) -> Result<(), String> {
 
 #[tauri::command]
 async fn download_tools() -> R {
+    if store_package().is_some() { return Ok(json!({"ok": false, "error": STORE_NO_DOWNLOAD})); }
     tokio::task::spawn_blocking(download_mariadb_tools).await.map_err(|e| e.to_string())?
 }
 
@@ -5584,6 +5593,7 @@ fn mysql_tools_dir() -> std::path::PathBuf { tools_dir().join("mysql") }
 
 #[tauri::command]
 async fn download_mysql_tools() -> R {
+    if store_package().is_some() { return Ok(json!({"ok": false, "error": STORE_NO_DOWNLOAD})); }
     tokio::task::spawn_blocking(download_mysql_tools_blocking).await.map_err(|e| e.to_string())?
 }
 
@@ -5667,6 +5677,41 @@ fn download_mysql_tools_blocking() -> R {
     Ok(json!({"ok":true, "message": format!("Downloaded MySQL {version} client tools to {} (checksum verified)", dest.to_string_lossy()), "config": cfg}))
 }
 
+// ---------- Microsoft Store package ----------
+// The same exe is also packed into an MSIX for the Microsoft Store (packaging/msix). Run from that
+// package it has a package identity, and three things change: the Store updates it, so the update
+// notice and update_install are off; it does not download client tools, which Store policy does not
+// allow; and Windows keeps what it writes under AppData in the package's own folder, which is where
+// "Open folder" has to point Explorer.
+#[cfg(windows)]
+fn store_package() -> Option<String> {
+    static PFN: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    PFN.get_or_init(|| unsafe {
+        use windows::Win32::Storage::Packaging::Appx::GetCurrentPackageFamilyName;
+        // Asked for its length first: without a package the answer is an error and no length.
+        let mut len = 0u32;
+        let _ = GetCurrentPackageFamilyName(&mut len, None);
+        if len == 0 { return None; }
+        let mut buf = vec![0u16; len as usize];
+        if GetCurrentPackageFamilyName(&mut len, Some(windows::core::PWSTR(buf.as_mut_ptr()))).0 != 0 { return None; }
+        let name = String::from_utf16_lossy(&buf[..(len as usize).saturating_sub(1)]);
+        (!name.is_empty()).then_some(name)
+    }).clone()
+}
+#[cfg(not(windows))]
+fn store_package() -> Option<String> { None }
+const STORE_NO_DOWNLOAD: &str = "The Microsoft Store version cannot download the client tools. Install MariaDB or MySQL, or select a mysql.exe and mysqldump.exe you already have.";
+// Where a folder under AppData really is for the packaged app: Windows keeps its writes to the
+// roaming and the local AppData in %LOCALAPPDATA%\Packages\<family name>\LocalCache\Roaming and
+// \Local, and shows the app both merged. Explorer sees only the real one. A folder under neither
+// is where it says.
+fn store_real_dir(dir: &std::path::Path, roaming: &std::path::Path, local: &std::path::Path, family: &str) -> std::path::PathBuf {
+    let cache = local.join("Packages").join(family).join("LocalCache");
+    if let Ok(rest) = dir.strip_prefix(roaming) { return cache.join("Roaming").join(rest); }
+    if let Ok(rest) = dir.strip_prefix(local) { return cache.join("Local").join(rest); }
+    dir.to_path_buf()
+}
+
 // ---------- update notice ----------
 // The app says when a newer release exists and links to it. It downloads and installs one only
 // when asked to from that notice (update_install). The UI asks once per start unless that is
@@ -5695,6 +5740,7 @@ fn release_page_ok(url: &str) -> bool {
 #[tauri::command]
 async fn update_check(app: tauri::AppHandle) -> R {
     let current = app.package_info().version.to_string();
+    if store_package().is_some() { return Ok(json!({"ok": true, "current": current, "store": true, "newer": false})); }
     tokio::task::spawn_blocking(move || {
         let client = reqwest::blocking::Client::builder()
             .user_agent("NOBSSQL-Desktop")
@@ -5768,6 +5814,7 @@ fn sha256_listed(sums: &str, name: &str) -> Option<String> {
 #[tauri::command]
 async fn update_install(app: tauri::AppHandle) -> R {
     let current = app.package_info().version.to_string();
+    if store_package().is_some() { return Ok(json!({"ok": false, "error": "This copy is from the Microsoft Store, which installs its updates."})); }
     tokio::task::spawn_blocking(move || {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let pf: Vec<std::path::PathBuf> = ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"].iter()
@@ -5812,7 +5859,7 @@ async fn update_install(app: tauri::AppHandle) -> R {
 #[tauri::command]
 fn app_info(app: tauri::AppHandle) -> R {
     let pi = app.package_info();
-    Ok(json!({"ok":true, "name": pi.name, "version": pi.version.to_string()}))
+    Ok(json!({"ok":true, "name": pi.name, "version": pi.version.to_string(), "store": store_package().is_some()}))
 }
 
 // Quit closes the windows first, then ends the app. Ending it with a window still open left WebView2
@@ -6488,6 +6535,18 @@ mod tests {
         let excl = std::collections::HashSet::new();
         let (ignore_args, positional) = table_filter_args("mydb", &excl, &bogus_conn).unwrap();
         assert!(ignore_args.is_empty() && positional.is_empty());
+    }
+
+    #[test]
+    fn store_real_dir_finds_the_package_copy_of_appdata() {
+        use std::path::Path;
+        let (roaming, local) = (Path::new(r"C:\Users\u\AppData\Roaming"), Path::new(r"C:\Users\u\AppData\Local"));
+        let fam = "monsama.NOBSSQLEditor_abc123";
+        assert_eq!(store_real_dir(&roaming.join("NOBSSQL-Desktop"), roaming, local, fam),
+            Path::new(r"C:\Users\u\AppData\Local\Packages\monsama.NOBSSQLEditor_abc123\LocalCache\Roaming\NOBSSQL-Desktop"));
+        assert_eq!(store_real_dir(&local.join(r"NOBSSQL-Desktop\bin"), roaming, local, fam),
+            Path::new(r"C:\Users\u\AppData\Local\Packages\monsama.NOBSSQLEditor_abc123\LocalCache\Local\NOBSSQL-Desktop\bin"));
+        assert_eq!(store_real_dir(Path::new(r"D:\tools"), roaming, local, fam), Path::new(r"D:\tools"));
     }
 
     #[test]

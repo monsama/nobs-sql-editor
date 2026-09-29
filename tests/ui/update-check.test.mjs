@@ -81,6 +81,15 @@ test('nothing is announced when the version is current', async () => {
   assert.match(h.toasts.at(-1)[0], /latest version \(1\.3\.0\)/);
 });
 
+test('the Microsoft Store copy announces nothing and says the Store updates it', async () => {
+  const h = harness({ reply: { ok: true, current: '1.3.0', store: true, newer: false } });
+  await h.f.checkForUpdate(false);
+  assert.equal(h.els.updNote.style.display, 'none');
+  assert.equal(h.toasts.length, 0);
+  await h.f.checkForUpdate(true);
+  assert.match(h.toasts.at(-1)[0], /Microsoft Store/);
+});
+
 test('switched off, the startup check does not ask at all', async () => {
   const h = harness({ store: { updateCheck: 'off' } });
   assert.equal(await h.f.checkForUpdate(false), null);
