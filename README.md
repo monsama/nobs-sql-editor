@@ -8,6 +8,8 @@
 A desktop client for **MySQL** and **MariaDB** on Windows, built with
 [Tauri](https://tauri.app) (a Rust backend with an HTML/JS frontend).
 
+<img width="3096" height="1744" alt="appview" src="https://github.com/user-attachments/assets/70255d43-32e3-4ac1-9f70-dbc0c96f7e36" />
+
 Only the Windows build is tested and released. Tauri also runs on macOS and Linux, so
 you can build the app from source there (see [Building from source](#building-from-source)),
 but there are no installers for those platforms and CI doesn't test them. Consider them
