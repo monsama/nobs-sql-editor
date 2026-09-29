@@ -5487,10 +5487,18 @@ function gridAutoStep(){_gridAuto=null;const d=window._gridDrag,p=_gridAutoPt;if
  const step=v=>v?Math.sign(v)*Math.min(40,Math.ceil(Math.abs(v)/3)+2):0;
  w.scrollTop+=step(p.dy);w.scrollLeft+=step(p.dx);
  const b=gridAutoBox(w),x=Math.min(Math.max(p.x,b.left+2),b.right-2),y=Math.min(Math.max(p.y,b.top+2),b.bottom-2);
+ // The row under the point, looked for among everything there rather than only the topmost: a
+ // toast or another overlay across the bottom of the results hid it, and the block stopped growing
+ // while the results went on scrolling. Rows scrolled in are drawn on the next frame, so the point
+ // can be over the spacer standing in for them - then they are drawn now, and looked for again.
+ const rowAt=()=>{const els=document.elementsFromPoint(x,y);
+  for(let i=0;i<els.length;i++){const tr=els[i].closest&&els[i].closest('tr[data-r]');if(tr&&w.contains(tr))return {tr,el:els[i]};}
+  return null;};
+ let hit=rowAt();
+ if(!hit){renderBody(d.id);hit=rowAt();}
  // Over the row's own controls (tick box, edit, delete) rather than a value: that row's cell in the
  // column the block last reached.
- const el=document.elementFromPoint(x,y),tr=el&&el.closest&&el.closest('tr[data-r]');
- if(tr&&w.contains(tr)){let td=el.closest('td');if(!td||!td.getAttribute('onmouseover'))td=gridCellEl(d.id,+tr.dataset.r,d.lastCi!=null?d.lastCi:d.ci);
+ if(hit){let td=hit.el.closest('td');if(!td||!td.getAttribute('onmouseover'))td=gridCellEl(d.id,+hit.tr.dataset.r,d.lastCi!=null?d.lastCi:d.ci);
   if(td)td.dispatchEvent(new MouseEvent('mouseover',{bubbles:true,buttons:1}));}
  _gridAuto=requestAnimationFrame(gridAutoStep);}
 function gridAutoStop(){if(_gridAuto)cancelAnimationFrame(_gridAuto);_gridAuto=null;_gridAutoPt=null;}

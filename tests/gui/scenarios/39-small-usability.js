@@ -40,6 +40,22 @@
     mm(wb.bottom + 40); await G.wait(300);
     G.eq('and once let go, the edge does nothing', wrap.scrollTop, top2);
 
+    // the same with something laid over the bottom of the results - a toast, say: the rows under
+    // it still join the block. It used to take only the topmost element there, found no row, and
+    // the block stayed as it was while the results scrolled on.
+    wrap.scrollTop = 0; await G.wait(200);
+    const cover = document.createElement('div');
+    cover.style.cssText = `position:fixed;left:${wb.left}px;top:${wb.bottom - 60}px;width:${wb.width}px;height:60px;z-index:9999;background:rgba(0,0,0,.2)`;
+    document.body.appendChild(cover);
+    try {
+      tl.cellSel = new Set();
+      gridDragStart({ button: 0, target: gridCellEl(tl.id, 0, V), ctrlKey: false, shiftKey: false, metaKey: false, preventDefault() {} }, tl.id, 0, V);
+      gridDragOver({ buttons: 1 }, tl.id, 1, V);
+      mm(wb.bottom + 40); await G.wait(600);
+      G.check('with the edge covered, it still picks the cells it scrolls to', wrap.scrollTop > 100 && tl.cellSel.size > 10, [wrap.scrollTop, tl.cellSel.size]);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    } finally { cover.remove(); }
+
     // from the last row straight down, out of the results, without passing another cell
     wrap.scrollTop = wrap.scrollHeight; await G.wait(300);
     const lastRi = +[...wrap.querySelectorAll('tr[data-r]')].pop().dataset.r, lastTd = gridCellEl(tl.id, lastRi, V);
