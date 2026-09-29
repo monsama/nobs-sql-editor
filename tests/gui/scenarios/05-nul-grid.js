@@ -92,7 +92,8 @@ INSERT INTO ${DB}.pad VALUES (1, 'abc', 0xFF00);`);
     const padCell = gridCellEl(tp.id, 0, tp.cols.indexOf('b'));
     G.check('BINARY padding is one badge with a count', padCell.querySelectorAll('.cellmark').length === 1 &&
       padCell.innerText.replace(/\s+/g, ' ').trim() === 'abcNUL ×5', padCell.innerHTML);
-    G.eq('bytes that are not text are shown as hex', gridCellEl(tp.id, 0, tp.cols.indexOf('h')).innerText.trim(), '0xff00');
+    // As the backend spells them: the desktop one writes lowercase hex, the PowerShell one uppercase.
+    G.eq('bytes that are not text are shown as hex', gridCellEl(tp.id, 0, tp.cols.indexOf('h')).innerText.trim().toLowerCase(), '0xff00');
 
     // What the clipboard is told, and what it is told about. None of this can be checked by
     // reading the clipboard - the app is not allowed to - so what is checked is what the app says,
