@@ -5973,10 +5973,10 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  // Whether this column takes NULL - a round trip the first time per table, then cached.
  if(editable&&t.table)await colMeta(id);
  // Picked cells still on screen can all be given NULL or an empty value at once - staged like any
- // edit, for Apply. NULL is offered when at least one of them can hold it; the others are left as
- // they are and setUpdMany says so.
+ // edit, for Apply. NULL is offered when at least one of them can hold it, and counts and touches
+ // only those - the NOT NULL, key and generated ones are left out of it, not skipped after the fact.
  const pickView=new Set(viewIndices(id)),pickKeys=(editable&&t.cellSel)?[...t.cellSel].filter(k=>pickView.has(+k.split(':')[0])):[],npick=pickKeys.length;
- const pickNull=npick>1&&pickKeys.some(k=>canNull(id,t.cols[+k.split(':')[1]]));
+ const nullKeys=npick>1?pickKeys.filter(k=>{const c=t.cols[+k.split(':')[1]];return canNull(id,c)&&!isGenCol(id,c);}):[],pickNull=nullKeys.length>0;
  // Right-clicked inside several picked cells, or on one of several ticked rows: the menu is about
  // all of them, so what acts on this one cell or row alone is left out. Outside them it is not.
  const multi=(npick>1&&pickKeys.includes(key))||(nsel>1&&!!t.selected&&t.selected.has(ri));
@@ -5998,7 +5998,7 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   // this cell (or the picked cells)
   !multi&&(editable?['Edit value...',()=>editCell(null,id,ri,ci)]:['View value...',()=>viewCell(id,ri,ci)]),
   !multi&&editable&&canNull(id,t.cols[ci])&&['Set NULL',()=>setUpd(id,ri,ci,null)],!multi&&editable&&['Set empty',()=>setUpd(id,ri,ci,'')],
-  pickNull&&['Set '+npick+' picked cells to NULL',()=>setUpdMany(id,pickKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')],
+  pickNull&&['Set '+(nullKeys.length===npick?npick+' picked cells':nullKeys.length+' of '+npick+' picked cells')+' to NULL',()=>setUpdMany(id,nullKeys,null)],npick>1&&['Set '+npick+' picked cells to empty',()=>setUpdMany(id,pickKeys,'')],
   '-',
   // copy
   !multi&&['Copy value',()=>{window._cellClipboard=[[cur]];copyText(cellCopyValue(cur),'Copied cell value.',asHex?'Use "Copy value as hex" to keep the whole value.':'');}],
