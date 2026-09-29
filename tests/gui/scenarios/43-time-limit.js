@@ -5,16 +5,22 @@
   const realLimit = timeLimitSec;
   let limit = 1;
   timeLimitSec = () => limit;
-  // MariaDB stops any statement, SLEEP included; MySQL stops a SELECT, but a SLEEP only returns early.
+  // A SELECT that runs for minutes on any server: a SLEEP is no good, as MySQL and MariaDB before 10.3
+  // end one early without an error, and three collations tables crossed took under half a second on
+  // MySQL 5.7. Four is two billion rows; the limit stops it, and it is cancelled if that failed.
   const maria = !!window.mariadb, v = maria ? 'max_statement_time' : 'max_execution_time';
-  const slow = maria ? 'SELECT SLEEP(3)' : 'SELECT COUNT(*) FROM information_schema.COLLATIONS a, information_schema.COLLATIONS b, information_schema.COLLATIONS c';
+  const slow = 'SELECT COUNT(*) FROM information_schema.COLLATIONS a, information_schema.COLLATIONS b, information_schema.COLLATIONS c, information_schema.COLLATIONS d';
   const one = async (id, sql) => { await runSql(id, sql); await G.until(() => !T(id).runningReqId, 30000); return T(id).rows && T(id).rows[0] ? String(T(id).rows[0][0]) : null; };
   let p = null, x = null;
   try {
     p = openTab('limit', slow, null, false);
-    await runSql(p, slow); await G.until(() => !T(p).runningReqId, 30000);
+    // Not awaited: should the limit not work, it is cancelled after half a minute instead of running on.
+    const run = runSql(p, slow);
+    await G.until(() => T(p).runningReqId, 5000); await G.until(() => !T(p).runningReqId, 30000);
+    if (T(p).runningReqId) await cancelQuery(p);
+    await run;
     const st = $('st_' + p).textContent;
-    G.check('a statement over the limit is stopped', /max(imum)? ?(statement|_statement_time|execution time)/i.test(st) && /exceeded/i.test(st), st);
+    G.check('a statement over the limit is stopped', /\b(3024|1969)\b/.test(st) && /exceeded/i.test(st), st);
     G.check('and the message names the connection\'s limit', /time limit \(1 s\) stopped it/.test(st), st);
     closeTab(p); p = null;
 

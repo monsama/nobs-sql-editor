@@ -4316,7 +4316,9 @@ function timeLimitSec(){const n=window._activeConnName||'';const v=n?+((connMeta
 // result stays open, not only the time it takes to find the rows, so a result paged through slowly
 // can run out of time with its rows already on screen - those stay, and are all there is.
 function timeLimitNote(err,reading){err=String(err==null?'':err);
- if(!/maximum statement execution time exceeded|max_statement_time exceeded/i.test(err))return err;
+ // MySQL: 3024, "maximum statement execution time exceeded"; MariaDB: 1969, "max_statement_time
+ // exceeded" - and from 12 on "execution time limit 1.0 sec exceeded". The code settles it.
+ if(!/\b(3024|1969)\b|maximum statement execution time exceeded|max_statement_time exceeded|execution time limit [\d.]+ sec exceeded/i.test(err))return err;
  const s=timeLimitSec(),lim='The connection\'s time limit'+(s?' ('+s+' s)':'');
  if(reading)return err+'\n\n'+lim+' ended the query while its rows were still being read: the server counts the time a result stays open. The rows shown are all that arrived. Add a LIMIT, or raise the time limit in the connection, to read more.';
  return err+'\n\n'+lim+' stopped it. Edit the connection to change the limit.';}
