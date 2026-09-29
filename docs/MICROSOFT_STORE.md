@@ -53,8 +53,9 @@ In Partner Center, under the reserved app, a new submission needs:
 
 1. **Packages** - the `.msix` from the `microsoft-store-msix` artifact of the tag's build run.
 2. **Pricing and availability** - free, markets.
-3. **Properties** - category Developer tools; a privacy policy URL is required, because the app
-   stores credentials and connects to servers.
+3. **Properties** - category Developer tools; privacy policy URL
+   https://github.com/monsama/nobs-sql-editor/blob/main/PRIVACY.md (required, because the app
+   handles credentials and database contents).
 4. **Age ratings** - the questionnaire.
 5. **Store listings** - description and at least one screenshot.
 6. **Submission options** - the `runFullTrust` capability needs a reason: a desktop database

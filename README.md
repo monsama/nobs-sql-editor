@@ -307,7 +307,7 @@ Apart from your database servers and SSH hosts, the app contacts:
 | `dev.mysql.com`, `cdn.mysql.com`, `downloads.mysql.com` | only when you ask for it in Settings | MySQL client tools |
 
 None of these requests carries anything beyond what any web request does: your IP address and a
-user agent. There is no telemetry.
+user agent. There is no telemetry. [PRIVACY.md](PRIVACY.md) is the privacy policy.
 
 ## Security notes
 
