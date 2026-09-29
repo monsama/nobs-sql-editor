@@ -80,8 +80,13 @@ UPDATE ${DB}.fit SET huge = REPEAT('W', 600) WHERE id = 5;`);
     G.check('and is wide enough to hit on either side', band.width >= 8 && line - band.left >= 3 && band.right - line >= 3,
       `${line - band.left} left, ${band.right - line} right`);
     const y = (box.top + box.bottom) / 2;
-    const hit = x => { const e = document.elementFromPoint(x, y); return e ? (e.className || e.tagName) : 'nothing'; };
+    // The toasts are out of the way while it is tried: on a slow run enough of them stacked up from
+    // the bottom corner to reach the header, and their box - an id, no class - was hit instead.
+    const hit = x => { const e = document.elementFromPoint(x, y); return e ? (e.className || (e.id ? '#' + e.id : e.tagName)) : 'nothing'; };
+    const toasts = $('toasts'), vis = toasts ? toasts.style.visibility : '';
+    if (toasts) toasts.style.visibility = 'hidden';
     const hits = [hit(line - 3), hit(line + 3)];
+    if (toasts) toasts.style.visibility = vis;
     G.check('and is what the pointer lands on either side of the line', hits[0] === 'rz' && hits[1] === 'rz',
       `3px left hit ${hits[0]}, 3px right hit ${hits[1]}`);
   } finally {
