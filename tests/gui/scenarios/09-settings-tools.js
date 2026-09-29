@@ -47,7 +47,7 @@
   setPage('about');
   G.eq('About shows alone', shown(), ['about']);
   await G.until(() => /\d/.test($('aboutTitle').textContent), 10000);
-  G.check('with the version in its heading', /^NO-BS SQL Editor \d+\.\d+\.\d+/.test($('aboutTitle').textContent), $('aboutTitle').textContent);
+  G.check('with the version in its heading', /^NOBS SQL Editor \d+\.\d+\.\d+/.test($('aboutTitle').textContent), $('aboutTitle').textContent);
   G.check('and the coffee and shortcut buttons', ['Buy me a coffee', 'Keyboard shortcuts'].every(x => [...document.querySelectorAll('#mSettings .setpage[data-p="about"] button')].some(b => b.textContent.includes(x))), 'buttons');
   G.eq('and the window keeps its size throughout', size(), at);
   setPage('tools');

@@ -1,4 +1,4 @@
-// NO-BS SQL Editor - a cross-platform MySQL/MariaDB client.
+// NOBS SQL Editor - a cross-platform MySQL/MariaDB client.
 // Copyright (C) 2026 Viktor Ljuca <https://monsama.ch>
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -15,7 +15,7 @@
 // with this program; if not, see <https://www.gnu.org/licenses/>. A copy is
 // in the LICENSE file at the root of this repository.
 
-// NO-BS SQL Editor - Tauri (Rust) backend
+// NOBS SQL Editor - Tauri (Rust) backend
 // Cross-platform desktop app. Uses the `mysql` driver for typed results
 // (real NULL, proper bit/binary handling) and shells out to mysql/mysqldump
 // only for dump-style export/import (which need DELIMITER handling).

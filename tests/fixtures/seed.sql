@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- NO-BS SQL Editor - manual test fixture
+-- NOBS SQL Editor - manual test fixture
 --
 -- Creates a self-contained database, nobs_test, holding the awkward cases the
 -- app has to survive: constraints that reject a mid-transaction write, a
