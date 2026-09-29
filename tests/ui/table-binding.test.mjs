@@ -34,7 +34,7 @@ function extractConst(src, name) {
 }
 
 const NAMES = ['sqlHead', 'useTarget', 'scriptShowsResults', 'parseSingleEditableTable', 'sqlBlankStringsAndComments', 'refreshRunTableBinding',
-  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'hexToBytes', 'hexIsUtf8', 'cellHtml', 'ctrlCharNote', 'normalizeHexInput', 'hexDump', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
+  'esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'hexToBytes', 'hexIsUtf8', 'cellHtml', 'ctrlCharCount', 'ctrlCharShort', 'ctrlCharNote', 'normalizeHexInput', 'hexDumpChars', 'hexDump', 'hexDumpSummary', 'fmtCount', 'binaryEditMode', 'clipboardCutMsg', 'tsvShapeHint'];
 const bundle = [extractConst(html, 'CTRL_NAMES'), extractConst(html, 'CTRL_RE'),
   ...NAMES.map(n => extractFunction(html, n))].join('\n');
 
@@ -214,6 +214,25 @@ test('the Hex tab has an offset / hex / ASCII view of the bytes', () => {
   const long = f.hexDump('0x' + '00'.repeat(100), 32).split('\n');
   assert.equal(long.length, 3, 'stops at the limit');
   assert.match(long[2], /^\u2026 68 more bytes/);
+});
+
+// The right column reads UTF-8, one column per byte so the rows stay aligned; above the bytes, how
+// many there are.
+test('the byte view shows UTF-8 characters, and dots where a character is not shown', () => {
+  const f = load({}, 'a');
+  const col = hex => f.hexDump(hex, 65536).split('|')[1];
+  assert.equal(col('0xc3bc41'), '\u00fc\u00b7A', 'a character stands on its first byte, the rest of its bytes show a middle dot');
+  assert.equal(col('0xe282ac'), '\u20ac\u00b7\u00b7', 'three bytes, one character');
+  assert.equal(col('0xc341'), '.A', 'a byte that is not UTF-8 is a dot');
+  assert.equal(col('0xc0af'), '..', 'an overlong encoding is not UTF-8');
+  assert.equal(col('0xeda080'), '...', 'nor is a surrogate');
+  assert.equal(col('0x61c2a062'), 'a.\u00b7b', 'a no-break space is a dot, not a space: this view is for finding it');
+  assert.equal(col('0xefbbbf61'), '.\u00b7\u00b7a', 'so is a BOM');
+  assert.equal(col('0xe4b8ad'), '.\u00b7\u00b7', 'a character two columns wide would push the row out of line');
+  assert.equal(col('0x' + '41'.repeat(15) + 'c3bc').length, 16, 'a character cut by the end of a row keeps the row sixteen wide');
+  assert.equal(f.hexDumpSummary('0xc3bc41'), '3 bytes, 2 characters of UTF-8 text');
+  assert.equal(f.hexDumpSummary('0xff'), '1 byte, not UTF-8 text');
+  assert.equal(f.hexDumpSummary('0x'), '0 bytes, 0 characters of UTF-8 text');
 });
 
 // Only the start of a long value is decoded, and that cut can fall inside a character. That is the

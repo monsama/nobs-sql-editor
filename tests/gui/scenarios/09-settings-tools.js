@@ -29,7 +29,7 @@
   G.check('with Save', getComputedStyle(save).visibility === 'visible', save.style.visibility);
   setPage('general');
   G.eq('General shows alone', shown(), ['general']);
-  G.check('holding the update check and the message timing', $('cfgUpdateCheck').offsetParent && $('cfgToastMs').offsetParent, 'not on the page');
+  G.check('holding the message timing and the question before a write without WHERE', $('cfgToastMs').offsetParent && $('cfgNoWhereAsk').offsetParent, 'not on the page');
   G.check('without Save, which is for the tool paths', getComputedStyle(save).visibility === 'hidden', save.style.visibility);
   G.eq('the window keeps its size', size(), at);
   setPage('data');
@@ -41,6 +41,15 @@
     [$('cfgPathConfig').textContent, $('cfgPathTools').textContent]);
   G.check('with a way to open each folder', [...document.querySelectorAll('#mSettings .setpage[data-p="data"] button')].filter(b => b.textContent === 'Open folder').length === 2, 'Open folder buttons');
   G.check('the menu marks the page shown', document.querySelector('#mSettings .setnav button.on').dataset.p === 'data', document.querySelector('#mSettings .setnav button.on').dataset.p);
+  setPage('updates');
+  G.eq('Updates shows alone', shown(), ['updates']);
+  G.check('holding the update check', $('cfgUpdateCheck').offsetParent && [...document.querySelectorAll('#mSettings .setpage[data-p="updates"] button')].some(b => /Check now/.test(b.textContent)), 'not on the page');
+  setPage('about');
+  G.eq('About shows alone', shown(), ['about']);
+  await G.until(() => /\d/.test($('aboutTitle').textContent), 10000);
+  G.check('with the version in its heading', /^NOBS SQL Editor \d+\.\d+\.\d+/.test($('aboutTitle').textContent), $('aboutTitle').textContent);
+  G.check('and the coffee and shortcut buttons', ['Buy me a coffee', 'Keyboard shortcuts'].every(x => [...document.querySelectorAll('#mSettings .setpage[data-p="about"] button')].some(b => b.textContent.includes(x))), 'buttons');
+  G.eq('and the window keeps its size throughout', size(), at);
   setPage('tools');
 
   // Save tries a path before it keeps it: one that is not there, or is the other tool, is refused

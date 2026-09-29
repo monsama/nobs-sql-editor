@@ -210,6 +210,19 @@
     if (+zoom0 && +zoom0 !== 1) await uiZoomSet(+zoom0);
     hide('mSettings'); closeTab(zq); G.take();
 
+    // a double-click on the sidebar's edge fits it to the longest name, and a second one puts it back
+    const LONG = 'a_table_whose_name_is_far_too_long_for_the_sidebar_as_it_is';
+    await G.run(`CREATE TABLE ${DB}.${LONG} (id INT PRIMARY KEY)`);
+    await loadObjects(DB); await G.until(() => [...$('objects').querySelectorAll('.onm')].some(x => x.textContent === LONG), 10000);
+    const sd = $('side'), rz = $('sideResize'), nameEl = () => [...$('objects').querySelectorAll('.onm')].find(x => x.textContent === LONG);
+    sd.style.width = '280px';
+    G.check('at 280px the long name is cut off', nameEl().scrollWidth > nameEl().clientWidth, [nameEl().scrollWidth, nameEl().clientWidth]);
+    rz.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    G.check('a double-click on the edge fits the sidebar to it', sd.offsetWidth > 280 && nameEl().scrollWidth <= nameEl().clientWidth, [sd.offsetWidth, nameEl().scrollWidth, nameEl().clientWidth]);
+    rz.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    G.eq('and a second one puts it back', sd.offsetWidth, 280);
+    localStorage.removeItem('sideW');
+
     // a folded list opens when its divider is dragged
     const sp = $('sideSplit'), sc = $('schemas'), ob = $('objects');
     const y0 = sp.getBoundingClientRect().top + 5;

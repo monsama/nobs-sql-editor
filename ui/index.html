@@ -144,7 +144,7 @@
     Wider than a drag handle needs to be, because it is a button as well as one. */
  #sideResize{display:flex;align-items:center;justify-content:center}
  #sideFold{writing-mode:horizontal-tb} #sideResize{flex:0 0 13px;cursor:col-resize;background:var(--panel2);border-left:1px solid var(--bd);border-right:1px solid var(--bd);box-sizing:border-box;position:relative;touch-action:none;z-index:5} #sideResize:hover,#sideResize.drag{background:var(--bd2)} body.disconnected #sideResize{pointer-events:auto !important;opacity:1 !important}
- .hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;gap:8px;height:52px;box-sizing:border-box}
+ .hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;gap:8px;height:38px;box-sizing:border-box} /* as tall as the tab bar beside it, so the two line up */
  #schemas{flex:0 0 40%;overflow:auto;border-bottom:1px solid var(--bd)}
 /* Between the two lists, as between the editor and its results: drag to share the height out,
    carets to give it all to one, double-click to put it back. */
@@ -157,8 +157,8 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .item{padding:3px 10px 3px 16px;cursor:pointer;white-space:nowrap} #schemas .item{overflow:hidden;text-overflow:ellipsis} .uitem{padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .uitem:hover{background:var(--hover)} .uitem.sel{background:var(--accent);color:#fff} .item:hover{background:var(--hover)} .item.sel{background:var(--accent);color:#fff}
  .ohdr{padding:3px 8px;font-weight:600;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--bd2);position:sticky;top:0;cursor:pointer;user-select:none} .ohdr:hover{color:var(--fg)} .ohdr .caret{display:inline-block;width:12px}
  #content{flex:1;display:flex;flex-direction:column;min-width:0}
- #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:52px;box-sizing:border-box;align-items:center;border-bottom:1px solid var(--bd)}
- .tab{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;box-sizing:border-box}
+ #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;box-sizing:border-box;align-items:center;border-bottom:1px solid var(--bd)}
+ .tab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;box-sizing:border-box}
  .tab.active{background:var(--bg);font-weight:600} .tab .x{margin-left:0;color:var(--muted);font-size:14px;line-height:1} .tab .x:hover{color:#c00}
  .tab.dragging{opacity:.4}
  .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
@@ -681,7 +681,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
        truncated a real schema name ("moving_appcustomer_900000", 213px of text) that only just
        didn't fit alongside "OBJECTS" (~200px available) but comfortably fits on a full-width
        line of its own (sidebar width minus padding, ~264px at the 280px default). -->
-  <div class="hdr" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:2px"><span>OBJECTS</span><span id="objdb" class="muted" style="width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
+  <div class="hdr" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding-top:2px;padding-bottom:2px;line-height:1.2"><span>OBJECTS</span><span id="objdb" class="muted" style="width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
 <div id="objFilterRow" style="display:flex;gap:4px;margin:4px 6px;align-items:center">
 <input id="objFilter" placeholder="Filter objects..." oninput="objFilterInput()" onkeydown="if(event.key==='ArrowDown'){event.preventDefault();focusList($('objects'));}" style="flex:1;min-width:0;font-size:12px">
 <button class="sm" id="objTypeBtn" title="Show or hide object types (tables, views, procedures...)" onclick="event.stopPropagation();toggleObjTypePicker(this)" style="padding:2px 6px;font-size:11px">Types &#9662;</button>
@@ -689,7 +689,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 </div>
   <div id="objects" tabindex="0"></div>
  </div>
- <div id="sideResize" title="Drag to resize the sidebar (double-click to reset)"><span id="sideFold" class="edfold vert toedge left" title="Hide the sidebar" onmousedown="event.stopPropagation()" onclick="toggleSide()">&#9666;</span></div>
+ <div id="sideResize" title="Drag to resize the sidebar (double-click to fit the names)"><span id="sideFold" class="edfold vert toedge left" title="Hide the sidebar" onmousedown="event.stopPropagation()" onclick="toggleSide()">&#9666;</span></div>
  <div id="content"><div id="tabsbar"></div><div id="panes" style="flex:1;display:flex;flex-direction:column;min-height:0"><div id="overview" style="display:none;flex:1;overflow:auto;padding:14px"></div></div></div>
 </div>
 <div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
@@ -909,16 +909,16 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="go" onclick="rfSave()">Save to pending</button><button onclick="hide('mRowForm')">Cancel</button></div></div></div>
 <div class="modal floating" id="mSettings"><div class="box" style="width:1300px;max-width:96vw;height:84vh;max-height:860px;display:flex;flex-direction:column;top:40px;left:80px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mSettings')" title="Drag to move"><h3 style="margin:0 0 10px">Settings</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mSettings')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div class="setwrap">
- <nav class="setnav"><button type="button" data-p="tools" class="on" onclick="setPage('tools')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z"/></svg>Client tools</button><button type="button" data-p="general" onclick="setPage('general')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>General</button><button type="button" data-p="data" onclick="setPage('data')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Local data</button></nav>
+ <nav class="setnav"><button type="button" data-p="tools" class="on" onclick="setPage('tools')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z"/></svg>Client tools</button><button type="button" data-p="general" onclick="setPage('general')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>General</button><button type="button" data-p="data" onclick="setPage('data')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Local data</button><button type="button" data-p="updates" onclick="setPage('updates')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>Updates</button><button type="button" data-p="about" onclick="setPage('about')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>About</button></nav>
  <div class="setbody">
  <section class="setpage on" data-p="tools">
  <h4 class="setpt">Client tools</h4>
- <div class="setpd">Export and Import use the MySQL/MariaDB command-line tools. They are not bundled: select an existing installation or download them. Running SQL, including multi-statement scripts with DELIMITER, does not require them.</div>
+ <div class="setpd">Export and Import use the mysql and mysqldump command-line tools, which are not included with the app. Select an existing installation or download them below. Running queries and scripts, including DELIMITER blocks, works without them.</div>
  <div class="toolsum"><span id="cfgStatus" class="muted"></span><span class="cplink" id="cfgRecheckBtn" title="Re-run detection without closing this window - useful right after installing the tools elsewhere" onclick="refreshToolsStatus(true)"><span id="cfgRecheckIcon">&#8635;</span> Recheck</span></div>
  <div class="toolcards">
   <div class="toolcard" id="cfgCardMaria">
    <div class="toolcard-h"><span class="tooldot" style="background:#c0765a"></span>For MariaDB servers<span style="flex:1"></span><button class="sm" onclick="downloadTools()" title="The latest LTS client for Windows from mariadb.org (~90 MB).">Download MariaDB client tools</button></div>
-   <div class="tooldesc" title="Also used for a MySQL server when there are no MySQL tools. MariaDB's client tools are the usual choice here.">Also used for a MySQL server when there are no MySQL tools. MariaDB's client tools are the usual choice here.</div>
+   <div class="tooldesc" title="Used for MariaDB servers, and for MySQL servers when no MySQL tools are set up. The recommended choice.">Used for MariaDB servers, and for MySQL servers when no MySQL tools are set up. The recommended choice.</div>
    <div class="row"><span style="width:92px">mysql</span><input id="cfgMysql" style="flex:1" placeholder="full path to mysql.exe (or mariadb.exe)"><span class="tchip" id="stc_cfgMysql"></span><button onclick="browse({title:'Select mysql.exe / mariadb.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgMysql').value=pp})">Browse...</button></div>
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDump" style="flex:1" placeholder="full path to mysqldump.exe (or mariadb-dump.exe)"><span class="tchip" id="stc_cfgDump"></span><button onclick="browse({title:'Select mysqldump.exe / mariadb-dump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDump').value=pp})">Browse...</button></div>
    <details style="margin-top:6px"><summary class="muted" style="font-size:11px;cursor:pointer">Download address</summary>
@@ -928,41 +928,34 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   </div>
   <div class="toolcard" id="cfgCardMysql">
    <div class="toolcard-h"><span class="tooldot" style="background:#00758f"></span>For MySQL servers <span class="muted" style="font-weight:400">- optional</span><span style="flex:1"></span><button class="sm" onclick="downloadMysqlTools()" title="mysql and mysqldump from the current MySQL 8.4 LTS release on dev.mysql.com (~270 MB, of which about 14 MB is kept), checked against the MD5 MySQL publishes.">Download MySQL client tools</button></div>
-   <div class="tooldesc" title="Export and Import use MySQL's own tools for a MySQL server: these two paths, or else the newest MySQL Server installation (Program Files\MySQL\MySQL Server *\bin). MariaDB's mysqldump cannot make a restorable dump of a MySQL table with generated columns, and only MySQL's client checks a CA without the host name. Leave empty to detect automatically.">Export and Import use MySQL's own tools for a MySQL server: these two paths, or else the newest MySQL Server installation (Program Files\MySQL\MySQL Server *\bin). MariaDB's mysqldump cannot make a restorable dump of a MySQL table with generated columns, and only MySQL's client checks a CA without the host name. Leave empty to detect automatically.</div>
+   <div class="tooldesc" title="Used for MySQL servers when available: these two paths, or otherwise the newest MySQL Server installation (Program Files\MySQL\MySQL Server *\bin). MariaDB's mysqldump cannot produce a restorable dump of a MySQL table with generated columns, and only MySQL's client can verify a CA without checking the host name. Leave empty to detect them automatically.">Used for MySQL servers when available: these two paths, or otherwise the newest MySQL Server installation (Program Files\MySQL\MySQL Server *\bin). MariaDB's mysqldump cannot produce a restorable dump of a MySQL table with generated columns, and only MySQL's client can verify a CA without checking the host name. Leave empty to detect them automatically.</div>
    <div class="row"><span style="width:92px">mysql</span><input id="cfgMysqlMy" style="flex:1" placeholder="MySQL's mysql.exe - empty: detect a MySQL Server installation"><span class="tchip" id="stc_cfgMysqlMy"></span><button onclick="browse({title:'Select MySQL\'s mysql.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgMysqlMy').value=pp})">Browse...</button></div>
    <div class="row"><span style="width:92px">mysqldump</span><input id="cfgDumpMy" style="flex:1" placeholder="MySQL's mysqldump.exe - empty: detect a MySQL Server installation"><span class="tchip" id="stc_cfgDumpMy"></span><button onclick="browse({title:'Select MySQL\'s mysqldump.exe',filter:'*.exe',mode:'file',onPick:pp=>$('cfgDumpMy').value=pp})">Browse...</button></div>
   </div>
  </div>
- <details class="tooldet"><summary>How the tools are found</summary><div class="setnote">Downloaded tools do not update themselves; downloading again replaces them with the current release, whose version is shown in the card. Paths left empty are detected: saved configuration &rarr; MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common install folders (Program Files\MariaDB*, Program Files\MySQL*) &rarr; system PATH. WAMP and XAMPP live in folders under C:\ that any user of the computer can write to, so their tools are used only when picked here.</div></details>
+ <details class="tooldet"><summary>How the tools are found</summary><div class="setnote">Downloaded tools are not updated automatically; downloading again replaces them with the current release, whose version is shown on its card. Empty paths are detected in this order: saved configuration &rarr; the MYSQL_BIN / MYSQLDUMP_BIN environment variables &rarr; common installation folders (Program Files\MariaDB*, Program Files\MySQL*) &rarr; the system PATH. Tools in WAMP and XAMPP folders are used only when selected here, because those folders under C:\ can be written to by every user of the computer.</div></details>
  <div id="cfgLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;margin-top:6px"></div>
  </section>
  <section class="setpage" data-p="general">
   <h4 class="setpt">General</h4>
-  <div class="setgroup">Updates</div>
-  <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates at startup</div><div class="setnote">Checks GitHub for a newer release when the app starts and shows a notice in the toolbar. Nothing is downloaded or installed automatically.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates</div><div class="setnote">Checks GitHub for a newer release now.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
-  </div>
   <div class="setgroup">Running queries</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Such a statement changes or removes every row of its table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Asks for confirmation before running an UPDATE or DELETE that has no WHERE clause of its own, since it would change or remove every row of the table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
   </div>
   <div class="setgroup">Notifications</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Notification duration</div><div class="setnote">How long notifications stay in the bottom-right corner. Errors stay twice as long; hovering keeps a notification open, and clicking dismisses it.</div></div><div class="setrc"><select id="cfgToastMs" onchange="setToastMs(this.value)"><option value="3000">3 seconds</option><option value="6000">6 seconds</option><option value="10000">10 seconds</option><option value="20000">20 seconds</option><option value="0">until dismissed</option></select></div></div>
   </div>
-  <div class="setgroup">Appearance and help</div>
+  <div class="setgroup">Appearance</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Light or dark. Saved on this computer.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Theme</div><div class="setnote">Switches between the light and the dark theme.</div></div><div class="setrc"><button class="sm" title="Toggle light / dark theme" onclick="toggleTheme()">Switch theme</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Editor text size</div><div class="setnote">Font size in the SQL editor. Ctrl + mouse wheel in the editor also changes it.</div></div><div class="setrc"><select id="setEdFs" onchange="uiSizeSet('ed',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option><option value="19">19 px</option><option value="20">20 px</option><option value="21">21 px</option><option value="22">22 px</option></select></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Results text size</div><div class="setnote">Font size in result grids.</div></div><div class="setrc"><select id="setGridFs" onchange="uiSizeSet('grid',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option></select></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Results text size</div><div class="setnote">Font size in result grids. Ctrl + mouse wheel over the results also changes it.</div></div><div class="setrc"><select id="setGridFs" onchange="uiSizeSet('grid',this.value)"><option value="10">10 px</option><option value="11">11 px</option><option value="12">12 px</option><option value="13">13 px (default)</option><option value="14">14 px</option><option value="15">15 px</option><option value="16">16 px</option><option value="17">17 px</option><option value="18">18 px</option></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Code font</div><div class="setnote">Used in the SQL editor and wherever SQL or logs are shown. Only fonts installed on this computer are listed.</div></div><div class="setrc"><select id="setEdFont" onchange="uiFontSet('ed',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Results font</div><div class="setnote">Used in result grids. Defaults to the interface font.</div></div><div class="setrc"><select id="setGridFont" onchange="uiFontSet('grid',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Interface font</div><div class="setnote">Used in menus, lists, buttons and dialogs.</div></div><div class="setrc"><select id="setUiFont" onchange="uiFontSet('ui',this.value)"></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Interface zoom</div><div class="setnote" id="setZoomNote">Scales the entire window, like Ctrl + and Ctrl - in a browser.</div></div><div class="setrc"><select id="setZoom" onchange="uiZoomSet(this.value)"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100% (default)</option><option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option></select></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Default appearance</div><div class="setnote">Restores the layout, theme, fonts, text sizes, zoom and notification duration to their defaults. Connections, the query library, history and pinned tables are not affected.</div></div><div class="setrc"><button class="sm" onclick="resetAppearance()">Restore defaults</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">Keyboard shortcuts</div><div class="setnote">All shortcuts for the editor, result grids and dialogs.</div></div><div class="setrc"><button class="sm" title="Keyboard shortcuts" onclick="show('mShortcuts')">Show</button></div></div>
-   <div class="setrow"><div class="setrl"><div class="setrt">About</div><div class="setnote">Version, license and project information.</div></div><div class="setrc"><button class="sm" title="Version, license and project information" onclick="openAbout()">About</button></div></div>
   </div>
  </section>
  <section class="setpage" data-p="data">
@@ -970,7 +963,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setpd">Data this app stores on this computer. Nothing here changes your databases.</div>
   <div class="setgroup">Storage locations</div>
   <div class="setcard">
-   <div class="setrow"><div class="setrl"><div class="setrt">Settings</div><div class="setnote"><span id="cfgPathConfig" class="setpath"></span><br>Client tool paths and the other settings in this window, stored in config.json.</div></div><div class="setrc"><button class="sm" onclick="openFolder('config')">Open folder</button></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Settings</div><div class="setnote"><span id="cfgPathConfig" class="setpath"></span><br>The client tool paths and the other settings in this window, stored in config.json.</div></div><div class="setrc"><button class="sm" onclick="openFolder('config')">Open folder</button></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Downloaded client tools</div><div class="setnote"><span id="cfgPathTools" class="setpath"></span><br>Where the app stores mysql and mysqldump when it downloads them. Tools you select yourself are not moved.</div></div><div class="setrc"><button class="sm" onclick="openFolder('tools')">Open folder</button></div></div>
   </div>
   <div class="setgroup">Clear and reset</div>
@@ -979,10 +972,16 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
    <div class="setrow"><div class="setrl"><div class="setrt">Clear all app data</div><div class="setnote">Deletes saved connections and their passwords, the query library, history, session tabs, caches, and all layout, appearance and other preferences. Only the client tool paths are kept. This cannot be undone.</div></div><div class="setrc"><button class="sm warn" onclick="clearAllData()">Clear all data</button></div></div>
   </div>
  </section>
- </div>
- </div>
- <div class="row setfoot"><button class="go" onclick="saveSettings()">Save</button><button onclick="hide('mSettings')">Close</button></div></div></div>
-<div class="modal floating" id="mAbout"><div class="box" style="width:560px;max-width:92vw;top:70px;left:150px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mAbout')" title="Drag to move"><h3 id="aboutTitle" style="margin:0 0 10px">NOBS SQL Editor</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mAbout')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
+ <section class="setpage" data-p="updates">
+  <h4 class="setpt">Updates</h4>
+  <div class="setpd">NOBS SQL Editor looks for new releases on GitHub. When a newer version is available, a notice appears in the bottom-left corner of the window; nothing is downloaded or installed until you click Install there.</div>
+  <div class="setcard">
+   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates at startup</div><div class="setnote">Looks for a newer release a few seconds after the app starts. Turn this off to check only by hand.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Check for updates now</div><div class="setnote">Looks for a newer release on GitHub right away.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
+  </div>
+ </section>
+ <section class="setpage" data-p="about">
+  <h4 class="setpt" id="aboutTitle">NOBS SQL Editor</h4>
  <div class="muted" style="font-size:12px;line-height:1.6">
   A lightweight desktop client for MySQL and MariaDB, built with Tauri.<br>
   <i>No BS, just SQL.</i><br>
@@ -1009,7 +1008,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   (mostly MIT / Apache-2.0). The MySQL / MariaDB client tools are not bundled; the MariaDB client
   tools, when downloaded, are &copy; MariaDB Foundation under GPLv2 and come from mariadb.org.
  </div>
- <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mAbout')">Close</button></div></div></div>
+  <div class="row" style="margin-top:16px;gap:8px"><button title="If NOBS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button onclick="show('mShortcuts')" title="Every shortcut for the editor, the results and the dialogs (F1)">Keyboard shortcuts</button></div>
+ </section>
+ </div>
+ </div>
+ <div class="row setfoot"><button class="go" onclick="saveSettings()">Save</button><button onclick="hide('mSettings')">Close</button></div></div></div>
 <div class="modal floating" id="mShortcuts"><div class="box" style="width:1320px;max-width:96vw;top:40px;left:40px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts and tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table class="sct"><tr><td class="sck"><kbd>F5</kbd> or <kbd>F9</kbd></td><td class="scd">Run the whole query</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">Run the selected text (or all, if nothing is selected)</td></tr><tr><td class="sck"><kbd>Ctrl + Space</kbd></td><td class="scd">Autocomplete</td></tr><tr><td class="sck"><kbd>alias. / database.</kbd></td><td class="scd">Lists that table's columns, or that database's tables, as you type</td></tr><tr><td class="sck"><kbd>Tab</kbd></td><td class="scd">Indent (in the editor)</td></tr><tr><td class="sck"><kbd>Ctrl + D</kbd></td><td class="scd">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td class="sck"><kbd>Ctrl + /</kbd></td><td class="scd">Toggle "-- " comment on the current line or selection</td></tr><tr><td class="sck"><kbd>Alt + &uarr; / &darr;</kbd></td><td class="scd">Move the current line (or selection) up or down</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + K</kbd></td><td class="scd">Delete the current line (or every line touched by the selection)</td></tr><tr><td class="sck"><kbd>Ctrl + L</kbd></td><td class="scd">Focus the editor and select all</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Find in the editor</td></tr><tr><td class="sck"><kbd>Ctrl + H</kbd></td><td class="scd">Find and replace in the editor</td></tr><tr><td class="sck"><kbd>F3 / Shift + F3</kbd></td><td class="scd">Next / previous match</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + F</kbd></td><td class="scd">Format the query</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + Click</kbd></td><td class="scd">On a cell: pick it, or drop it. On a row's checkbox: the same for the row</td></tr><tr><td class="sck"><kbd>Shift + Click</kbd></td><td class="scd">On a cell: the block back to the last one picked. On a checkbox: the run of rows</td></tr><tr><td class="sck"><kbd>Ctrl + A</kbd></td><td class="scd">In the results: pick every row shown, or clear the selection</td></tr><tr><td class="sck"><kbd>Ctrl + C</kbd></td><td class="scd">Copy what is picked - the cells, or the rows if no cell is</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the results: let the picked cells go - and pressed again, the ticked rows</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Search the results (from the grid)</td></tr><tr><td class="sck"><kbd>Enter / Shift + Enter</kbd></td><td class="scd">In the search box: the next / previous matching cell</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the search box: clear it</td></tr><tr><td class="sck"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td class="scd">Move from cell to cell in an editable grid</td></tr><tr><td class="sck"><kbd>Tab / Shift + Tab</kbd></td><td class="scd">The next / previous cell, wrapping at the row ends</td></tr><tr><td class="sck"><kbd>Enter or F2</kbd></td><td class="scd">Edit the cell the keyboard is on</td></tr><tr><td class="sck"><kbd>Type</kbd></td><td class="scd">With cells picked: writes what you type into every one of them (Enter keeps it)</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">In a cell holding several lines: keep the edit</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td class="sck"><kbd>Ctrl + S</kbd></td><td class="scd">Apply pending grid edits (save changes)</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + S</kbd></td><td class="scd">Show the SQL that Apply would run</td></tr><tr><td class="sck"><kbd>Double-click a cell</kbd></td><td class="scd">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td class="sck"><kbd>Drag column edge</kbd></td><td class="scd">Resize a results column</td></tr><tr><td class="sck"><kbd>Double-click column edge</kbd></td><td class="scd">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + T</kbd></td><td class="scd">New query tab</td></tr><tr><td class="sck"><kbd>Ctrl + W</kbd></td><td class="scd">Close current tab</td></tr><tr><td class="sck"><kbd>Middle-click a tab</kbd></td><td class="scd">Close it</td></tr><tr><td class="sck"><kbd>Drag a tab</kbd></td><td class="scd">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table class="sct"><tr><td class="sck"><kbd>Enter</kbd></td><td class="scd">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td class="sck"><kbd>Alt + &darr;, F4, Space</kbd></td><td class="scd">Open the connections list (when it has the focus)</td></tr><tr><td class="sck"><kbd>Type a name</kbd></td><td class="scd">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td class="sck"><kbd>&darr;</kbd></td><td class="scd">From a filter box: step into the list below it</td></tr><tr><td class="sck"><kbd>Shift + click a group</kbd></td><td class="scd">In the objects list: fold or unfold every group</td></tr><tr><td class="sck"><kbd>Drag sidebar divider</kbd></td><td class="scd">Resize the databases/objects sidebar</td></tr><tr><td class="sck"><kbd>Double-click sidebar divider</kbd></td><td class="scd">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table class="sct"><tr><td class="sck"><kbd>F1</kbd></td><td class="scd">This list of shortcuts</td></tr><tr><td class="sck"><kbd>F6</kbd></td><td class="scd">Between the editor and its results</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">Close the dialog in front</td></tr><tr><td class="sck"><kbd>Double-click</kbd></td><td class="scd">In the ER diagram: zoom in</td></tr><tr><td class="sck"><kbd>Shift + double-click</kbd></td><td class="scd">In the ER diagram: zoom out</td></tr><tr><td class="sck"><kbd>Drag</kbd></td><td class="scd">In the ER diagram: pan it, or move one table</td></tr><tr><td class="sck"><kbd>Right-click a table</kbd></td><td class="scd">In the ER diagram: show only it and its relations</td></tr></table></div></div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mShortcuts')">Close</button></div></div></div>
@@ -1701,7 +1704,10 @@ async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis perman
  let n=0;try{n=localStorage.length;localStorage.clear();}catch(e){}
  try{await api('/api/conn-clear');}catch(e){}try{await api('/api/lib-clear');}catch(e){}try{await uiZoomSet(1,true);}catch(e){}
  log('Cleared '+n+' local entr'+(n===1?'y':'ies')+', the saved connections and the library. Reloading...');setTimeout(()=>location.reload(),500);}
-function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));}
+function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));if(p==='about')aboutPage();}
+// The About page: its buttons get their icons when it is shown, and its heading the version this is.
+async function aboutPage(){const pg=document.querySelector('#mSettings .setpage[data-p="about"]');if(pg)decorateIcons(pg);if(window._aboutVersion)return;
+ try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}}catch(e){}}
 async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
@@ -1729,10 +1735,6 @@ function showToolError(logId,ownerModalId,msg){
  // values stay in the DOM for when it is reopened.
  btn.onclick=()=>{if(ownerModalId)hide(ownerModalId);openSettings();};
  row.appendChild(btn); el.appendChild(row);
-}
-async function openAbout(){
- show('mAbout');
- try{const r=await api('/api/app-info');if(r&&r.ok&&r.version)$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}catch(e){}
 }
 // manual=true when the user clicked "Recheck" (vs. the automatic call on opening Settings or
 // after saving/downloading) - only then do we spin the icon and toast a result, so re-detection
@@ -4607,17 +4609,26 @@ function textCellHtml(s,maxChars){
 // This is said BESIDE the box rather than marked up inside it on purpose: Text mode saves whatever
 // the box holds (textToHex runs over the whole thing), so a visible stand-in for an invisible byte
 // would be stored as that character's own bytes - the way to lose a value, not to show it.
-function ctrlCharNote(s,hasHexTab){
- if(typeof s!=='string')return '';
+// How many there are, and their names: {n, ctl: all control characters, named: "NUL ×2, NBSP"}.
+function ctrlCharCount(s){
+ if(typeof s!=='string')return null;
  const found=s.match(CTRL_RE);
- if(!found)return '';
+ if(!found)return null;
  const counts={};let n=0,ctl=true;
  found.forEach(run=>{const c=run.charCodeAt(0),k=CTRL_NAMES[c];counts[k]=(counts[k]||0)+run.length;n+=run.length;if(c>=160)ctl=false;});
- const named=Object.keys(counts).map(k=>counts[k]>1?k+' ×'+counts[k]:k).join(', ');
+ return {n,ctl,named:Object.keys(counts).map(k=>counts[k]>1?k+' ×'+counts[k]:k).join(', ')};
+}
+// The same, said in the byte view's first line: there the bytes are in sight, so it only names them.
+function ctrlCharShort(s){const c=ctrlCharCount(s);if(!c)return '';
+ return c.n+(c.ctl?' control character':' hidden character')+(c.n>1?'s':'')+' ('+c.named+'), shown as a dot';}
+function ctrlCharNote(s,hasHexTab){
+ const cc=ctrlCharCount(s);
+ if(!cc)return '';
+ const {n,ctl,named}=cc;
  // A no-break space is not nothing in there - it looks like any other space, which is the trouble.
  return 'This value holds '+n+(ctl?' control character':' hidden character')+(n>1?'s':'')+' ('+named+'), '
   +(ctl?'which take'+(n>1?'':'s')+' no space':'which show'+(n>1?'':'s')+' as nothing or as a plain space')+' in the box above'
-  +(hasHexTab?' - switch to Hex to see or edit the bytes.'
+  +(hasHexTab?' - the bytes below show where; switch to Hex to edit them.'
    :n>1?' - editing the text around them leaves them as they are.':' - editing the text around it leaves it as it is.');
 }
 function setVNote(text){const n=$('vNote');if(!n)return;n.textContent=text||'';n.style.display=text?'block':'none';}
@@ -5084,19 +5095,39 @@ function hexToStrictText(hexStr){
 // Validation matters as much as the tidying: hexToBytes() slices off two characters and runs
 // parseInt on each pair, so "zz" silently became byte 0 and a stray character turned into a hole
 // in the data. An odd number of digits is half a byte and is not a value either.
-// What a hex editor shows beside the bytes: offset, sixteen bytes, and those bytes as ASCII with a
-// dot for anything not printable. A long run of hex digits is unreadable past a line or two, and
-// this is how a byte is found at all. Read-only, under the box that is edited; null for text that
-// is not hex (yet - it is redrawn as it is typed). Past maxBytes it stops and says how many more.
+// What a hex editor shows beside the bytes: offset, sixteen bytes, and those bytes as characters. A
+// long run of hex digits is unreadable past a line or two, and this is how a byte is found at all.
+// Read-only, under the box that is edited; null for text that is not hex (yet - it is redrawn as it
+// is typed). Past maxBytes it stops and says how many more.
+//
+// The right column reads UTF-8: a character stands on its first byte and the rest of its bytes
+// show a middle dot, one column per byte so the rows stay aligned. A dot is a byte that is not a
+// character shown here: a control character, a byte that is not UTF-8, an invisible one (a
+// no-break or zero-width space, a BOM - what this view is for finding), or one that takes two
+// columns (CJK, emoji), which would push the rest of its row out of line.
+function hexDumpChars(bytes){const out=new Array(bytes.length).fill('.');
+ const wide=cp=>(cp>=0x1100&&cp<=0x115f)||(cp>=0x2e80&&cp<=0xa4cf)||(cp>=0xac00&&cp<=0xd7a3)||(cp>=0xf900&&cp<=0xfaff)||(cp>=0xfe30&&cp<=0xfe4f)||(cp>=0xff00&&cp<=0xff60)||(cp>=0xffe0&&cp<=0xffe6)||(cp>=0x1f000&&cp<=0x1faff)||cp>=0x20000;
+ const shown=cp=>cp>=0x20&&cp!==0x7f&&!(cp>=0x80&&cp<=0xa0)&&cp!==0xad&&!(cp>=0x300&&cp<=0x36f)&&!(cp>=0x200b&&cp<=0x200f)&&!(cp>=0x2028&&cp<=0x202e)&&!(cp>=0x2060&&cp<=0x2064)&&cp!==0xfeff&&!(cp>=0xe000&&cp<=0xf8ff)&&!wide(cp);
+ for(let i=0;i<bytes.length;){const b=bytes[i];
+  const n=b<0x80?0:b>=0xc2&&b<=0xdf?1:b>=0xe0&&b<=0xef?2:b>=0xf0&&b<=0xf4?3:-1;
+  let cp=n===0?b:n===1?b&0x1f:n===2?b&0x0f:b&0x07,ok=n>=0&&i+n<bytes.length;
+  for(let k=1;ok&&k<=n;k++){const c=bytes[i+k];if((c&0xc0)!==0x80)ok=false;else cp=(cp<<6)|(c&0x3f);}
+  if(ok&&n>0&&((n===2&&(cp<0x800||(cp>=0xd800&&cp<=0xdfff)))||(n===3&&(cp<0x10000||cp>0x10ffff))))ok=false;
+  if(!ok){i++;continue;}
+  if(shown(cp))out[i]=String.fromCodePoint(cp);
+  for(let k=1;k<=n;k++)out[i+k]='\u00b7';
+  i+=n+1;}
+ return out;}
 function hexDump(hex,maxBytes){
  const n=normalizeHexInput(hex);if(n===null)return null;
  const body=n.slice(2),total=body.length/2,shown=Math.min(total,maxBytes);
  if(!total)return '(0 bytes)';
- const lines=[];
+ const bytes=new Array(shown);for(let i=0;i<shown;i++)bytes[i]=parseInt(body.substr(i*2,2),16);
+ const ch=hexDumpChars(bytes),lines=[];
  for(let off=0;off<shown;off+=16){
   let h='',a='';
   for(let i=off;i<off+16;i++){
-   if(i<shown){const x=body.substr(i*2,2),b=parseInt(x,16);h+=x+' ';a+=b>=0x20&&b<0x7f?String.fromCharCode(b):'.';}
+   if(i<shown){h+=body.substr(i*2,2)+' ';a+=ch[i];}
    else h+='   ';
    if(i===off+7)h+=' ';
   }
@@ -5105,12 +5136,23 @@ function hexDump(hex,maxBytes){
  if(total>shown)lines.push('\u2026 '+(total-shown)+' more bytes, not shown here - the box above holds all of them');
  return lines.join('\n');
 }
+// The line above the bytes: how many there are, and how many characters they make when they are
+// UTF-8 text.
+function hexDumpSummary(hex){const n=normalizeHexInput(hex);if(n===null)return '';
+ const bytes=hexToBytes(n),b=bytes.length;let t=null;
+ try{t=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch(e){}
+ return fmtCount(b)+' byte'+(b===1?'':'s')+(t==null?', not UTF-8 text':', '+fmtCount([...t].length)+' character'+([...t].length===1?'':'s')+' of UTF-8 text');}
+// The bytes under the box, on both tabs: under Hex the ones typed, under Text the bytes the text
+// is stored as - where a trailing space, a no-break space or a BOM shows.
 function updateHexDump(){
  const d=$('vDump');if(!d)return;
- const on=!!(_vHexState&&_vHexState.kind==='binText'&&_vHexState.mode==='hex');
+ const on=!!(_vHexState&&_vHexState.kind==='binText');
  d.style.display=on?'block':'none';if(!on)return;
- const t=hexDump($('vText').value,65536);
- d.textContent=t==null?'Not hex (yet): two digits per byte, spaces allowed.':t;
+ const v=$('vText').value,hex=_vHexState.mode==='hex'?v:textToHex(v);
+ const t=hexDump(hex,65536);
+ if(t==null){d.textContent='Not hex (yet): two digits per byte, spaces allowed.';return;}
+ const text=_vHexState.mode==='hex'?hexToStrictText(hex):v,cc=text!=null?ctrlCharShort(text):'';
+ d.textContent=hexDumpSummary(hex)+(cc?' · '+cc:'')+'\n'+t;
 }
 function normalizeHexInput(s){
  const t=String(s==null?'':s).replace(/\s+/g,'');
@@ -5195,9 +5237,9 @@ let _vHexState=null; // {kind:'binText'|'bitNum', mode:'text'|'hex'} for the mod
 function updateHexTabButtons(){
  const bt=$('vTabText'),bh=$('vTabHex');if(!bt||!bh||!_vHexState)return;
  bt.classList.toggle('on',_vHexState.mode==='text');bh.classList.toggle('on',_vHexState.mode==='hex');
- // Only Text mode hides control characters; in Hex mode the bytes are right there in the box.
- const ta=$('vText');
- if(_vHexState.kind==='binText'&&ta)setVNote(_vHexState.mode==='text'?ctrlCharNote(ta.value,true):'');
+ // A binary value's hidden characters are named in the byte view's first line (updateHexDump), not
+ // in a line above the box, which pushed the box down each time it came and went.
+ if(_vHexState.kind==='binText')setVNote('');
  updateHexDump();
 }
 function switchHexTab(mode){
@@ -8521,9 +8563,18 @@ function sideFoldSync(){const sp=$('sideSplit');if(!sp)return;
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});}
  init();})();
+// A double-click on the sidebar's edge: as wide as the longest database or object name needs, as a
+// double-click on a column's edge fits the column, and at that width already, back to 280px. Never
+// narrower than 280px, nor wider than leaves the editor 320px.
+function sideFit(sd){const lists=[$('schemas'),$('objects')].filter(x=>x&&x.offsetParent);let need=0;
+ lists.forEach(box=>{const edge=sd.offsetWidth-box.clientWidth;
+  box.querySelectorAll('.item').forEach(it=>{const nm=it.querySelector('.onm');
+   need=Math.max(need,edge+(nm?it.offsetWidth-nm.clientWidth+nm.scrollWidth:it.scrollWidth)+2);});});
+ const fit=Math.round(Math.max(280,Math.min(need,window.innerWidth-320))),w=Math.abs(sd.offsetWidth-fit)<4?280:fit;
+ sd.style.width=w+'px';try{localStorage.setItem('sideW',String(w));}catch(e){}}
 function setSideFolded(on){document.body.classList.toggle('side-folded',!!on);
  const d=$('sideFold');if(d){setFoldCaret(d,on?'right':'left',!on,on?'Show the sidebar again':'Hide the sidebar');}
- const rz=$('sideResize');if(rz)rz.title=on?'Click to show the sidebar':'Drag to resize the sidebar (double-click to reset)';
+ const rz=$('sideResize');if(rz)rz.title=on?'Click to show the sidebar':'Drag to resize the sidebar (double-click to fit the names)';
  try{localStorage.setItem('sideFolded',on?'1':'');}catch(e){}}
 function toggleSide(){setSideFolded(!document.body.classList.contains('side-folded'));}
 try{if(localStorage.getItem('sideFolded'))setSideFolded(true);}catch(e){}
@@ -8761,7 +8812,7 @@ async function installUpdate(){
 function dismissUpdate(){if(!_update)return;try{localStorage.setItem('updateDismissed',_update.latest);}catch(e){}const el=$('updNote');if(el)el.style.display='none';}
 setTimeout(()=>{checkForUpdate(false);},3000);
 window.addEventListener('beforeunload',e=>{saveSession();if(anyPending()){e.preventDefault();e.returnValue='';return '';}});
-(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{if(e.target!==rz)return;if(document.body.classList.contains('side-folded')){toggleSide();return;}drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{if(document.body.classList.contains('side-folded'))return;sd.style.width='280px';localStorage.setItem('sideW','280');});}initSideResize();})();
+(function(){function initSideResize(){const sd=$('side'),rz=$('sideResize'),mn=$('main');if(!sd||!rz||!mn){setTimeout(initSideResize,300);return;}const saved=parseInt(localStorage.getItem('sideW')||'',10);if(saved&&saved>=280)sd.style.width=saved+'px';let drag=false;rz.addEventListener('pointerdown',e=>{if(e.target!==rz)return;if(document.body.classList.contains('side-folded')){toggleSide();return;}drag=true;rz.classList.add('drag');try{rz.setPointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='none';e.preventDefault();});rz.addEventListener('pointermove',e=>{if(!drag)return;const left=mn.getBoundingClientRect().left;let w=e.clientX-left;const max=Math.max(280,window.innerWidth-320);w=Math.max(280,Math.min(w,max));sd.style.width=w+'px';});const end=e=>{if(!drag)return;drag=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}document.body.style.userSelect='';localStorage.setItem('sideW',String(parseInt(sd.style.width,10)||280));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{if(document.body.classList.contains('side-folded'))return;sideFit(sd);});}initSideResize();})();
 if(window.__TAURI__&&window.__TAURI__.window&&window.__TAURI__.window.getCurrentWindow){try{const _w=window.__TAURI__.window.getCurrentWindow();_w.onCloseRequested(async(ev)=>{
  // Quitting with a query still running must cancel it the same way closing its tab would -
  // otherwise it keeps executing against the DB after the window (and the user's ability to

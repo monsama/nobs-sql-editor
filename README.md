@@ -293,7 +293,7 @@ for administrator rights), and the app starts again. The checksum shows the down
 and is the file the release build produced; it is not a signature (see [CODE_SIGNING.md](CODE_SIGNING.md)).
 
 Hide the notice with its **×** and it stays hidden until the next version. Switch the check off,
-or run it by hand, under **Settings → General**.
+or run it by hand, under **Settings → Updates**.
 
 ## Network access
 

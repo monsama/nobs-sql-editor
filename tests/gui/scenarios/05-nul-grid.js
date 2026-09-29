@@ -60,23 +60,22 @@ INSERT INTO ${DB}.viewer VALUES (2, CONCAT('a',CHAR(9),'b'), NULL, NULL);`);
     G.check('while the box still holds the value exactly', $('vText').value === 'x' + N + 'y', JSON.stringify($('vText').value));
     hide('mView');
 
-    // A binary column: the same note, pointing at Hex - where the bytes are in plain view and the
-    // note has nothing left to say.
+    // A binary column: the bytes are shown under the box on both tabs, and the first line of that
+    // view names what is hidden - no note above the box, which pushed it down.
     await editCell(cellOf('bin'), tv.id, 0, col('bin'));
-    G.check('a binary value says it too, and points at Hex',
-      $('vNote').style.display !== 'none' && /switch to Hex/.test($('vNote').textContent), $('vNote').textContent);
+    G.check('a binary value shows its bytes under the Text tab, with no note above the box',
+      $('vNote').style.display === 'none' && $('vDump').style.display !== 'none' && /^00000000  61 00 +\|a\.\|$/m.test($('vDump').textContent), { note: $('vNote').textContent, dump: $('vDump').textContent });
+    G.check('and names the NUL in the view\'s first line', /^2 bytes, 2 characters of UTF-8 text · 1 control character \(NUL\), shown as a dot$/m.test($('vDump').textContent), $('vDump').textContent);
     switchHexTab('hex');
-    G.check('nothing to say in Hex mode, where the bytes are shown',
-      $('vNote').style.display === 'none' && /^0x6100$/i.test($('vText').value), { note: $('vNote').textContent, box: $('vText').value });
-    G.check('and the bytes are laid out beside it, offset, hex and ASCII',
-      $('vDump').style.display !== 'none' && /^00000000  61 00 +\|a\.\|$/.test($('vDump').textContent), $('vDump').textContent);
+    G.check('Hex holds the same bytes', $('vNote').style.display === 'none' && /^0x6100$/i.test($('vText').value), { note: $('vNote').textContent, box: $('vText').value });
+    G.check('laid out the same way, offset, hex and characters',
+      $('vDump').style.display !== 'none' && /^00000000  61 00 +\|a\.\|$/m.test($('vDump').textContent), $('vDump').textContent);
     $('vText').value = '0x616263'; $('vText').dispatchEvent(new Event('input'));
-    G.check('which follows what is typed', /\|abc\|$/.test($('vDump').textContent), $('vDump').textContent);
+    G.check('which follows what is typed', /\|abc\|$/.test($('vDump').textContent) && !/control character/.test($('vDump').textContent), $('vDump').textContent);
     $('vText').value = '0x6100'; $('vText').dispatchEvent(new Event('input'));
     switchHexTab('text');
-    G.check('and goes away in Text', $('vDump').style.display === 'none');
-    G.check('and it is said again on the way back to Text',
-      $('vNote').style.display !== 'none' && $('vText').value === 'a' + N, { note: $('vNote').textContent, box: JSON.stringify($('vText').value) });
+    G.check('and back in Text the view stays, and the box holds the value exactly',
+      $('vDump').style.display !== 'none' && $('vNote').style.display === 'none' && $('vText').value === 'a' + N, { note: $('vNote').textContent, box: JSON.stringify($('vText').value) });
     hide('mView');
 
     // An ordinary value has nothing to report, and the note from the cell before must not linger.
