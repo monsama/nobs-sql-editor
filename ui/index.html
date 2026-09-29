@@ -76,7 +76,7 @@
  #connStatus.ok:hover::before,#connStatus.ok:focus-visible::before{background:#fff}
  /* The charset box is as wide as its choice, and never narrower than "charset: server" - it is
     the one thing in the bar that says the text is not read as the server sends it. */
- #bar #browseCs{field-sizing:content;min-width:110px;max-width:none !important;flex:none}
+ #bar #browseCs{field-sizing:content;min-width:0;max-width:none !important;flex:none}
  /* The charset carries an icon like the buttons around it, so that when the bar is tight and it
     reads just "utf8mb4", it still says what the word is about. */
  .csic{display:inline-flex;align-items:center;color:var(--muted);margin-right:-2px}
@@ -535,9 +535,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .ovsrv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}
  @container (max-width:980px){.ovsrv{grid-template-columns:repeat(2,minmax(0,1fr))}}
  @container (max-width:480px){.ovsrv{grid-template-columns:minmax(0,1fr)}}
- .ovsg{min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:10px 14px 8px}
- .ovsh{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
- .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:21px}
+ .ovsg{min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);padding:8px 12px 6px}
+ .ovsh{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+ .ovr{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;line-height:18px}
  .ovr .l{color:var(--muted);white-space:nowrap}
  .ovr .v{font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  /* Only the few lines worth noticing are coloured; the rest stay out of the way. */
@@ -553,8 +553,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.ovtopq td.ovq{font-family:var(--mono);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0} table.ovtopq tbody tr{cursor:pointer} table.ovtopq td.ovbad{color:var(--danger);font-weight:600}
  /* How big a database is compared with the biggest one here - the numbers alone make that a
     reading exercise, and which ones are worth attention is the point of the list. */
- .szbar{height:3px;border-radius:2px;background:var(--bd2);margin-top:3px}
- .szbar>i{display:block;height:3px;border-radius:2px;background:var(--accent);opacity:.75} table.ovgrid th{border:none;border-bottom:1px solid var(--bd2);padding:7px 14px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-top:1px solid var(--bd2);padding:7px 14px;text-align:left;white-space:nowrap} .ovgrid tbody tr:first-child td{border-top:0} .ovgrid th.num{text-align:right}
+ .szbar{height:3px;border-radius:2px;background:var(--bd2);position:absolute;left:12px;right:12px;bottom:2px} .ovgrid td{position:relative} /* the bar along the cell's foot, not a line of its own under the number */
+ .szbar>i{display:block;height:3px;border-radius:2px;background:var(--accent);opacity:.75} table.ovgrid th{border:none;border-bottom:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid td{border:none;border-top:1px solid var(--bd2);padding:4px 12px;text-align:left;white-space:nowrap} .ovgrid tbody tr:first-child td{border-top:0} .ovgrid th.num{text-align:right}
  .ovgrid tr.ovsys td{color:var(--muted)} .ovgrid tr.ovsys .utag{margin-left:6px}
  .ovgrid tr.ovtot td{font-weight:600;border-top:1px solid var(--bd)} .ovgrid tbody tr.ovtot{cursor:default} .ovgrid tbody tr.ovtot:hover{background:none} table.ovgrid th{background:transparent;font-weight:600;font-size:11px;color:var(--muted)} table.ovgrid td.num{text-align:right} table.ovgrid tbody tr{cursor:pointer} table.ovgrid tbody tr:hover{background:var(--hover,rgba(127,127,127,.12))}
 .expdbrow{margin:1px 0}
@@ -643,7 +643,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div id="bar">
  <div class="barrow" id="barTop">
   <b class="brand">NOBS SQL Editor</b>
-  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <button class="sm go" id="updInstall" style="margin:0 4px 0 8px" onclick="installUpdate()" title="Download this version, check it against the SHA-256 its release lists, and install it. The app closes while it installs.">Install</button> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
+  <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <button class="sm go" id="updInstall" style="margin:0 4px 0 8px;height:22px;padding:0 10px;font-size:12px" onclick="installUpdate()" title="Download this version, check it against the SHA-256 its release lists, and install it. The app closes while it installs.">Install</button> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0;margin-left:4px"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
@@ -1157,15 +1157,11 @@ async function setBrowseCharset(cs){
 }
 function renderBrowseCs(){
  const el=$('browseCs');if(!el)return;
+ // The charsets by their names, which say what they are; the icon beside the list and its tooltip
+ // say what it is for; the first entry is the server's own default.
  if(!el.options.length){
-  el.appendChild(new Option('charset: server','',true,true));
-  BROWSE_CHARSETS.forEach(c=>el.appendChild(new Option('charset: '+c,c)));
- }
- // Once the bar has started giving up labels this drops its own prefix and reads "server" or
- // "utf8mb4"; the icon beside it carries the meaning, as it does for every button in the row.
- const short=!!($('barTop')&&$('barTop').classList.contains('fit1'));
- if(el._short!==short){el._short=short;
-  for(let i=0;i<el.options.length;i++){const o=el.options[i];o.text=(short?'':'charset: ')+(o.value||'server');}
+  el.appendChild(new Option('default','',true,true));
+  BROWSE_CHARSETS.forEach(c=>el.appendChild(new Option(c,c)));
  }
  el.value=window.browseCharset||'';
  el.style.borderColor=window.browseCharset?'var(--accent)':'';
@@ -2515,7 +2511,12 @@ function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn
  document.body.classList.remove('ro');log('Disconnected.');}
 async function refreshSchemasAndTables(){await loadSchemas();if(typeof curSchema!=='undefined'&&curSchema){await loadObjects(curSchema,true);}}
 async function loadSchemas() {
+    // The newest call's answer is the one drawn. Two can be in flight - the one connecting starts, and a
+    // refresh after a database was created - and they answer in either order: the older list, drawn
+    // last, left the new database out, and a click on it in the overview found no row to mark.
+    const seq = (loadSchemas.seq = (loadSchemas.seq || 0) + 1);
     const r = await api('/api/schemas');
+    if (seq !== loadSchemas.seq) return;
     const box = $('schemas');
     box.innerHTML = '';
     if (!r.ok) { log('  ' + r.error); return; }
@@ -2764,7 +2765,7 @@ async function fetchNextBatch(id){
  try{
   const r=await api('/api/fetch-cursor-batch',{cursorId:t.cursorId,requestId:t.cursorReqId,pageSize:PAGE_BATCH});
   if(stale())return;
-  if(!r.ok){toast(timeLimitNote(r.error),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
+  if(!r.ok){toast(timeLimitNote(r.error,true),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
   t.rows=(t.rows||[]).concat(r.rows);
   t.hasMore=!!r.hasMore;
   if(!t.hasMore){t.cursorId=null;t.cursorReqId=null;} // server already closed it once exhausted
@@ -3065,26 +3066,47 @@ async function loadServerInfo(){
   'Max_used_connections','Innodb_buffer_pool_read_requests','Innodb_buffer_pool_reads','Created_tmp_tables','Created_tmp_disk_tables',
   'Bytes_sent','Bytes_received','Com_select','Com_insert','Com_update','Com_delete','Table_locks_waited','Connections'];
  const stat="SHOW GLOBAL STATUS WHERE Variable_name IN ('"+want.join("','")+"')";
- const [a,b,c]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null),api('/api/query',{sql:TOP_QUERIES_SQL}).catch(()=>null)]);
+ const [a,b,c]=await Promise.all([api('/api/query',{sql:vars}).catch(()=>null),api('/api/query',{sql:stat}).catch(()=>null),loadTopQueries()]);
  if(!a||!a.ok||!a.rows.length)return null;
  const r=a.rows[0],st={};
  if(b&&b.ok)b.rows.forEach(x=>{st[String(x[0])]=+x[1]||0;});
  return {v:r[0],vc:r[1],hn:r[2],pt:r[3],cs:r[4],co:r[5],tz:r[6],mc:r[7],bp:r[8],ro:r[9],cu:r[10],nw:r[11],dd:r[12],mp:r[13],ps:String(r[14])==='1'||/^on$/i.test(String(r[14])),st,
-  top:c&&c.ok?{rows:c.rows}:{error:(c&&c.error)||'no answer'}};
+  top:c||{error:'no answer'}};
 }
 // The statements the server spent the most time on, from performance_schema's digests: one row per
 // statement shape, its values replaced by ?, summed since the server started (or the figures were
 // last reset). The app's own questions - SHOW, SET, and whatever reads information_schema or
-// performance_schema - are left out, or opening the overview would put itself at the top.
-const TOP_QUERIES_SQL="SELECT SCHEMA_NAME, DIGEST_TEXT, COUNT_STAR, SUM_TIMER_WAIT, SUM_ROWS_EXAMINED, SUM_ROWS_SENT, SUM_NO_INDEX_USED, SUM_CREATED_TMP_DISK_TABLES, LAST_SEEN"
- +" FROM performance_schema.events_statements_summary_by_digest WHERE DIGEST_TEXT IS NOT NULL"
- +" AND DIGEST_TEXT NOT REGEXP '^(SHOW|SET|USE|COMMIT|ROLLBACK|START|BEGIN|KILL|SELECT @@|SELECT CONNECTION_ID|SELECT VERSION)'"
- +" AND DIGEST_TEXT NOT LIKE '%information\\_schema%' AND DIGEST_TEXT NOT LIKE '%performance\\_schema%'"
- +" ORDER BY SUM_TIMER_WAIT DESC LIMIT 10";
+// performance_schema - are left out, or opening the overview would put itself at the top. db narrows
+// them to one database, on the server, as the ten are chosen there. sample adds MySQL's sample of
+// each statement with its real values (QUERY_SAMPLE_TEXT, MySQL 8.0.3 on), which can be explained.
+function topQueriesSql(db,sample){
+ return "SELECT SCHEMA_NAME, DIGEST_TEXT, COUNT_STAR, SUM_TIMER_WAIT, SUM_ROWS_EXAMINED, SUM_ROWS_SENT, SUM_NO_INDEX_USED, SUM_CREATED_TMP_DISK_TABLES, LAST_SEEN"+(sample?", QUERY_SAMPLE_TEXT":"")
+  +" FROM performance_schema.events_statements_summary_by_digest WHERE DIGEST_TEXT IS NOT NULL"+(db?" AND SCHEMA_NAME = "+strLit(db):"")
+  +" AND DIGEST_TEXT NOT REGEXP '^(SHOW|SET|USE|COMMIT|ROLLBACK|START|BEGIN|KILL|SELECT @@|SELECT CONNECTION_ID|SELECT VERSION)'"
+  +" AND DIGEST_TEXT NOT LIKE '%information\\_schema%' AND DIGEST_TEXT NOT LIKE '%performance\\_schema%'"
+  +" ORDER BY SUM_TIMER_WAIT DESC LIMIT 10";}
+// {rows, sample} or {error}: with the samples where the server keeps them, without where it does not.
+async function loadTopQueries(){const db=window._topDb||'';
+ let r=window.mariadb?null:await api('/api/query',{sql:topQueriesSql(db,true)}).catch(()=>null);
+ if(r&&r.ok)return {rows:r.rows,sample:true,db};
+ r=await api('/api/query',{sql:topQueriesSql(db,false)}).catch(()=>null);
+ return r&&r.ok?{rows:r.rows,sample:false,db}:{error:(r&&r.error)||'no answer',db};}
+async function topQueriesFilter(db){window._topDb=db||'';const s=window._serverInfo;if(!s)return;s.top=await loadTopQueries();renderOverview();}
+// Counting from zero, to see what a change did: an index added, a query rewritten. performance_schema
+// is the server's, so this is for everyone who reads it, and it needs the DROP privilege on the table.
+async function topQueriesReset(){
+ if(!(await ask('Reset the statement figures on this server?\n\nperformance_schema then counts every statement from zero - for everyone who reads it, not only for this app.')))return;
+ const r=await api('/api/query',{sql:'TRUNCATE TABLE performance_schema.events_statements_summary_by_digest'});
+ if(!r||!r.ok){toast('The figures were not reset: '+((r&&r.error)||'no answer'),true);return;}
+ log('Reset the statement figures (performance_schema.events_statements_summary_by_digest).');toast('Statement figures reset.','ok');
+ const s=window._serverInfo;if(s){s.top=await loadTopQueries();renderOverview();}}
 // performance_schema counts time in picoseconds.
 function fmtPsTime(ps){const s=(+ps||0)/1e12;
  if(s<0.001)return (s*1000).toFixed(2)+' ms';if(s<1)return (s*1000).toFixed(s<0.01?1:0)+' ms';if(s<60)return s.toFixed(s<10?2:1)+' s';
  const m=Math.floor(s/60);if(m<60)return m+'m '+Math.round(s%60)+'s';const h=Math.floor(m/60);if(h<48)return h+'h '+(m%60)+'m';return Math.floor(h/24)+'d '+(h%24)+'h';}
+// A digest as the server writes it has a space between every token (`db` . `t`, ( `a` , `b` )): shown
+// through the editor's formatter, which changes only that space, on one line.
+function topQueryText(d){return formatSql(String(d==null?'':d)).replace(/\s*\n\s*/g,' ');}
 // The costliest statements, as a table under the server's figures - or why there are none.
 function topQueriesHtml(s){const top=s&&s.top;if(!top)return '';
  let body;
@@ -3095,20 +3117,32 @@ function topQueriesHtml(s){const top=s&&s.top;if(!top)return '';
   // With performance_schema off - MariaDB's default - the digest table is there, and empty.
   body='<div class="muted ovtopnote">performance_schema is off on this server'+(/mariadb/i.test(String(s.v))?' (MariaDB turns it off by default)':'')+', so it keeps no figures per query. '
    +'To have them, set <code>performance_schema=ON</code> in the server\'s configuration and restart it.</div>';}
- else if(!top.rows.length)body='<div class="muted ovtopnote">No statements recorded since the server started, or since these figures were last reset.</div>';
+ else if(!top.rows.length)body='<div class="muted ovtopnote">No statements recorded'+(top.db?' in '+esc(top.db):'')+' since the server started, or since these figures were last reset.</div>';
  else{window._topQueries=top.rows;
   const most=Math.max(1,...top.rows.map(r=>+r[3]||0));
   body='<table class="ovgrid ovtopq"><thead><tr><th>Statement</th><th>Database</th><th class=num>Runs</th><th class=num>Total time</th><th class=num>Average</th><th class=num title="Rows the server read for each row it sent back">Read per row sent</th><th class=num title="Runs that read a table without using an index">No index</th></tr></thead><tbody>'
    +top.rows.map((r,i)=>{const n=+r[2]||0,exam=+r[4]||0,sent=+r[5]||0,noix=+r[6]||0;
     const ratio=sent?exam/sent:(exam?Infinity:0),rat=ratio===Infinity?fmtCount(exam)+' read, none sent':ratio>=10?fmtCount(ratio):ratio?ratio.toFixed(1):'';
-    return '<tr data-q="'+i+'" title="'+esc(String(r[1]||''))+'\n\nClick to open it in a new tab"><td class="ovq">'+esc(clip(String(r[1]||''),160))+'</td><td>'+esc(r[0]==null?'':String(r[0]))+'</td>'
+    return '<tr data-q="'+i+'" title="'+esc(String((top.sample&&r[9])||topQueryText(r[1])))+'\n\n'+(top.sample&&r[9]||!/\?|\.\.\./.test(String(r[1]||''))?'Click to open it with its plan':'Click to open it in a new tab')+'"><td class="ovq">'+esc(clip(topQueryText(r[1]),160))+'</td><td>'+esc(r[0]==null?'':String(r[0]))+'</td>'
      +'<td class=num>'+fmtCount(n)+'</td><td class=num>'+esc(fmtPsTime(r[3]))+'<div class="szbar"><i style="width:'+Math.max(1,Math.round((+r[3]||0)/most*100))+'%"></i></div></td>'
      +'<td class=num>'+esc(fmtPsTime(n?(+r[3]||0)/n:0))+'</td><td class="num'+(ratio>=1000?' ovbad':'')+'">'+esc(rat)+'</td>'
      +'<td class="num'+(noix&&noix>=n/2?' ovbad':'')+'">'+(noix?fmtCount(noix)+(n?' ('+fmtPct(noix,n)+')':''):'')+'</td></tr>';}).join('')
-   +'</tbody></table><div class="muted" style="margin-top:6px;font-size:11px">Since the server started, or since these figures were last reset. Values are shown as ?. Click a statement to open it in a new tab; Explain there shows how it is run.</div>';}
- return ovSection('top','<h2>Costliest queries</h2>',body);}
-function openTopQuery(i){const r=(window._topQueries||[])[i];if(!r)return;
- openTab('Costly query',String(r[1]||'')+';',r[0]==null?null:String(r[0]),false);}
+   +'</tbody></table><div class="muted" style="margin-top:6px;font-size:11px">Since the server started, or since these figures were last reset. The server groups statements that differ only in their values, and shows each value as ?.'+(top.sample?' A click opens an example of the statement, with real values, and its plan.':' A click opens the statement in a new tab: replace each ? with a real value, then Explain shows how it is run.')+'</div>';}
+ // The filter and Reset, where there are figures to filter and reset.
+ let tools='';
+ if(s.ps&&!(top.error&&!top.db)){const dbs=((window._overviewRaw&&window._overviewRaw.r&&window._overviewRaw.r.rows)||[]).map(r=>String(r[0]||'')).filter(d=>d&&!/^(information_schema|performance_schema|mysql|sys)$/i.test(d));
+  tools='<span class="ovgap"></span><select class="sm" title="Only the statements run in one database" onchange="topQueriesFilter(this.value)"><option value="">All databases</option>'
+   +dbs.map(d=>'<option value="'+esc(d)+'"'+(d===top.db?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select>'
+   +'<button class="sm" title="Count every statement from zero, to see what a change did" onclick="topQueriesReset()">Reset figures</button>';}
+ return ovSection('top','<h2>Costliest queries</h2>'+tools,body);}
+// A statement MySQL kept a sample of opens with its real values and its plan (Explain, which runs
+// nothing; Measure is a click away). So does one with no values at all, whose digest is the whole
+// statement. A digest's ? cannot be explained, so such a one opens to be filled in.
+async function openTopQuery(i){const top=(window._serverInfo&&window._serverInfo.top)||{},r=(top.rows||[])[i];if(!r)return;
+ const db=r[0]==null?null:String(r[0]),digest=formatSql(String(r[1]||'').trim());
+ const whole=top.sample&&r[9]?String(r[9]).trim():!/\?|\.\.\./.test(sqlBlankStringsAndComments(digest))?digest:'';
+ if(whole){const id=openTab('Costly query',whole.replace(/;*$/,'')+';',db,false);await explainTab(id);return;}
+ openTab('Costly query',digest+';',db,false);toast('The server keeps this statement without its values: each ? stands for one, as in WHERE id = ?. Replace each ? with a real value, such as WHERE id = 42, then click Explain to see how it is run.','ok');}
 // "3d 4h", "4h 12m", "12m" - the exact seconds of an uptime are noise.
 function fmtUptime(sec){sec=+sec||0;const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);
  if(d)return d+'d '+h+'h';if(h)return h+'h '+m+'m';if(m)return m+'m';return sec+'s';}
@@ -4278,9 +4312,14 @@ async function okToRunUnfiltered(t,stmts){
 // The connection's time limit for the statements run in the editor, in seconds (0: none).
 function timeLimitSec(){const n=window._activeConnName||'';const v=n?+((connMeta()[n]||{}).timeLimit||0):0;return v>0?Math.floor(v):0;}
 // A statement stopped by that limit says so in the server's own words; what to do about it is added.
-function timeLimitNote(err){err=String(err==null?'':err);
+// reading: it stopped while the rest of a result was being fetched. The server counts the time a
+// result stays open, not only the time it takes to find the rows, so a result paged through slowly
+// can run out of time with its rows already on screen - those stay, and are all there is.
+function timeLimitNote(err,reading){err=String(err==null?'':err);
  if(!/maximum statement execution time exceeded|max_statement_time exceeded/i.test(err))return err;
- const s=timeLimitSec();return err+'\n\nThe connection\'s time limit'+(s?' ('+s+' s)':'')+' stopped it. Edit the connection to change the limit.';}
+ const s=timeLimitSec(),lim='The connection\'s time limit'+(s?' ('+s+' s)':'');
+ if(reading)return err+'\n\n'+lim+' ended the query while its rows were still being read: the server counts the time a result stays open. The rows shown are all that arrived. Add a LIMIT, or raise the time limit in the connection, to read more.';
+ return err+'\n\n'+lim+' stopped it. Edit the connection to change the limit.';}
 // runSql(): send the editor SQL to the server and show the rows (or the error).
 async function runSql(id,sql,paging){const t=T(id);if(!t)return;
  if(!paging&&!(await okToRunUnfiltered(t,splitStmts(String(sql==null?'':sql)).filter(s=>!isCommentOnly(s))))){const s0=$('st_'+id);if(s0){s0.className='status';s0.textContent='Not run.';}return;}
@@ -5735,7 +5774,9 @@ document.addEventListener('mousemove',e=>{const d=window._gridDrag;
  const dy=e.clientY<b.top+E?e.clientY-(b.top+E):e.clientY>b.bottom-E?e.clientY-(b.bottom-E):0;
  const dx=e.clientX<b.left+E?e.clientX-(b.left+E):e.clientX>b.right-E?e.clientX-(b.right-E):0;
  _gridAutoPt={x:e.clientX,y:e.clientY,dx,dy};
- if((dx||dy)&&!_gridAuto)_gridAuto=requestAnimationFrame(gridAutoStep);});
+ // A timer, not requestAnimationFrame: the browser stops animation frames while the window is
+ // covered, and a drag held there stopped scrolling; a timer at most slows down.
+ if((dx||dy)&&!_gridAuto)_gridAuto=setTimeout(gridAutoStep,16);});
 function gridAutoStep(){_gridAuto=null;const d=window._gridDrag,p=_gridAutoPt;if(!d||!p||(!p.dx&&!p.dy))return;
  const w=$('res_'+d.id);if(!w)return;
  const step=v=>v?Math.sign(v)*Math.min(40,Math.ceil(Math.abs(v)/3)+2):0;
@@ -5754,8 +5795,8 @@ function gridAutoStep(){_gridAuto=null;const d=window._gridDrag,p=_gridAutoPt;if
  // column the block last reached.
  if(hit){let td=hit.el.closest('td');if(!td||!td.getAttribute('onmouseover'))td=gridCellEl(d.id,+hit.tr.dataset.r,d.lastCi!=null?d.lastCi:d.ci);
   if(td)td.dispatchEvent(new MouseEvent('mouseover',{bubbles:true,buttons:1}));}
- _gridAuto=requestAnimationFrame(gridAutoStep);}
-function gridAutoStop(){if(_gridAuto)cancelAnimationFrame(_gridAuto);_gridAuto=null;_gridAutoPt=null;}
+ _gridAuto=setTimeout(gridAutoStep,16);}
+function gridAutoStop(){if(_gridAuto)clearTimeout(_gridAuto);_gridAuto=null;_gridAutoPt=null;}
 function gridDragEnd(){gridAutoStop();document.body.classList.remove('gridpicking');const d=window._gridDrag;if(!d)return;window._gridDrag=null;
  const wrap=$('res_'+d.id);if(wrap)wrap.classList.remove('dragsel');
  if(d.moved){

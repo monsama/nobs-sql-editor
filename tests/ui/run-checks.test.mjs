@@ -135,6 +135,15 @@ test('MariaDB ANALYZE FORMAT=JSON shows what was read beside what was expected',
   assert.doesNotMatch(lib.planHtml(JSON.stringify({ query_block: { table: { table_name: 't', access_type: 'ALL', rows: 10 } } })), /read \d/, 'an estimate says nothing about what was read');
 });
 
+test('the costliest queries are asked for one database on the server, with samples where kept', () => {
+  const q = new Function(['strLit', 'topQueriesSql'].map(n => extractFunction(html, n)).join('\n') + '\nreturn topQueriesSql;')();
+  const all = q('', false), one = q("shop's", true);
+  assert.doesNotMatch(all, /SCHEMA_NAME = |QUERY_SAMPLE_TEXT/, 'no filter, no sample');
+  assert.match(one, /AND SCHEMA_NAME = 'shop''s' AND/, 'the database, quoted, in the WHERE');
+  assert.match(one, /LAST_SEEN, QUERY_SAMPLE_TEXT FROM/, 'the sample as the tenth column');
+  assert.match(all, /ORDER BY SUM_TIMER_WAIT DESC LIMIT 10$/);
+});
+
 test('performance_schema time reads as a duration', () => {
   assert.equal(lib.fmtPsTime(5e8), '0.50 ms');
   assert.equal(lib.fmtPsTime(2.5e11), '250 ms');

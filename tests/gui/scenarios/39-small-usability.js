@@ -28,7 +28,7 @@
     gridDragStart({ button: 0, target: gridCellEl(tl.id, 0, V), ctrlKey: false, shiftKey: false, metaKey: false, preventDefault() {} }, tl.id, 0, V);
     gridDragOver({ buttons: 1 }, tl.id, 1, V);
     const wb = wrap.getBoundingClientRect(), mm = y => document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: wb.left + 60, clientY: y, buttons: 1 }));
-    mm(wb.bottom + 40); await G.wait(600);
+    mm(wb.bottom + 40); await G.until(() => wrap.scrollTop > 100 && tl.cellSel.size > 10, 3000);
     const top1 = wrap.scrollTop, picked1 = tl.cellSel.size;
     G.check('dragging past the bottom scrolls the results', top1 > 100, top1);
     // the pointer is over the rows' delete column here, not a value: the block still grows, in its own column
@@ -51,7 +51,7 @@
       tl.cellSel = new Set();
       gridDragStart({ button: 0, target: gridCellEl(tl.id, 0, V), ctrlKey: false, shiftKey: false, metaKey: false, preventDefault() {} }, tl.id, 0, V);
       gridDragOver({ buttons: 1 }, tl.id, 1, V);
-      mm(wb.bottom + 40); await G.wait(600);
+      mm(wb.bottom + 40); await G.until(() => wrap.scrollTop > 100 && tl.cellSel.size > 10, 3000);
       G.check('with the edge covered, it still picks the cells it scrolls to', wrap.scrollTop > 100 && tl.cellSel.size > 10, [wrap.scrollTop, tl.cellSel.size]);
       document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     } finally { cover.remove(); }
