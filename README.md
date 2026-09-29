@@ -1,4 +1,4 @@
-# NOBS SQL Editor
+# NO-BS SQL Editor
 
 [![Latest release](https://img.shields.io/github/v/release/monsama/nobs-sql-editor)](https://github.com/monsama/nobs-sql-editor/releases/latest)
 [![test](https://github.com/monsama/nobs-sql-editor/actions/workflows/test.yml/badge.svg)](https://github.com/monsama/nobs-sql-editor/actions/workflows/test.yml)

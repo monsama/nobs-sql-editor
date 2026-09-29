@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  NOBS SQL Editor - a cross-platform MySQL/MariaDB client.
+  NO-BS SQL Editor - a cross-platform MySQL/MariaDB client.
   Copyright (C) 2026 Viktor Ljuca <https://monsama.ch>
 
   This program is free software; you can redistribute it and/or modify it
@@ -17,7 +17,7 @@
   with this program; if not, see <https://www.gnu.org/licenses/>. A copy is
   in the LICENSE file at the root of this repository.
 -->
-<html><head><meta charset="utf-8"><title>NOBS SQL Editor</title>
+<html><head><meta charset="utf-8"><title>NO-BS SQL Editor</title>
 <style>
  /* erd-pk/erd-fk/erd-line/diff-tgt: separate from the regular text/accent colors above because
    these specific shades are used as plain TEXT/LINE colors directly on the panel background (in
@@ -39,7 +39,7 @@
 ::-webkit-scrollbar-thumb:hover{background:var(--sbh);border:2px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-corner{background:transparent} button,input,select,textarea{font-family:inherit;font-size:inherit} html,body{height:100%;margin:0;font-family:var(--uiff,system-ui,"Segoe UI",Roboto,Arial,sans-serif);font-size:13px;color:var(--fg);background:var(--bg)}
  body{display:flex;flex-direction:column}
- #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .brand{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:2px;letter-spacing:.2px} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
+ #bar{display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--bd)} .barrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap} .fld{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:var(--muted)}
  input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;box-sizing:border-box}
  /* In a dialog's row a box and its button are one thing: a path with Browse..., a name with Save.
     The grid's own editors keep their size - a cell must not change height when it is clicked. */
@@ -506,7 +506,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .privsql{flex:none;max-height:110px;overflow:auto;background:var(--log);color:var(--logfg);font-size:11px;padding:6px 8px;border-radius:var(--r-s);margin:4px 0;white-space:pre-wrap}
  .tog.ison{background:var(--hover);border-color:var(--accent);color:var(--accent)}
  .fit3 #connStatus{max-width:120px} .fit3 #envChip{max-width:90px}
- .fitb .brand{display:none} .tight .tbsep:not(.fixedsep){margin:2px 0 !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
+ .tight .tbsep:not(.fixedsep){margin:2px 0 !important} .tight .tbchunk{gap:4px} .tight#barTop,.tight #barRight{column-gap:4px}
  /* Settings, the coffee and Quit are spaced the same whatever step the bar is on: a window's
     corner is aimed at from memory, and it must not move because a connection came up. */
 
@@ -636,18 +636,17 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 <div id="deadOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.78);align-items:center;justify-content:center;flex-direction:column">
  <div style="background:var(--panel,#1e1e1e);border:1px solid var(--bd,#444);border-radius:var(--r-l);padding:24px 28px;max-width:440px;text-align:center;color:var(--fg,#eee)">
   <div style="font-size:16px;font-weight:600;margin-bottom:8px">Local server not responding</div>
-  <div style="font-size:13px;line-height:1.6;margin-bottom:16px;opacity:.85">The NOBS SQL Editor background server has stopped or is unreachable.<br>Re-run <b>NOBSSQL.ps1</b> if needed, then click Retry.</div>
+  <div style="font-size:13px;line-height:1.6;margin-bottom:16px;opacity:.85">The NO-BS SQL Editor background server has stopped or is unreachable.<br>Re-run <b>NOBSSQL.ps1</b> if needed, then click Retry.</div>
   <button class="primary" onclick="location.reload()">Retry</button>
  </div>
 </div>
 <div id="bar">
  <div class="barrow" id="barTop">
-  <b class="brand">NOBS SQL Editor</b>
   <span id="updNote" style="display:none;position:fixed;left:16px;bottom:16px;z-index:9400;background:var(--panel2);border:1px solid var(--bd);border-left:4px solid var(--accent);border-radius:var(--r-m);padding:8px 12px;font-size:13px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3)"><a href="#" id="updLink" style="color:var(--accent)" onclick="openUpdatePage();return false"></a> <button class="sm go" id="updInstall" style="margin:0 4px 0 8px;height:22px;padding:0 10px;font-size:12px" onclick="installUpdate()" title="Download this version, check it against the SHA-256 its release lists, and install it. The app closes while it installs.">Install</button> <a href="#" title="Hide until the next version" style="color:var(--muted);text-decoration:none" onclick="dismissUpdate();return false">&times;</a></span>
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 0"></span><button class="sm icopin" id="coffeeBtn" aria-label="Buy me a coffee" title="Buy me a coffee, if NOBS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button class="sm" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" data-ic="power">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 0"></span><button class="sm icopin" id="coffeeBtn" aria-label="Buy me a coffee" title="Buy me a coffee, if NO-BS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button class="sm" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" data-ic="power">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -660,8 +659,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 </div>
 <div id="main" class="needsconn">
  <div id="welcome"><div class="welcome-card">
-  <h2>NOBS SQL Editor</h2>
-  <div class="muted">A client for MySQL and MariaDB.</div>
+  <h2>NO-BS SQL Editor</h2>
+  <div class="muted">A fast, lightweight client for MySQL and MariaDB.</div>
   <ol>
    <li>Pick a saved connection in the box at the top left, or fill in <b>Host</b>, <b>Port</b>, <b>User</b> and <b>Pass</b>.</li>
    <li>Click <b>Connect</b>. <b>Save</b> keeps the connection, and its password if you like, for next time.</li>
@@ -974,14 +973,14 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </section>
  <section class="setpage" data-p="updates">
   <h4 class="setpt">Updates</h4>
-  <div class="setpd">NOBS SQL Editor looks for new releases on GitHub. When a newer version is available, a notice appears in the bottom-left corner of the window; nothing is downloaded or installed until you click Install there.</div>
+  <div class="setpd">NO-BS SQL Editor looks for new releases on GitHub. When a newer version is available, a notice appears in the bottom-left corner of the window; nothing is downloaded or installed until you click Install there.</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Check for updates at startup</div><div class="setnote">Looks for a newer release a few seconds after the app starts. Turn this off to check only by hand.</div></div><div class="setrc"><input type="checkbox" id="cfgUpdateCheck" onchange="setUpdateCheck(this.checked)" title="Check for a new version at startup"></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Check for updates now</div><div class="setnote">Looks for a newer release on GitHub right away.</div></div><div class="setrc"><button class="sm" onclick="checkForUpdate(true)">Check now</button></div></div>
   </div>
  </section>
  <section class="setpage" data-p="about">
-  <h4 class="setpt" id="aboutTitle">NOBS SQL Editor</h4>
+  <h4 class="setpt" id="aboutTitle">NO-BS SQL Editor</h4>
  <div class="muted" style="font-size:12px;line-height:1.6">
   A lightweight desktop client for MySQL and MariaDB, built with Tauri.<br>
   <i>No BS, just SQL.</i><br>
@@ -1008,7 +1007,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   (mostly MIT / Apache-2.0). The MySQL / MariaDB client tools are not bundled; the MariaDB client
   tools, when downloaded, are &copy; MariaDB Foundation under GPLv2 and come from mariadb.org.
  </div>
-  <div class="row" style="margin-top:16px;gap:8px"><button title="If NOBS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button onclick="show('mShortcuts')" title="Every shortcut for the editor, the results and the dialogs (F1)">Keyboard shortcuts</button></div>
+  <div class="row" style="margin-top:16px;gap:8px"><button title="If NO-BS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button onclick="show('mShortcuts')" title="Every shortcut for the editor, the results and the dialogs (F1)">Keyboard shortcuts</button></div>
  </section>
  </div>
  </div>
@@ -1703,7 +1702,7 @@ async function clearAllData(){if(!(await ask('Clear ALL app data?\n\nThis perman
 function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');if(sv)sv.style.visibility=p==='tools'?'':'hidden';document.querySelectorAll('#mSettings .setnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));document.querySelectorAll('#mSettings .setpage').forEach(s=>s.classList.toggle('on',s.dataset.p===p));if(p==='about')aboutPage();}
 // The About page: its buttons get their icons when it is shown, and its heading the version this is.
 async function aboutPage(){const pg=document.querySelector('#mSettings .setpage[data-p="about"]');if(pg)decorateIcons(pg);if(window._aboutVersion)return;
- try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}}catch(e){}}
+ try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NO-BS SQL Editor '+r.version;}}catch(e){}}
 async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
@@ -2163,11 +2162,10 @@ function barWraps(row){let lo=Infinity,hi=-Infinity;
 function fitBar(row,loosen){if(!row||!row.offsetParent)return;
  // Nothing is drawn between here and the end, so the reserved parts are shown only to be measured.
  row.classList.add('fitmax');try{fitBarCore(row,loosen);}finally{row.classList.remove('fitmax');}}
-function fitBarCore(row,loosen){const was=row.className;if(loosen){row.classList.remove('fitb','tight','fit1','fit2','fit3');row.querySelectorAll('.icoonly').forEach(b=>b.classList.remove('icoonly'));}
- // The rungs, in the order a bar gives things up: the brand, then the labels of the buttons that
- // need them least, then the everyday ones, then the rest along with tighter spacing.
+function fitBarCore(row,loosen){const was=row.className;if(loosen){row.classList.remove('tight','fit1','fit2','fit3');row.querySelectorAll('.icoonly').forEach(b=>b.classList.remove('icoonly'));}
+ // The rungs, in the order a bar gives things up: the labels of the buttons that need them least,
+ // then the everyday ones, then the rest along with tighter spacing.
  if(barWraps(row)){
-  row.classList.add('fitb');
   // Labels go one button at a time, cheapest first, and the bar stops the moment it fits. Giving
   // up a whole group at once left the bar in icons with a rung's worth of room to spare - at
   // 1200px every label was gone and 177px sat unused. The search is a bisection, so this still
