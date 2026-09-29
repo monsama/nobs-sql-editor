@@ -131,6 +131,10 @@
     uiSizeSet('grid', 16);
     G.eq('the results text size applies to the grids', getComputedStyle(document.documentElement).getPropertyValue('--gridfs').trim(), '16px');
     G.eq('Settings shows them', [$('setEdFs').value, $('setGridFs').value], ['19', '16']);
+    await runSql(zq, 'SELECT 1 AS one'); await G.until(() => $('res_' + zq).querySelector('table.grid tbody td'));
+    $('res_' + zq).querySelector('table.grid tbody td').dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true, deltaY: 100 }));
+    G.eq('Ctrl + wheel over the results changes theirs, a step at a time', uiSizeGet('grid'), 15);
+    G.eq('and leaves the editor\'s alone', uiSizeGet('ed'), 19);
     const dpr0 = devicePixelRatio;
     await uiZoomSet(1.25);
     const cfgZ = await G.A('/api/get-config');
