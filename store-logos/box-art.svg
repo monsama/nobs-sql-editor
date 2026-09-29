@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="2160" viewBox="0 0 1024 1024">
+<!-- The app icon (app-icon.png) redrawn as a vector, full-bleed for the Microsoft Store's 1:1 box art.
+     The PNGs next to this file are rendered from it at 2160, 1080 and 300 pixels. -->
+<defs><linearGradient id="g" x1="0.7" y1="0" x2="0.95" y2="1"><stop offset="0" stop-color="#173a42"/><stop offset="1" stop-color="#29696a"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="url(#g)"/>
+<g transform="translate(512 512) scale(0.9) translate(-512 -512)">
+<path d="M275 348 A237 117 0 0 1 749 348 L749 676 A237 117 0 0 1 275 676 Z" fill="#e8f6f5"/>
+<ellipse cx="512" cy="348" rx="164" ry="67" fill="none" stroke="#3cc6b1" stroke-width="12"/>
+<path d="M284 526 C300 580 400 622 512 622 C624 622 724 580 740 526" fill="none" stroke="#3cc6b1" stroke-width="12"/>
+<circle cx="512" cy="505" r="18" fill="#37b3a3"/><circle cx="512" cy="576" r="18" fill="#37b3a3"/><circle cx="512" cy="648" r="18" fill="#37b3a3"/>
+</g></svg>
