@@ -228,6 +228,14 @@ fn kill_child(c: &mut std::process::Child) {
 }
 #[cfg(not(windows))]
 fn kill_child(c: &mut std::process::Child) { let _ = c.kill(); }
+// A console program started from the app opens a console window of its own unless it is told not
+// to: the app has no console to share (windows_subsystem). mysql and mysqldump did, over the app,
+// for every export, import and --version check.
+fn no_window(cmd: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    { use std::os::windows::process::CommandExt; cmd.creation_flags(0x0800_0000); }
+    cmd
+}
 
 fn run_job_child(job: Option<&std::sync::Arc<Job>>, cmd: &mut Command) -> std::io::Result<std::process::Output> {
     run_job_child_fed(job, cmd, None)
@@ -238,7 +246,7 @@ type StdinFeed = Box<dyn FnOnce(std::process::ChildStdin) + Send>;
 
 fn run_job_child_fed(job: Option<&std::sync::Arc<Job>>, cmd: &mut Command, feed: Option<StdinFeed>) -> std::io::Result<std::process::Output> {
     if feed.is_some() { cmd.stdin(Stdio::piped()); }
-    let mut child = cmd.stderr(Stdio::piped()).spawn()?;
+    let mut child = no_window(cmd).stderr(Stdio::piped()).spawn()?;
     // The feeder ends when the file does or when the child stops reading (a failed statement
     // exits it), whichever comes first; dropping stdin is what tells the client it has everything.
     if let (Some(f), Some(stdin)) = (feed, child.stdin.take()) { std::thread::spawn(move || f(stdin)); }
@@ -2236,7 +2244,7 @@ fn client_is_mariadb(tool: &str) -> bool {
     let cache = CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
     if let Ok(m) = cache.lock() { if let Some(v) = m.get(tool) { return *v; } }
     // The tools this app downloads are MariaDB's, so that is the safe assumption if asking fails.
-    let maria = Command::new(tool).arg("--version").output()
+    let maria = no_window(&mut Command::new(tool)).arg("--version").output()
         .map(|o| String::from_utf8_lossy(&o.stdout).contains("MariaDB"))
         .unwrap_or(true);
     if let Ok(mut m) = cache.lock() { m.insert(tool.to_string(), maria); }
@@ -2926,7 +2934,7 @@ async fn import_run(req: Value, mbin: String) -> R {
         let mut cancelled = false;
         let mut errors_skipped = 0usize;
         if !target.is_empty() && req["createDb"].as_bool().unwrap_or(false) {
-            let _ = Command::new(&mbin).arg(format!("--defaults-extra-file={}", cnf))
+            let _ = no_window(&mut Command::new(&mbin)).arg(format!("--defaults-extra-file={}", cnf))
                 .arg("-e").arg(format!("CREATE DATABASE IF NOT EXISTS {}", sql_id(&target))).output();
             log.push(format!("Ensured database {}", target));
         }
@@ -5220,7 +5228,7 @@ fn tool_version(path: &str) -> Option<String> {
     if let Some(st) = stamp.as_deref() {
         if let Some(v) = tool_version_cached(path, st) { return if v.is_empty() { None } else { Some(v) }; }
     }
-    let out = Command::new(path).arg("--version").output().ok()?;
+    let out = no_window(&mut Command::new(path)).arg("--version").output().ok()?;
     let label = if out.status.code() == Some(STATUS_DLL_NOT_FOUND) {
         Some("cannot start - a library it needs is missing (download the tools again)".to_string())
     } else {
@@ -5766,7 +5774,7 @@ fn open_release_page(req: Value) -> R {
     let url = req["url"].as_str().unwrap_or("");
     if !release_page_ok(url) { return Ok(json!({"ok": false, "error": "Not a release page of this app."})); }
     #[cfg(target_os = "windows")]
-    { std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn().map_err(|e| e.to_string())?; }
+    { no_window(&mut std::process::Command::new("cmd")).args(["/C", "start", "", url]).spawn().map_err(|e| e.to_string())?; }
     #[cfg(target_os = "macos")]
     { std::process::Command::new("open").arg(url).spawn().map_err(|e| e.to_string())?; }
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -5885,7 +5893,7 @@ fn quit(app: tauri::AppHandle) { exit_app(&app); }
 fn open_support_link(_req: Value) -> Result<(), String> {
     const URL: &str = "https://buymeacoffee.com/monsama";
     #[cfg(target_os = "windows")]
-    { std::process::Command::new("cmd").args(["/C", "start", "", URL]).spawn().map_err(|e| e.to_string())?; }
+    { no_window(&mut std::process::Command::new("cmd")).args(["/C", "start", "", URL]).spawn().map_err(|e| e.to_string())?; }
     #[cfg(target_os = "macos")]
     { std::process::Command::new("open").arg(URL).spawn().map_err(|e| e.to_string())?; }
     #[cfg(all(unix, not(target_os = "macos")))]
