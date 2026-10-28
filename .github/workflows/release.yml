@@ -1,0 +1,75 @@
+name: release
+
+# Collapses the three manual steps of cutting a release - bump the version in
+# package.json/tauri.conf.json/Cargo.toml(.lock), commit that to main, tag it and push - into one
+# workflow_dispatch trigger. Runs with this job's own first-party Actions token (the same one
+# build.yml already uses to publish releases), not a maintainer's personal git credentials, which
+# is what actually makes "push a tag" possible from here: GitHub rejects a tag push from an
+# external token the way it would reject one from any git client without that specific permission,
+# but a job's own GITHUB_TOKEN already has contents: write, same as build.yml's release step below.
+#
+# After tagging, it dispatches build.yml against the new tag rather than relying on the tag push to
+# trigger it - a push made with GITHUB_TOKEN does not fire other workflows' `on: push` triggers (a
+# deliberate GitHub limit, to stop a workflow's own pushes re-triggering itself), so without this
+# the tag would sit there unbuilt. A workflow_dispatch run against a tag ref sets github.ref /
+# github.ref_type exactly as a real tag push would, so build.yml's gate/build/publish steps behave
+# identically either way - nothing about build.yml needed to change for this to work.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 1.7.0 (no leading v)"
+        required: true
+
+permissions:
+  contents: write
+  actions: write   # to dispatch build.yml on the new tag
+
+jobs:
+  bump-tag-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate the version and check no such tag exists yet
+        run: |
+          V="${{ github.event.inputs.version }}"
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$V' doesn't look like major.minor.patch (e.g. 1.7.0) - no leading v, no suffix."
+            exit 1
+          fi
+          if git rev-parse "v$V" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/v$V" | grep -q .; then
+            echo "::error::Tag v$V already exists."
+            exit 1
+          fi
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+
+      - name: Bump the version in package.json, tauri.conf.json, Cargo.toml and Cargo.lock
+        run: |
+          node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
+          # Only the [package] section's own version is "version = "..."" at the start of a line in
+          # this file - dependency versions are all written inline ( name = { version = "2", ... } ),
+          # never in a dependency's own [dependencies.x] table, so there is only one line to match.
+          sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          # The lock file's OWN entry for this crate - not any dependency that happens to also be
+          # named "version" nearby, hence anchoring on the preceding `name = "nobs-sql-editor"` line.
+          perl -0pi -e 's/(name = "nobs-sql-editor"\nversion = ")[^"]*/${1}$ENV{VERSION}/' src-tauri/Cargo.lock
+
+      - name: Commit, tag and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin HEAD:main
+          git push origin "v$VERSION"
+
+      - name: Start the installer build on the new tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref "v$VERSION"
