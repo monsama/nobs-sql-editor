@@ -191,6 +191,25 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 .tabpane.edfolded-editor [id^="ew_"]{display:none !important}
 /* With the results folded away the editor takes the pane, whatever height a drag last gave it. */
 .tabpane.edfolded-results [id^="ew_"]{flex:1 1 auto !important;height:auto !important}
+/* The value panel under the grid (vpToggle): open in every tab or in none, all at one height. */
+.vpane,.vpsplit{display:none} .tabpane.vpon .vpane{display:flex} .tabpane.vpon .vpsplit{display:block}
+.tabpane.edfolded-results .vpane,.tabpane.edfolded-results .vpsplit{display:none !important}
+.vpsplit{height:5px;cursor:row-resize;background:var(--panel2);border-top:1px solid var(--bd);flex:0 0 auto} .vpsplit:hover{background:var(--bd2)}
+.vpane{flex-direction:column;min-height:70px;background:var(--bg)}
+.vpbar{display:flex;flex-wrap:wrap;gap:4px 9px;align-items:center;padding:3px 8px;background:var(--panel);border-top:1px solid var(--bd2);border-bottom:1px solid var(--bd2);font-size:12px}
+.vpbar label{display:inline-flex;gap:4px;align-items:center;color:var(--muted)} .vpbar select{font-size:12px}
+.vptitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .vptitle b{font-weight:600}
+.vpane.dirty .vptitle b::after{content:" \2022";color:var(--warn)}
+.vpask{display:flex;gap:8px;align-items:center;padding:4px 8px;background:var(--dirty);font-size:12px}
+.vpnote{padding:3px 8px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--bd2)} .vpnote:empty{display:none}
+.vpbody{flex:1;display:flex;min-height:0}
+.vpgut,.vptext{margin:0;padding:6px 8px;font-family:var(--mono);font-size:12px;line-height:1.45;tab-size:4}
+/* The offsets and characters beside a hex dump: scrolled with the box, never on their own. The
+   extra room at the bottom lets them follow the box past its horizontal scrollbar. */
+.vpgut{flex:none;overflow:hidden;padding-bottom:40px;color:var(--muted);background:var(--panel);white-space:pre;user-select:none}
+.vpasc{border-left:1px solid var(--bd2)}
+.vptext{flex:1;min-width:0;border:0;outline:none;resize:none;background:var(--bg);color:var(--fg);white-space:pre;overflow:auto}
+.vptext.wrap{white-space:pre-wrap;overflow-wrap:anywhere} .vptext[readonly]{background:var(--even)}
  .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
@@ -3625,7 +3644,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   lastBtn+selBtn+applyBtn+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'"'+(tab.ddl?'':' data-reserve')+' style="display:none;gap:9px;align-items:center" class="tbgroup">'+
-  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy" data-fit="3">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap" data-fit="2"><span class="stk"><span class="off">Wrap: On</span><span>Wrap: Off</span></span></button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns" data-fit="2">Columns</button>'+'<button class="sm" title="Chart the rows the grid shows, as bars or a line" onclick="chartOpen(\''+id+'\')" data-ic="chart" data-fit="2">Chart</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="(v=>gridTypeSoon(\''+id+'\',()=>setGridSearch(\''+id+'\',v)))(this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf" data-fit="2">Clear filters</button>'+
+  '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy" data-fit="3">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap" data-fit="2"><span class="stk"><span class="off">Wrap: On</span><span>Wrap: Off</span></span></button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns" data-fit="2">Columns</button>'+'<button class="sm" title="Chart the rows the grid shows, as bars or a line" onclick="chartOpen(\''+id+'\')" data-ic="chart" data-fit="2">Chart</button>'+'<button class="sm tog'+(vpOpen?' ison':'')+'" id="vpbtn_'+id+'" aria-pressed="'+vpOpen+'" title="Show the value of the cell you click in a panel under the grid, to read and edit it at full length" onclick="vpToggle()">Value</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="(v=>gridTypeSoon(\''+id+'\',()=>setGridSearch(\''+id+'\',v)))(this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf" data-fit="2">Clear filters</button>'+
   '</span>'+
   '<span style="flex:1 1 auto"></span>'+
   '<span id="edit_'+id+'"'+(tab.ddl?'':' data-reserve')+' style="display:none;align-items:center;gap:6px"></span>'+
@@ -3636,8 +3655,8 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on a connection of its own, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
-  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div><div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
- $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);const ta=$('ed_'+id);ta.value=sql||'';
+  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
+ $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);vpWire(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
   // A folded half opens as the divider is dragged, from where the divider is (as the sidebar's).
@@ -3792,6 +3811,7 @@ function uniqueTabTitle(base){
 function refreshTabDirty(id){const t=T(id);const tb=$('tabbtn_'+id);if(!tb)return;const lbl=tb.querySelector('.tablabel');if(!lbl)return;
  const n=pendingCount(t);lbl.textContent=(n>0?'\u25CF ':'')+(t?t.title:'');lbl.title=n>0?(n+' unsaved change'+(n===1?'':'s')):'';}
 async function closeTabAsk(id){const t=T(id);const n=pendingCount(t);if(n>0){if(!(await ask('This tab has '+n+' unsaved change'+(n===1?'':'s')+'. Close and discard?')))return;}
+ if(vpDirty(id)&&!(await ask('The value panel has an edit that is not saved. Close the tab and discard it?')))return;
  if(t&&t.txDirty){if(!(await ask('This tab has a transaction that is not committed. Close it and roll the changes back?')))return;}
  // A routine, trigger or view being edited is only in this tab until it is applied.
  if(t&&t.ddl){const ed=$('ed_'+id),cur=ed?ed.value:'';if(cur!==(t.ddlApplied!=null?t.ddlApplied:t.genSql)&&!(await ask('This tab has changes to '+t.ddl.type+' '+t.ddl.name+' that were not applied. Close it and lose them?')))return;}
@@ -3813,7 +3833,7 @@ document.addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey;if(!mod)r
  if(k==='t'){e.preventDefault();if(!document.body.classList.contains('disconnected'))newTab();}
  else if(k==='w'){e.preventDefault();if(activeTab)closeTabAsk(activeTab);}
  else if(k==='l'){e.preventDefault();const ta=activeTab&&$('ed_'+activeTab);if(ta){ta.focus();ta.select&&ta.select();}}
- else if(k==='s'){e.preventDefault();if(activeTab){const t=T(activeTab);if(pendingCount(t)>0)applyChanges(activeTab,e.shiftKey);}}});
+ else if(k==='s'){e.preventDefault();if(activeTab&&e.target&&e.target.id==='vpx_'+activeTab){vpSave(activeTab);return;}if(activeTab){const t=T(activeTab);if(pendingCount(t)>0)applyChanges(activeTab,e.shiftKey);}}});
 // Skip minimized floating modals when picking which one Escape should close - a minimized modal
 // isn't visually present, so silently closing it (with no visible change on screen) would be
 // confusing. Going through hide() here, rather than manipulating the class directly, also
@@ -3840,7 +3860,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='F6'||e.ctrlKey||e.altKey||!a
 // F1 opens the list of shortcuts, as help does in most programs, and closes it again.
 document.addEventListener('keydown',e=>{if(e.key==='F1'&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){e.preventDefault();if($('mShortcuts').classList.contains('show'))hide('mShortcuts');else show('mShortcuts');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=[...document.querySelectorAll('.modal.show')].filter(m=>!window._floatingMinimized[m.id]);if(open.length){modalClose(open[open.length-1].id);}else if(window._newConnPrev&&!$('ctx').offsetParent)cancelNewConn();}});
-function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();if(activeTab===id&&tabs.length)activate(tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
+function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}delete vpState[id];closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();if(activeTab===id&&tabs.length)activate(tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
 // Each saved connection remembers its own open tabs (keyed by connection name; ad-hoc/unsaved
 // connections are keyed by host+user+port so different credentials don't collide).
 function sessionKeyFor(){const cn=$('connlist')?$('connlist').value:'';if(cn)return 'conn:'+cn;return 'adhoc:'+($('user')?$('user').value:'')+'@'+($('host')?$('host').value:'')+':'+($('port')?$('port').value:'');}
@@ -4892,7 +4912,7 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
  t.cols.forEach((c,ci)=>{h+='<th style="top:24px;padding:1px"><input data-ci="'+ci+'" oninput="(v=>gridTypeSoon(\''+id+'\',()=>setFilter(\''+id+'\','+ci+',v)))(this.value)" value="'+esc(t.filters[ci]||'')+'" placeholder="filter" style="width:100%;font-weight:400;font-size:11px"></th>';});
  h+='<th style="top:24px"></th>';
  h+='</tr></thead><tbody id="tbody_'+id+'"></tbody></table>';
- $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);
+ $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);vpRefresh(id);
  const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{
    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.key==='c'||e.key==='C')){
     const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
@@ -5686,7 +5706,8 @@ function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t
  if(!tr)return null;return tr.children[ci+off]||null;}
 function gridSetFocus(id,ri,ci,scroll){const t=T(id);if(!t)return;const view=viewIndices(id);if(view.indexOf(ri)<0)return;
  const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}
- gridFocus[id]={ri,ci};const el=gridCellEl(id,ri,ci);if(el){el.classList.add('kbfocus');if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}}
+ gridFocus[id]={ri,ci};const el=gridCellEl(id,ri,ci);if(el){el.classList.add('kbfocus');if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}
+ vpShow(id,{ri,ci});}
 function gridClearFocus(id){const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}delete gridFocus[id];}
 function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id];
  const view=viewIndices(id);
@@ -5719,10 +5740,375 @@ function cellClick(td,id,ri,ci,e){
  // the one you are on, and what Ctrl or Shift picks next starts from it, as in a spreadsheet.
  if(!e||!e.shiftKey)clearCellPick(id);
  {const t0=T(id);if(t0){t0._cellAnchor=ri+':'+ci;t0._cellCurrent=ri+':'+ci;}}
+ vpShow(id,{ri,ci});
  if(td.querySelector('input,textarea'))return;
  // A result with no key is read-only: the click is for picking rows, never for an editor.
  const t=T(id);if(!(t&&t.pk&&t.pending))return;
  inlineEdit(td,id,ri,ci);}
+// --- The value panel ------------------------------------------------------------------------
+// The value of the cell last clicked, under the grid, to read and edit at full length. It is read
+// one of five ways - Binary, HTML, JSON, Text, XML - in a chosen encoding, laid out (Auto format)
+// or as stored, wrapped or not. Save hands the value to the grid's pending edits exactly as an edit
+// in the cell would, so it is written by Apply like every other change.
+//
+// What the encoding means depends on what arrived (vpKind):
+// - bytes: a binary column, sent as 0x.. hex. The encoding is how those bytes are read as text, and
+//   how text typed for them is turned back into bytes on Save.
+// - text: characters, already converted by the server, so the encoding cannot change what is shown.
+//   It is what a file is written in (Save as file) and read in (Load from file). The Binary view
+//   shows the UTF-8 bytes this connection received.
+// - rawtext: a text column whose bytes were not UTF-8 and so came as hex (see cellHtml). They are
+//   read in the encoding chosen, and saved as the characters shown, since the column holds text.
+// The view, encoding, format and wrap chosen for a column are remembered for the session, in memory
+// only. A column with no view of its own gets whichever suits each value, while Auto format is on.
+const VP_VIEWS=[['binary','Binary'],['html','HTML'],['json','JSON'],['text','Text'],['xml','XML']];
+// TextDecoder treats "latin1" and "ascii" as windows-1252 (the WHATWG rule), so those two are read
+// and written here byte for byte instead. The multi-byte Asian charsets can be read but not written.
+const VP_ENCS=[['utf-8','UTF-8'],['utf-16le','UTF-16 LE'],['utf-16be','UTF-16 BE'],['latin1','Latin-1 (ISO-8859-1)'],['windows-1252','Windows-1252'],['ascii','ASCII'],
+ ['iso-8859-2','ISO-8859-2'],['windows-1250','Windows-1250'],['windows-1251','Windows-1251'],['koi8-r','KOI8-R'],['shift_jis','Shift-JIS'],['euc-jp','EUC-JP'],['gbk','GBK'],['big5','Big5'],['euc-kr','EUC-KR']];
+const VP_SINGLE=new Set(['windows-1252','iso-8859-2','windows-1250','windows-1251','koi8-r']);
+const VP_DUMP_MAX=1048576; // bytes drawn in Binary view; the rest is only in Save as file
+const VP_FMT_MAX=MAX_HEXTEXT_BYTES; // characters Auto format will lay out
+const vpPrefs=new Map(),vpState={},vpSbMaps={};
+let vpOpen=false,vpH=220,vpEncList=null;
+const VP_HX=Array.from({length:256},(_,i)=>i.toString(16).padStart(2,'0'));
+function vpEncs(){if(!vpEncList)vpEncList=VP_ENCS.filter(([e])=>{if(e==='latin1'||e==='ascii')return true;try{new TextDecoder(e);return true;}catch(_){return false;}});return vpEncList;}
+function vpEncName(enc){const e=VP_ENCS.find(x=>x[0]===enc);return e?e[1]:enc;}
+function vpCanEncode(enc){return enc==='utf-8'||enc==='utf-16le'||enc==='utf-16be'||enc==='latin1'||enc==='ascii'||VP_SINGLE.has(enc);}
+function vpSameBytes(a,b){if(a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;}
+// {text, exact}: exact when the bytes read without a fault AND the text gives the same bytes back -
+// two byte sequences can read as one text (a charset's unused codes), and only an exact reading can
+// be edited without changing bytes nobody touched.
+function vpDecode(bytes,enc){
+ if(enc==='latin1'||enc==='ascii'){let s='',ok=true;
+  for(let i=0;i<bytes.length;i+=8192){let part=bytes.subarray(i,i+8192);
+   if(enc==='ascii')part=Array.from(part,b=>{if(b>127){ok=false;return 0xFFFD;}return b;});
+   s+=String.fromCharCode.apply(null,part);}
+  return {text:s,exact:ok};}
+ let text,exact=true;
+ try{text=new TextDecoder(enc,{fatal:true,ignoreBOM:true}).decode(bytes);}
+ catch(e){exact=false;text=new TextDecoder(enc,{ignoreBOM:true}).decode(bytes);}
+ if(exact&&vpCanEncode(enc)){const b=vpEncode(text,enc);exact=!!b.bytes&&vpSameBytes(b.bytes,bytes);}
+ return {text,exact};}
+// {bytes} or {bad: the first character the encoding has no byte for}.
+function vpEncode(text,enc){
+ if(enc==='utf-8')return {bytes:new TextEncoder().encode(text)};
+ if(enc==='utf-16le'||enc==='utf-16be'){const le=enc==='utf-16le',b=new Uint8Array(text.length*2);
+  for(let i=0;i<text.length;i++){const c=text.charCodeAt(i);b[2*i+(le?0:1)]=c&255;b[2*i+(le?1:0)]=c>>8;}return {bytes:b};}
+ const lim=enc==='ascii'?127:enc==='latin1'?255:-1,map=lim<0?vpSbMap(enc):null,out=[];
+ for(const ch of text){const c=ch.codePointAt(0);const b=lim>=0?(c<=lim?c:undefined):map.get(ch);if(b===undefined)return {bad:ch};out.push(b);}
+ return {bytes:Uint8Array.from(out)};}
+// A single-byte charset written by asking the decoder what each of its 256 bytes reads as. Going
+// down, so where two bytes read as the same character the lower one is the one written.
+function vpSbMap(enc){if(!vpSbMaps[enc]){const m=new Map(),d=new TextDecoder(enc);for(let b=255;b>=0;b--){const c=d.decode(Uint8Array.of(b));if(c!=='�')m.set(c,b);}vpSbMaps[enc]=m;}return vpSbMaps[enc];}
+function vpBadChar(ch,enc){return '"'+ch+'" (U+'+ch.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')+') cannot be written in '+vpEncName(enc)+'. Pick another encoding.';}
+
+// What the box shows differs from the value in two ways, and Save has to undo both exactly:
+// - Auto format replaces the whitespace between the parts of JSON, XML and HTML with its own
+//   line breaks and indentation ('lay').
+// - A text box gives every line break back as LF, so each CR LF or lone CR in the value reads as
+//   an LF there ('eol').
+// Each such place is a segment: where it is in the box, how long, and what the value had there.
+// Edits move the segments after them (vpTrack); a segment an edit reaches into is dropped, since
+// what is there now is what was typed. Save puts every other one back (vpRestore), so the value
+// saved is the value read, changed only where it was edited.
+//
+// Laying out never parses and re-writes the value: JSON.parse and back would round every number
+// past 2^53 and turn 1.0 into 1.
+// {text, segs}. Whitespace before the first part and after the last is kept as it is.
+function vpJsonLayout(s){let out='',ind=0,inStr=false,prev='',gap='';const segs=[];
+ const put=g=>{if(g!==gap)segs.push({at:out.length,len:g.length,orig:gap,k:'lay'});out+=g;gap='';};
+ const nl=()=>'\n'+'  '.repeat(ind);
+ for(let i=0;i<s.length;i++){const c=s[i];
+  if(inStr){out+=c;if(c==='\\'&&i+1<s.length)out+=s[++i];else if(c==='"')inStr=false;continue;}
+  if(c===' '||c==='\t'||c==='\n'||c==='\r'){gap+=c;continue;}
+  let g;
+  if(prev==='')g=gap;
+  else if(prev==='{'||prev==='['){if(c==='}'||c===']')g='';else{ind++;g=nl();}}
+  else if(c==='}'||c===']'){ind=Math.max(0,ind-1);g=nl();}
+  else if(prev===',')g=nl();
+  else if(prev===':')g=' ';
+  else g='';
+  put(g);out+=c;if(c==='"')inStr=true;prev=c;}
+ return {text:out+gap,segs};}
+const VP_VOID=new Set('area base br col embed hr img input link meta param source track wbr'.split(' '));
+const VP_RAWTAG=new Set(['script','style','pre','textarea']);
+// One tag, comment, CDATA, processing instruction or run of text per line, indented by depth. An
+// element holding only a short text stays on one line. In HTML the void elements open nothing, and
+// what is inside script, style, pre and textarea is kept exactly as it is. {text, segs}
+function vpMarkupLayout(s,html){
+ const re=/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<![^>]*>|<\/?[A-Za-z](?:"[^"]*"|'[^']*'|[^'">])*>|[^<]+|</g;
+ let out='',d=0,gap='',first=true,m;const segs=[];
+ const nl=()=>'\n'+'  '.repeat(d);
+ const emit=(txt,g)=>{if(first){g=gap;first=false;}if(g!==gap)segs.push({at:out.length,len:g.length,orig:gap,k:'lay'});out+=g+txt;gap='';};
+ // A run of text: its leading and trailing whitespace is part of the gaps either side of it.
+ const text=(tk,g)=>{const lead=tk.match(/^\s*/)[0];if(lead.length===tk.length){gap+=tk;return;}
+  const core=tk.slice(lead.length).replace(/\s+$/,'');gap+=lead;emit(core,g);gap+=tk.slice(lead.length+core.length);};
+ while((m=re.exec(s))){const tk=m[0];
+  if(/^<[A-Za-z]/.test(tk)){const name=tk.match(/^<([A-Za-z][\w:.-]*)/)[1],lname=html?name.toLowerCase():name;
+   const self=/\/>$/.test(tk)||(html&&VP_VOID.has(lname));
+   if(html&&!self&&VP_RAWTAG.has(lname)){const cl=new RegExp('</'+lname+'\\s*>','ig');cl.lastIndex=re.lastIndex;const c=cl.exec(s);const end=c?cl.lastIndex:s.length;
+    emit(tk+s.slice(re.lastIndex,end),nl());re.lastIndex=end;continue;}
+   if(!self){const inl=/([^<]*)<\/([A-Za-z][\w:.-]*)\s*>/y;inl.lastIndex=re.lastIndex;const im=inl.exec(s);
+    if(im&&(html?im[2].toLowerCase():im[2])===lname&&im[1].trim().indexOf('\n')<0&&im[1].length<=200){
+     emit(tk,nl());text(im[1],'');emit(im[0].slice(im[1].length),'');re.lastIndex=inl.lastIndex;continue;}}
+   emit(tk,nl());if(!self)d++;continue;}
+  if(/^<\//.test(tk)){d=Math.max(0,d-1);emit(tk,nl());continue;}
+  if(tk.length>1&&tk[0]==='<'){emit(tk,nl());continue;}
+  text(tk,nl());}
+ return {text:out+gap,segs};}
+// {text, segs, note}
+function vpFormat(text,view){
+ if(view==='text'||!text)return {text,segs:[]};
+ if(text.length>VP_FMT_MAX)return {text,segs:[],note:'Too long to lay out here - shown as stored.'};
+ if(view==='json'){try{JSON.parse(text);}catch(e){return {text,segs:[],note:'Not valid JSON - shown as stored.'};}return vpJsonLayout(text);}
+ return vpMarkupLayout(text,view==='html');}
+// The line breaks as a text box will hold them, with an 'eol' segment for each one that is not LF.
+// The 'lay' segments are moved to match: what they hold is spaces and LFs only, so no CR is in one.
+function vpBoxText(text,segs){if(text.indexOf('\r')<0)return {text,segs};
+ let out='',cut=0,si=0;const sorted=segs.slice().sort((a,b)=>a.at-b.at),moved=[],eol=[];
+ for(let i=0;i<text.length;i++){
+  while(si<sorted.length&&sorted[si].at<=i){moved.push({...sorted[si],at:sorted[si].at-cut});si++;}
+  const c=text[i];if(c!=='\r'){out+=c;continue;}
+  const crlf=text[i+1]==='\n';eol.push({at:out.length,len:1,orig:crlf?'\r\n':'\r',k:'eol'});out+='\n';
+  if(crlf){i++;cut++;}}
+ while(si<sorted.length){moved.push({...sorted[si],at:sorted[si].at-cut});si++;}
+ return {text:out,segs:moved.concat(eol)};}
+// The box's text with the segments still in it put back as the value had them. kinds: which kinds.
+function vpRestore(text,segs,kinds){let out='',pos=0;
+ segs.filter(sg=>!kinds||kinds.includes(sg.k)).sort((a,b)=>a.at-b.at).forEach(sg=>{out+=text.slice(pos,sg.at)+sg.orig;pos=sg.at+sg.len;});
+ return out+text.slice(pos);}
+// An edit in the box: one run of text replaced by another (typing, deleting, pasting, undo). The
+// segments before it stay, those after it move, and those it reaches into are dropped.
+// Typed back to what was shown, the box is the value again, segments and all.
+function vpTrack(st,now){const was=st.lastBox;st.lastBox=now;if(now===st.shown){st.segs=(st.shownSegs||[]).slice();return;}
+ if(was==null||was===now||!st.segs||!st.segs.length)return;
+ let p=0;const max=Math.min(was.length,now.length);while(p<max&&was[p]===now[p])p++;
+ let q=0;while(q<max-p&&was[was.length-1-q]===now[now.length-1-q])q++;
+ const end=was.length-q,delta=now.length-was.length;
+ st.segs=st.segs.filter(sg=>sg.at+sg.len<=p||sg.at>=end).map(sg=>sg.at>=end&&!(sg.at+sg.len<=p)?{...sg,at:sg.at+delta}:sg);}
+function vpSniff(s){const h=s.replace(/^[\s﻿]+/,'');
+ if(/^[[{]/.test(h)){try{JSON.parse(s);return 'json';}catch(e){}}
+ if(/^<\?xml\b/i.test(h))return 'xml';
+ if(/^<!doctype\s+html\b/i.test(h)||/^<(html|head|body|div|span|p|table|ul|ol|a|br|h[1-6]|section|article|form|img|script|style)\b/i.test(h))return 'html';
+ if(/^</.test(h)&&/>\s*$/.test(h))return 'xml';
+ return 'text';}
+
+function vpKind(t,ci,v){if(t.binCols&&t.binCols[ci])return 'bytes';
+ if(typeof v==='string'&&/^0x[0-9A-Fa-f]+$/.test(v)&&!hexIsUtf8(v))return 'rawtext';
+ return 'text';}
+// A cell is {ri, ci} in the loaded rows, or {row, col} for a row added and not yet applied - the row
+// itself, since deleting another added row moves its index.
+function vpSameSrc(a,b){return !!(a&&b)&&(a.row||null)===(b.row||null)&&a.col===b.col&&a.ri===b.ri&&a.ci===b.ci;}
+function vpSrcCi(t,src){return src.row?t.cols.indexOf(src.col):src.ci;}
+function vpSrcVal(t,src){
+ if(src.row){if(!t.pending||t.pending.ins.indexOf(src.row)<0)return undefined;const v=src.row[src.col];return v===undefined?null:v;}
+ const row=t.rows&&t.rows[src.ri];if(!row||src.ci>=row.length)return undefined;
+ const key=src.ri+':'+src.ci;return t.pending&&t.pending.upd&&(key in t.pending.upd)?t.pending.upd[key]:row[src.ci];}
+function vpPref(t,ci){const k=(t.db||'')+'\u0001'+(t.table||'')+'\u0001'+t.cols[ci];
+ if(!vpPrefs.has(k))vpPrefs.set(k,{view:null,enc:null,fmt:true,wrap:true});return vpPrefs.get(k);}
+function vpEditable(t,src,ci){if(window.readOnly||!t.pending)return false;if(!src.row&&!t.pk)return false;return !isGenCol(t.id,t.cols[ci]);}
+// Two values the same for saving: a binary column's empty value comes as "0x" and is written as "",
+// and its hex digits mean the same in either case.
+function vpSame(a,b,kind){if(a===b)return true;if(kind!=='bytes'||typeof a!=='string'||typeof b!=='string')return false;
+ const n=v=>v===''?'0x':v.toLowerCase();return n(a)===n(b);}
+function vpBytes(st){if(st.cur==null)return new Uint8Array(0);
+ if(st.kind==='bytes'||(st.kind==='rawtext'&&st.cur===st.orig))return hexToBytes(st.cur);
+ return new TextEncoder().encode(st.cur);}
+// What the text views show, before any laying out.
+function vpTextOf(st){if(st.cur==null)return {text:'',exact:true};
+ if(st.kind==='text'||(st.kind==='rawtext'&&st.cur!==st.orig))return {text:st.cur,exact:true};
+ return vpDecode(vpBytes(st),st.enc);}
+function vpAutoView(t,ci,st){
+ if(st.cur==null)return st.kind==='bytes'?'binary':'text';
+ if(t.bitCols&&t.bitCols[ci])return 'binary';
+ if(/^json\b/i.test(String((t.colTypes&&t.colTypes[t.cols[ci]])||'')))return 'json';
+ if(st.kind!=='text'&&!(st.kind==='rawtext'&&st.cur!==st.orig)){const bytes=vpBytes(st);if(bytes.length>MAX_HEXTEXT_BYTES)return 'binary';
+  // Bytes that are not text in this encoding, or that hold control characters, read best as bytes.
+  const d=vpDecode(bytes,st.enc);if(!d.exact||/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(d.text))return 'binary';
+  return vpSniff(d.text);}
+ return vpSniff(st.cur);}
+function vpDirty(id){const st=vpState[id];if(!vpOpen||!st||!st.src||st.stale)return false;const box=$('vpx_'+id);
+ return !!box&&(box.value!==st.shown||!vpSame(st.cur,st.orig,st.kind));}
+
+function vpHtml(id){const q='\''+id+'\'';
+ return '<div class="vpsplit" id="vpsp_'+id+'" title="Drag to resize the value panel - double-click to reset" onmousedown="vpDrag(event,'+q+')" ondblclick="vpH=220;vpSizeAll()"></div>'+
+  '<div class="vpane" id="vp_'+id+'" style="height:'+vpH+'px"><div class="vpbar"><span class="vptitle" id="vpt_'+id+'"></span><span style="flex:1 1 auto"></span>'+
+  '<label title="How the value is read. Picking one keeps it for this column; turning Auto format back on lets each value pick again.">View as <select id="vpv_'+id+'" onchange="vpSet('+q+',\'view\',this.value)">'+VP_VIEWS.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('')+'</select></label>'+
+  '<label>Encoding <select id="vpe_'+id+'" onchange="vpSet('+q+',\'enc\',this.value)">'+vpEncs().map(([v,l])=>'<option value="'+v+'">'+esc(l)+'</option>').join('')+'</select></label>'+
+  '<button class="sm tog" id="vpf_'+id+'" aria-pressed="false" onclick="vpSet('+q+',\'fmt\')" title="Show each value the way it reads best: pick the view that suits it, and lay out JSON, XML and HTML with indentation, and bytes as a hex dump. Off, the value is shown as stored.">Auto format</button>'+
+  '<button class="sm tog" id="vpw_'+id+'" aria-pressed="false" onclick="vpSet('+q+',\'wrap\')" title="Wrap long lines">Wrap</button><span class="tbsep"></span>'+
+  '<button class="sm go write" id="vpsave_'+id+'" disabled onclick="vpSave('+q+')" title="Put the edited value in the cell (Ctrl+S). Apply writes it to the table.">Save</button>'+
+  '<button class="sm" id="vprev_'+id+'" disabled onclick="vpRevert('+q+')" title="Throw away the edit and show the cell\'s value again">Revert</button><span class="tbsep"></span>'+
+  '<button class="sm" id="vpfile_'+id+'" onclick="vpToFile('+q+')" title="Write what the panel shows to a file, in the encoding chosen - in Binary view, the bytes themselves">Save as file...</button>'+
+  '<button class="sm write" id="vpload_'+id+'" onclick="vpFromFile('+q+')" title="Put a file\'s contents in this cell (Save, then Apply, to keep it). A text column reads the file in the encoding chosen.">Load from file...</button></div>'+
+  '<div class="vpask" id="vpa_'+id+'" style="display:none"></div><div class="vpnote" id="vpn_'+id+'"></div>'+
+  '<div class="vpbody"><pre class="vpgut" id="vpg_'+id+'" style="display:none"></pre><textarea class="vptext" id="vpx_'+id+'" spellcheck="false" wrap="off" readonly></textarea><pre class="vpgut vpasc" id="vpc_'+id+'" style="display:none"></pre></div></div>';}
+function vpWire(id){const box=$('vpx_'+id),p=$('pane_'+id);if(!box||!p)return;let raf=0;
+ if(vpOpen)p.classList.add('vpon');
+ box.addEventListener('input',()=>{const st=vpState[id];if(st&&st.src)vpTrack(st,box.value);vpButtons(id);if($('vpg_'+id).style.display!=='none'&&!raf)raf=requestAnimationFrame(()=>{raf=0;vpGutters(id);});});
+ box.addEventListener('scroll',()=>{$('vpg_'+id).scrollTop=$('vpc_'+id).scrollTop=box.scrollTop;});
+ vpRender(id);}
+async function vpToggle(){
+ if(vpOpen&&tabs.some(tb=>vpDirty(tb.id))&&!(await ask('The value panel has an edit that is not saved. Close the panel and discard it?')))return;
+ vpOpen=!vpOpen;
+ tabs.forEach(tb=>{const p=$('pane_'+tb.id);if(p)p.classList.toggle('vpon',vpOpen);const b=$('vpbtn_'+tb.id);if(b)togPress(b,vpOpen);
+  const st=vpState[tb.id];if(!st)return;
+  // Closed, the panel follows the clicks without drawing them; opened, it draws the last one.
+  if(!vpOpen){st.ask=null;vpAskBar(tb.id);st.stale=true;}
+  else if(st.stale){st.stale=false;if(st.src&&st.cols===tb.cols)vpLoad(tb.id,st.src);else{vpState[tb.id]={};vpRender(tb.id);}}});
+ vpSizeAll();}
+function vpSizeAll(){tabs.forEach(tb=>{const vp=$('vp_'+tb.id);if(vp)vp.style.height=vpH+'px';});}
+// The divider is dragged up to give the panel room, and never so far that the grid has none left.
+function vpDrag(e,id){if(e.button!==0)return;e.preventDefault();const vp=$('vp_'+id),res=$('res_'+id);if(!vp)return;
+ const sy=e.clientY,sh=vp.offsetHeight,max=Math.max(80,sh+(res?res.clientHeight:0)-60);
+ const mv=ev=>{vpH=Math.max(70,Math.min(max,sh-(ev.clientY-sy)));vp.style.height=vpH+'px';};
+ const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';vpSizeAll();};
+ document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);}
+// A click on a cell. An edit not saved yet is not thrown away by it: the panel asks first, and
+// keeps showing the edited cell until it is answered.
+function vpShow(id,src){const t=T(id);if(!t)return;let st=vpState[id];
+ if(!vpOpen){st=vpState[id]=st||{};st.src=src;st.cols=t.cols;st.stale=true;return;}
+ if(st&&st.src&&vpSameSrc(st.src,src)){if(st.ask){st.ask=null;vpAskBar(id);}return;}
+ if(vpDirty(id)){st.ask=src;vpAskBar(id);return;}
+ vpLoad(id,src);}
+function vpLoad(id,src){const t=T(id);if(!t)return;const st=vpState[id]=vpState[id]||{};
+ st.src=src;st.cols=t.cols;st.ask=null;st.stale=false;vpAskBar(id);
+ const v=src?vpSrcVal(t,src):undefined;if(v===undefined){st.src=null;vpRender(id);return;}
+ const ci=vpSrcCi(t,src);st.ci=ci;st.orig=st.cur=v;st.kind=vpKind(t,ci,v);
+ const p=st.pref=vpPref(t,ci);st.fmt=p.fmt;st.wrap=p.wrap;
+ st.enc=p.enc||(st.kind==='rawtext'?'windows-1252':'utf-8');
+ st.view=p.view||(st.fmt?vpAutoView(t,ci,st):(st.kind==='bytes'?'binary':'text'));
+ st.editable=vpEditable(t,src,ci);
+ vpRender(id);}
+// After the grid is drawn again. A new result drops what the panel showed (the cell may not be in
+// it), and says so if that threw an edit away; otherwise a clean panel reads the cell again, which
+// may have been changed in the grid meanwhile.
+function vpRefresh(id){const st=vpState[id],t=T(id);if(!st||!st.src||!t)return;
+ if(st.cols!==t.cols){const lost=vpDirty(id);vpState[id]={};vpAskBar(id);vpRender(id);
+  if(lost)toast('The value you were editing was not saved: the result it came from was replaced.',true);return;}
+ if(!vpOpen){st.stale=true;return;}
+ if(vpDirty(id))return;
+ vpLoad(id,st.src);}
+function vpAskBar(id){const st=vpState[id],el=$('vpa_'+id);if(!el)return;
+ if(!st||!st.ask){el.style.display='none';el.innerHTML='';return;}
+ const q='\''+id+'\'';el.style.display='flex';
+ el.innerHTML='<span>The value edited here is not saved yet.</span><button class="sm go" onclick="vpAskDo('+q+',\'save\')">Save</button><button class="sm" onclick="vpAskDo('+q+',\'discard\')">Discard</button><button class="sm" onclick="vpAskDo('+q+',\'stay\')">Stay</button>';}
+function vpAskDo(id,what){const st=vpState[id];if(!st||!st.ask)return;const next=st.ask;st.ask=null;vpAskBar(id);
+ if(what==='stay'){const s=st.src;if(s&&!s.row)gridSetFocus(id,s.ri,s.ci,true);const box=$('vpx_'+id);if(box)box.focus();return;}
+ // A save that is refused keeps the edit, and the panel on it.
+ if(what==='save'&&!vpSave(id))return;
+ vpLoad(id,next);}
+
+function vpRender(id){const t=T(id),st=vpState[id],box=$('vpx_'+id);if(!box||!t)return;
+ const g=$('vpg_'+id),c=$('vpc_'+id);vpChrome(id);
+ if(!st||!st.src){box.value='';box.readOnly=true;box.placeholder='';g.style.display=c.style.display='none';if(st){st.shown='';st.segs=[];st.lastBox='';}vpNote(id,'');vpButtons(id);return;}
+ let text,segs=[],ro=!st.editable,note='',dump=false;
+ const asText=st.kind==='rawtext'&&st.cur===st.orig;
+ if(st.view==='binary'){const all=vpBytes(st),bytes=all.length>VP_DUMP_MAX?all.subarray(0,VP_DUMP_MAX):all;
+  if(bytes!==all){ro=true;note='Showing the first '+fmtB(VP_DUMP_MAX)+' of '+fmtB(all.length)+'. Save as file writes all of it.';}
+  // Bytes of a text column that are not UTF-8 cannot be saved as bytes - the column takes text.
+  else if(asText&&!ro){ro=true;note='These bytes are not UTF-8, and this column holds text: edit them in a text view.';}
+  dump=st.fmt&&bytes.length>0;text=dump?vpHexLines(bytes):bytesToHex(bytes).slice(2);}
+ else{const r=vpTextOf(st);text=r.text;
+  if(!r.exact){ro=true;note='These bytes are not valid '+vpEncName(st.enc)+' - � marks what could not be read. Pick another encoding, or edit them in Binary view.';}
+  else if(st.editable&&st.kind!=='text'&&!vpCanEncode(st.enc)){ro=true;note=vpEncName(st.enc)+' can be read here but not written. Pick another encoding to edit.';}
+  else if(st.editable&&asText)note='These bytes are not UTF-8, so they are read as '+vpEncName(st.enc)+'. An edit saves the characters shown, which the server stores in the column\'s character set - pick the encoding that matches it.';
+  if(st.fmt&&st.cur!=null){const f=vpFormat(text,st.view);text=f.text;segs=f.segs;if(f.note)note=note||f.note;}
+  const b=vpBoxText(text,segs);text=b.text;segs=b.segs;}
+ box.value=text;st.shown=box.value;st.lastBox=box.value;st.segs=segs;st.shownSegs=segs.slice();box.readOnly=ro;
+ // The box holds what it is given, line breaks aside (vpBoxText). Should it ever not, an edit
+ // could not be saved as the value it was read from, so there is nothing to edit here.
+ if(box.value!==text&&!ro){box.readOnly=true;note='This value holds characters an edit box cannot keep exactly. Edit it in Binary view.';}
+ box.placeholder=st.cur===null?'(NULL)':'';
+ const wrap=st.wrap&&!dump;box.classList.toggle('wrap',wrap);box.wrap=wrap?'soft':'off';
+ g.style.display=c.style.display=dump?'block':'none';if(dump)vpGutters(id);
+ box.scrollTop=0;vpNote(id,note);vpButtons(id);}
+function vpNote(id,s){const n=$('vpn_'+id);if(n)n.textContent=s||'';}
+// The header and the controls, for the cell shown or for none.
+function vpChrome(id){const t=T(id),st=vpState[id],has=!!(st&&st.src);
+ const vs=$('vpv_'+id),es=$('vpe_'+id),fb=$('vpf_'+id),wb=$('vpw_'+id),ti=$('vpt_'+id);if(!vs||!t)return;
+ [vs,es,fb,wb,$('vpfile_'+id)].forEach(el=>{el.disabled=!has;});$('vpload_'+id).disabled=!(has&&st.editable);
+ if(!has){ti.textContent='Click a cell to see its value here.';togPress(fb,false);togPress(wb,false);return;}
+ vs.value=st.view;es.value=st.enc;togPress(fb,st.fmt);togPress(wb,st.wrap);
+ es.disabled=st.view==='binary';wb.disabled=st.view==='binary'&&st.fmt;
+ es.title=st.view==='binary'?'Binary view shows the bytes themselves, in no encoding'
+  :st.kind==='text'?'This column holds characters, already converted by the server, so the encoding does not change what is shown. It is what Save as file writes and Load from file reads.'
+  :'How the bytes are read as text, and how text typed here is turned back into bytes on Save';
+ const name=t.cols[st.ci],ty=(t.colTypes&&t.colTypes[name])||(t.bitCols&&t.bitCols[st.ci]?'BIT':st.kind==='bytes'?'binary':'');
+ let size;if(st.cur===null)size='NULL';
+ else if(st.kind==='text'||(st.kind==='rawtext'&&st.cur!==st.orig)){const n=st.cur.length;size=n+' char'+(n===1?'':'s')+', '+fmtB(new TextEncoder().encode(st.cur).length);}
+ else size=fmtB(vpBytes(st).length);
+ // The row as the grid lists it now, sorted and filtered; one filtered out goes by its place as loaded.
+ const pos=st.src.row?-1:viewIndices(id).indexOf(st.src.ri);
+ ti.innerHTML='<b>'+esc(name)+'</b> <span class="muted">'+esc([st.src.row?'new row':'row '+(pos>=0?pos+1:st.src.ri+1),ty,size].filter(Boolean).join(' · '))+(st.editable?'':' · read-only')+'</span>';
+ ti.title=ti.textContent;}
+function vpButtons(id){const st=vpState[id],d=vpDirty(id),ok=!!(st&&st.src&&st.editable);
+ const s=$('vpsave_'+id),r=$('vprev_'+id),vp=$('vp_'+id);if(s)s.disabled=!(ok&&d);if(r)r.disabled=!d;if(vp)vp.classList.toggle('dirty',d);}
+// Sixteen bytes a line, a wider gap after the eighth.
+function vpHexLines(bytes){const out=[];for(let i=0;i<bytes.length;i+=16){let l='';const e=Math.min(i+16,bytes.length);for(let j=i;j<e;j++)l+=(j===i?'':j-i===8?'  ':' ')+VP_HX[bytes[j]];out.push(l);}return out.join('\n');}
+// The offset of each line, and its bytes as characters, worked out from the box as it now reads, so
+// both stay right while bytes are typed in or taken out.
+function vpGutters(id){const box=$('vpx_'+id),g=$('vpg_'+id),c=$('vpc_'+id);if(!box||!g||!c)return;let off=0;const go=[],ca=[];
+ box.value.split('\n').forEach(l=>{go.push(off.toString(16).padStart(8,'0'));const h=l.replace(/[^0-9A-Fa-f]/g,'');let s='';
+  for(let i=0;i+1<h.length;i+=2){const b=parseInt(h.substr(i,2),16);s+=b>=32&&b<127?String.fromCharCode(b):'.';}ca.push(s);off+=h.length>>1;});
+ g.textContent=go.join('\n');c.textContent=ca.join('\n');g.scrollTop=c.scrollTop=box.scrollTop;}
+// The box read back into a cell value: {v} or {err}.
+function vpBoxValue(id){const st=vpState[id],box=$('vpx_'+id);let s=box.value;
+ if(st.view==='binary'){const h=s.replace(/\s+/g,'').replace(/^0x/i,'');
+  if(!/^[0-9A-Fa-f]*$/.test(h)||h.length%2)return {err:'That is not whole bytes in hex: use the digits 0-9 and A-F, two to a byte.'};
+  if(st.kind==='bytes')return {v:h?'0x'+h.toLowerCase():''};
+  const txt=hexToStrictText('0x'+h);
+  if(txt==null)return {err:'These bytes are not UTF-8 text, and this column holds text. Edit it in Text view instead.'};
+  return {v:txt};}
+ // Laid out and line breaks: back as the value had them, wherever they were not edited.
+ s=vpRestore(s,st.segs||[]);
+ if(st.kind==='bytes'){
+  if(looksLikePastedHex(s))return {err:'There is a hex value in this text. Saved as text it would be stored as those characters, not as the bytes they stand for - paste it in Binary view instead.'};
+  const e=vpEncode(s,st.enc);if(e.bad)return {err:vpBadChar(e.bad,st.enc)};
+  return {v:e.bytes.length?bytesToHex(e.bytes):''};}
+ return {v:s};}
+function vpSet(id,what,val){const st=vpState[id];if(!st||!st.src)return;
+ if(what==='wrap'){st.wrap=st.pref.wrap=!st.wrap;const box=$('vpx_'+id);box.classList.toggle('wrap',st.wrap);box.wrap=st.wrap?'soft':'off';vpChrome(id);return;}
+ // An edit is carried over: read in the view it was typed in, then shown in the new one.
+ const box=$('vpx_'+id);if(box.value!==st.shown){const r=vpBoxValue(id);if(r.err){toast(r.err,true);vpChrome(id);return;}st.cur=r.v;}
+ if(what==='view'){st.view=st.pref.view=val;}
+ else if(what==='enc'){st.enc=st.pref.enc=val;}
+ else if(what==='fmt'){st.fmt=st.pref.fmt=!st.fmt;
+  // Turned back on, it picks the view again: the way back from a view picked by hand.
+  if(st.fmt){st.pref.view=null;st.view=vpAutoView(T(id),st.ci,st);}}
+ vpRender(id);}
+// True when the value went to the cell, or there was nothing to put there.
+function vpSave(id){const st=vpState[id],t=T(id);if(!st||!st.src||!t)return false;
+ if(!st.editable){toast('This value cannot be edited here.',true);return false;}
+ let v=st.cur;if($('vpx_'+id).value!==st.shown){const r=vpBoxValue(id);if(r.err){toast(r.err,true);return false;}v=r.v;}
+ if(vpSame(v,st.orig,st.kind)){vpRevert(id);return true;}
+ const src=st.src;
+ if(src.row){src.row[src.col]=v;renderGrid(id);}
+ else setUpd(id,src.ri,src.ci,v);
+ vpLoad(id,src);return true;}
+function vpRevert(id){const st=vpState[id];if(!st||!st.src)return;st.cur=st.orig;vpRender(id);}
+async function vpToFile(id){const st=vpState[id],t=T(id);if(!st||!st.src||!t)return;const box=$('vpx_'+id);let bytes;
+ if(st.view==='binary'){
+  if(box.value!==st.shown){const h=box.value.replace(/\s+/g,'').replace(/^0x/i,'');if(!/^[0-9A-Fa-f]*$/.test(h)||h.length%2){toast('That is not whole bytes in hex, so it cannot be saved as a file.',true);return;}bytes=hexToBytes('0x'+h);}
+  else bytes=vpBytes(st);}
+ else{if(!vpCanEncode(st.enc)){toast(vpEncName(st.enc)+' can be read here but not written. Pick another encoding to save the file.',true);return;}
+  // Laid out as shown, with the line breaks the value has.
+  const e=vpEncode(vpRestore(box.value,st.segs||[],['eol']),st.enc);if(e.bad){toast(vpBadChar(e.bad,st.enc),true);return;}bytes=e.bytes;}
+ const mime=st.view==='binary'?detectImageMime(bytes):null;
+ const ext=mime?mime.split('/')[1].replace('jpeg','jpg'):({binary:'bin',html:'html',json:'json',text:'txt',xml:'xml'})[st.view];
+ const base=((t.table?t.table+'_':'')+t.cols[st.ci]).replace(/[\\/:*?"<>|\s]+/g,'_')||'value';
+ await dlBinary(new Blob([bytes],{type:mime||'application/octet-stream'}),base+'.'+ext);}
+// The file becomes the panel's value, as if typed: Save puts it in the cell, Apply writes it.
+function vpFromFile(id){const st=vpState[id];if(!st||!st.src||!st.editable)return;
+ const inp=document.createElement('input');inp.type='file';
+ inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f||vpState[id]!==st||!st.src)return;let bytes;
+  try{bytes=new Uint8Array(await f.arrayBuffer());}catch(e){toast('Could not read '+f.name+': '+e,true);return;}
+  if(st.kind==='bytes')st.cur=bytes.length?bytesToHex(bytes):'';
+  else{const d=vpDecode(bytes,st.enc);if(!d.exact){toast(f.name+' is not valid '+vpEncName(st.enc)+' text, and this column holds text. Pick the encoding the file is written in.',true);return;}
+   st.cur=d.text.replace(/^﻿/,'');}
+  vpRender(id);toast('Loaded '+f.name+' ('+fmtB(bytes.length)+'). Save puts it in the cell; Apply writes it.');};
+ inp.click();}
 // --- Picking cells --------------------------------------------------------------------------
 // A cell is remembered as "row:column", the same key the pending edits use. The anchor is the last
 // cell picked outright, so a shift-click takes the block between the two corners.
@@ -5919,7 +6305,7 @@ function rowSelClick(e,id,ri,box){const t=T(id);if(!t.selected)t.selected=new Se
   t._selAnchor=ri;
  }
  renderBody(id);updateEditBar(id);}
-function insClick(td,id,ii,col){if(td.querySelector('input,textarea'))return;inlineEditIns(td,id,ii,col);}
+function insClick(td,id,ii,col){{const t0=T(id);if(t0&&t0.pending&&t0.pending.ins[ii])vpShow(id,{row:t0.pending.ins[ii],col});}if(td.querySelector('input,textarea'))return;inlineEditIns(td,id,ii,col);}
 // Reverts a single cell back to its plain display markup - same output renderBody would have
 // produced for it, but touching only this one <td> instead of tearing down and rebuilding the
 // entire grid. Discarding an inline edit (Escape, or blur with nothing typed) used to call the
@@ -6593,7 +6979,7 @@ async function dl(text,name){
 async function dlBinary(blob,name){
  const ext=(name.split('.').pop()||'').toLowerCase();const filters=ext?[{name:ext.toUpperCase()+' file',extensions:[ext]}]:undefined;
  try{if(window.__TAURI__&&window.__TAURI__.dialog&&window.__TAURI__.dialog.save){const p=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:name,filters}});if(!p)return;const buf=await blob.arrayBuffer();const bytes=Array.from(new Uint8Array(buf));const r=await window.__TAURI__.core.invoke('save_binary',{req:{path:p,bytes:bytes}});if(r&&r.ok===false){toast('Save failed: '+r.error,true);}else{log('Saved: '+p);toast('Saved: '+p,'ok');}return;}}catch(e){toast('Save failed: '+e,true);return;}
- try{if(window.showSaveFilePicker){const opts={suggestedName:name};if(ext)opts.types=[{description:ext.toUpperCase()+' file',accept:{'image/png':['.'+ext]}}];const h=await window.showSaveFilePicker(opts);const w=await h.createWritable();await w.write(blob);await w.close();log('Saved: '+name);return;}}catch(e){if(e&&e.name==='AbortError')return;}
+ try{if(window.showSaveFilePicker){const opts={suggestedName:name};if(ext)opts.types=[{description:ext.toUpperCase()+' file',accept:{[blob.type||'application/octet-stream']:['.'+ext]}}];const h=await window.showSaveFilePicker(opts);const w=await h.createWritable();await w.write(blob);await w.close();log('Saved: '+name);return;}}catch(e){if(e&&e.name==='AbortError')return;}
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
 
 // ---- history ----

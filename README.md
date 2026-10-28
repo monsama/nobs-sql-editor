@@ -122,6 +122,9 @@ Export files are kept wherever you saved them.
 - Inline and full-row editing, staged as pending changes and applied in one transaction; add and
   delete rows. Right-click **Apply** (or Ctrl+Shift+S) shows the SQL it would run first.
 - Pick several cells to type one value into all of them, or set them all to NULL or empty.
+- A **Value** panel under the grid shows the clicked cell at full length, read as Binary, HTML,
+  JSON, Text or XML in a chosen encoding, laid out for reading (Auto format) and wrapped or not.
+  Edit it there and Save it into the cell, save it as a file, or load it from one.
 - **Go to referenced row** follows a foreign key, into another database too.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open across its runs
   until Commit or Rollback, with a log of what it has run.
