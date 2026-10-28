@@ -987,20 +987,38 @@ fn next_cursor_id() -> String {
     format!("cur{}_{}", now, n)
 }
 
-// ---------- Transactions a tab keeps open ----------
-// With auto-commit off, a tab's statements all run on one connection of its own, kept here under
-// the id the tab made up for it, with autocommit=0, until Commit or Rollback. Every other command
-// still opens a connection of its own. The connection is taken out while a statement runs (or a
-// cursor reads from it) and put back after, so two runs from one tab never share it at once.
+// ---------- The connection a tab keeps ----------
+// A tab's runs share one connection of its own, kept here under the id the tab made up for it, so
+// what one run leaves in the session - @variables, temporary tables, SET SESSION, a LOCK TABLES -
+// is there for the next. With auto-commit off it is also the tab's transaction: autocommit=0 until
+// Commit or Rollback. The tab says with every run which of the two it wants (sessionTx), and the
+// connection is switched over when that changes, so turning Auto-commit off and on keeps what the
+// session holds. Every other command still opens a connection of its own. The connection is taken
+// out while a statement runs (or a cursor reads from it) and put back after, so two runs from one
+// tab never share it at once.
 enum SessSlot { Idle(Conn), Busy }
-struct Session { slot: SessSlot }
+struct Session { slot: SessSlot, tx: bool }
 fn sessions() -> &'static Mutex<std::collections::HashMap<String, Session>> {
     static MAP: OnceLock<Mutex<std::collections::HashMap<String, Session>>> = OnceLock::new();
     MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
+// Sessions whose connection was gone when a run asked for it, and was opened again. The run's
+// answer says so (mark_reset): what earlier runs left in the old one is not in the new one.
+fn sess_resets() -> &'static Mutex<std::collections::HashSet<String>> {
+    static SET: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+fn session_id(req: &Value) -> Option<String> {
+    req["session"].as_str().filter(|s| !s.is_empty()).map(String::from)
+}
+fn mark_reset(session: &Option<String>, r: R) -> R {
+    let Some(id) = session else { return r };
+    if !sess_resets().lock().unwrap().remove(id) { return r; }
+    r.map(|mut v| { if let Some(o) = v.as_object_mut() { o.insert("sessionReset".into(), json!(true)); } v })
+}
 // A connection borrowed from a session; dropping it puts it back. If the session was closed in the
 // meantime there is nowhere to put it, and dropping it lets the server roll back what it held.
-struct SessConn { id: String, c: Option<Conn> }
+struct SessConn { id: String, c: Option<Conn>, tx: bool }
 impl std::ops::Deref for SessConn { type Target = Conn; fn deref(&self) -> &Conn { self.c.as_ref().unwrap() } }
 impl std::ops::DerefMut for SessConn { fn deref_mut(&mut self) -> &mut Conn { self.c.as_mut().unwrap() } }
 impl Drop for SessConn { fn drop(&mut self) { if let Some(c) = self.c.take() { sess_return(&self.id, c); } } }
@@ -1008,40 +1026,63 @@ fn sess_return(id: &str, c: Conn) {
     if let Some(s) = sessions().lock().unwrap().get_mut(id) { s.slot = SessSlot::Idle(c); }
 }
 const SESS_LOST: &str = "The connection holding this tab's transaction was lost, so the server rolled back everything it had not committed. The next run starts a new transaction.";
-// The tab's connection: opened with autocommit=0 the first time, and after that the same one - once
-// the statement or cursor still using it hands it back.
-fn sess_checkout(id: &str, connj: &Value) -> Result<SessConn, String> {
+// The tab's connection, as the run asks for it: in the tab's transaction (tx: autocommit=0) or not.
+// Opened the first time; after that the same one - once the statement or cursor still using it
+// hands it back - switched over if the tab turned Auto-commit on or off since its last run.
+//
+// A connection that died meanwhile (the server's wait_timeout, a dropped network) is reported when
+// it held a transaction: everything in it was rolled back, and a run that went on as if nothing had
+// happened would be committing half of something. One that only kept session state is opened again,
+// and the run's answer says so (sessionReset).
+//
+// Turning Auto-commit back on rolls back first. The page only allows it with nothing to commit, so
+// what is rolled back is a locking read's locks; SET autocommit=1 alone would commit them instead.
+fn sess_checkout(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
     loop {
         {
             let mut m = sessions().lock().unwrap();
             match m.get_mut(id) {
                 None => {
-                    m.insert(id.to_string(), Session { slot: SessSlot::Busy });
+                    m.insert(id.to_string(), Session { slot: SessSlot::Busy, tx });
                     drop(m);
-                    let opened = build_conn(connj).and_then(|mut c| c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err));
-                    return match opened {
-                        Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c) }),
-                        Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
-                    };
+                    return sess_open(id, connj, tx);
                 }
                 Some(s) => {
                     if let SessSlot::Idle(_) = s.slot {
                         let SessSlot::Idle(mut c) = std::mem::replace(&mut s.slot, SessSlot::Busy) else { unreachable!() };
+                        let was_tx = std::mem::replace(&mut s.tx, tx);
                         drop(m);
                         if c.ping().is_err() {
-                            sessions().lock().unwrap().remove(id);
-                            return Err(SESS_LOST.to_string());
+                            if was_tx && tx {
+                                sessions().lock().unwrap().remove(id);
+                                return Err(SESS_LOST.to_string());
+                            }
+                            sess_resets().lock().unwrap().insert(id.to_string());
+                            return sess_open(id, connj, tx);
                         }
-                        return Ok(SessConn { id: id.to_string(), c: Some(c) });
+                        if was_tx != tx {
+                            let switched = if tx { c.query_drop("SET autocommit=0") }
+                                           else { c.query_drop("ROLLBACK").and_then(|_| c.query_drop("SET autocommit=1")) };
+                            if let Err(e) = switched { sessions().lock().unwrap().remove(id); return Err(db_err(e)); }
+                        }
+                        return Ok(SessConn { id: id.to_string(), c: Some(c), tx });
                     }
                 }
             }
         }
         if std::time::Instant::now() > deadline {
-            return Err("This tab's transaction is still busy with the statement before. Wait for it, or cancel it, and run again.".to_string());
+            return Err("This tab's connection is still busy with the statement before. Wait for it, or cancel it, and run again.".to_string());
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+// A new connection for a session already registered as busy under `id`; a failure unregisters it.
+fn sess_open(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> {
+    let opened = build_conn(connj).and_then(|mut c| if tx { c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err) } else { Ok(c) });
+    match opened {
+        Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c), tx }),
+        Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
     }
 }
 // Where a command's connection comes from: the tab's session when it names one, else a new one.
@@ -1050,6 +1091,8 @@ impl std::ops::Deref for Db { type Target = Conn; fn deref(&self) -> &Conn { mat
 impl std::ops::DerefMut for Db { fn deref_mut(&mut self) -> &mut Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
 impl Db {
     fn in_session(&self) -> bool { matches!(self, Db::Sess(_)) }
+    // In the tab's own transaction, rather than only on its kept connection.
+    fn in_tx(&self) -> bool { matches!(self, Db::Sess(s) if s.tx) }
     // The connection itself, for a cursor thread to own, and the session to hand it back to.
     fn into_parts(self) -> (Conn, Option<String>) {
         match self { Db::Own(c) => (c, None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
@@ -1074,14 +1117,18 @@ fn apply_time_limit(c: &mut Db, req: &Value) {
         let _ = c.query_drop(format!("SET SESSION max_execution_time = {}", secs * 1000));
     }
 }
+// sessionTx is left out by callers from before the tab kept its connection with Auto-commit on,
+// whose sessions were all transactions.
 fn db_for(req: &Value) -> Result<Db, String> {
     match req["session"].as_str().filter(|s| !s.is_empty()) {
-        Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"])?)),
+        Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"], req["sessionTx"].as_bool().unwrap_or(true))?)),
         None => Ok(Db::Own(build_conn(&req["conn"])?)),
     }
 }
-// Commit, Rollback, or Close (roll back and let the connection go) for a tab's session. A session
-// that was never opened has nothing to commit or roll back, which is not an error.
+// Commit, Rollback, or Close (roll back and let the connection go) for a tab's session; Release
+// ends its transaction (rolled back: there is nothing to commit by then) and keeps the connection
+// for the tab's runs with Auto-commit on. A session that was never opened has nothing to commit or
+// roll back, which is not an error.
 #[tauri::command]
 async fn session_end(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
@@ -1093,10 +1140,16 @@ async fn session_end(req: Value) -> R {
             let slot = sessions().lock().unwrap().remove(&id);
             // A busy connection comes back to no session and is dropped there; an idle one is
             // rolled back here rather than left to the server to notice.
-            if let Some(Session { slot: SessSlot::Idle(mut c) }) = slot { let _ = c.query_drop("ROLLBACK"); }
+            if let Some(Session { slot: SessSlot::Idle(mut c), .. }) = slot { let _ = c.query_drop("ROLLBACK"); }
             return Ok(json!({"ok":true,"open":false}));
         }
-        let mut c = match sess_checkout(&id, &req["conn"]) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":e,"lost":e == SESS_LOST})) };
+        if action == "release" {
+            return match sess_checkout(&id, &req["conn"], false) {
+                Ok(_) => Ok(json!({"ok":true,"open":true})),
+                Err(e) => Ok(json!({"ok":false,"error":e})),
+            };
+        }
+        let mut c = match sess_checkout(&id, &req["conn"], true) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":e,"lost":e == SESS_LOST})) };
         let stmt = if action == "commit" { "COMMIT" } else { "ROLLBACK" };
         match c.query_drop(stmt) {
             Ok(_) => Ok(json!({"ok":true,"open":true})),
@@ -1112,7 +1165,16 @@ async fn session_end(req: Value) -> R {
 // Returns a receiver that fires exactly once with the result of OPENING the query (columns +
 // which are binary, or the error `conn.query_iter` failed with), and the sender used for every
 // Fetch/Close for the lifetime of the cursor.
-fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>) -> (
+//
+// `kill` is the connection's id and how to reach the server, for a cursor on a tab's kept
+// connection: closed with rows still to come, the statement is stopped there (KILL QUERY) before
+// the result is let go. Letting it go reads out every row that is left, which held the connection
+// - and so the tab's next run, which waits 15 seconds for it and then gives up - for as long as the
+// rest of a large table took to arrive. KILL QUERY ends the statement and leaves the session as it
+// was. The rest may already have been sent, with the statement over by the time the KILL arrives;
+// one statement of nothing (DO 0) then runs before the connection goes back, so a KILL that found
+// nothing to stop cannot fall on the tab's next statement.
+fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>, kill: Option<(u32, Value)>) -> (
     std::sync::mpsc::Receiver<CursorOpen>,
     std::sync::mpsc::Sender<CursorCmd>,
 ) {
@@ -1202,6 +1264,14 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // make a later fetch/close look like it's still talking to a live cursor), then let
         // `result` and `conn` drop, closing the connection.
         cleanup(&request_id);
+        let mut killed = false;
+        if carry.is_some() {
+            if let Some((cid, connj)) = &kill {
+                if let Ok(mut kc) = build_conn(connj) { killed = kc.query_drop(format!("KILL QUERY {}", cid)).is_ok(); }
+            }
+        }
+        drop(result);
+        if killed { let _ = conn.query_drop("DO 0"); }
         }
         if let Some(id) = home { sess_return(&id, conn); }
     });
@@ -1215,9 +1285,9 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
 // page of rows, and has_more. `request_id`, if supplied, is the same id query() registered in
 // running_queries() before calling this - handed to the cursor thread so it (not this function's
 // caller) can eventually clear that registration once the cursor genuinely closes.
-fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>, home: Option<String>) -> Result<CursorFirstPage, String> {
+fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>, home: Option<String>, kill: Option<(u32, Value)>) -> Result<CursorFirstPage, String> {
     let cursor_id = next_cursor_id();
-    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id, home);
+    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id, home, kill);
     let (cols, bin, bit) = match open_rx.recv() {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => return Err(e),
@@ -1982,7 +2052,8 @@ fn strip_leading_use_statements(sql: &str) -> (Option<String>, String) {
 
 #[tauri::command]
 async fn query(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let sql = req["sql"].as_str().unwrap_or("").to_string();
         if sql.trim().is_empty() { return Ok(json!({"ok":false,"error":"Empty query."})); }
         if ro_mode(&req) && !sql_is_readonly(&sql) {
@@ -2038,8 +2109,11 @@ async fn query(req: Value) -> R {
         // the cursor thread (if one ever ran) has already deregistered itself by the time this
         // returns, and the removal below is what clears it otherwise.
         let mut cursor_persists = false;
+        // A result left half read on the tab's kept connection is stopped at the server when it is
+        // closed (see spawn_cursor_thread), with this connection's id from a connection of its own.
+        let kill = if c.in_session() { Some((c.connection_id(), req["conn"].clone())) } else { None };
         let (conn, home) = c.into_parts();
-        let result = match open_cursor(conn, sql, page_size, request_id.clone(), home) {
+        let result = match open_cursor(conn, sql, page_size, request_id.clone(), home, kill) {
             Ok((cursor_id, cols, bin, bit, rows, has_more)) => {
                 cursor_persists = has_more;
                 if cols.is_empty() {
@@ -2065,7 +2139,8 @@ async fn query(req: Value) -> R {
             if let Some(rid) = &request_id { running_queries().lock().unwrap().remove(rid); let _ = take_query_cancelled(rid); }
         }
         result
-    }).await.map_err(|e| e.to_string())?
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
 }
 
 // Fetches the next page (default 1000 rows) from a cursor previously opened by `query`. Returns
@@ -2608,7 +2683,8 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
 // per-statement context since the whole script was piped to it as one stdin stream.
 #[tauri::command]
 async fn script(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let raw = req["sql"].as_str().unwrap_or("").to_string();
         if ro_mode(&req) && !sql_is_readonly(&raw) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
@@ -2634,7 +2710,7 @@ async fn script(req: Value) -> R {
             // everything rolled back; the others keep the original autocommit behaviour.
             // In a tab's own transaction the batch is a savepoint in it instead: a COMMIT here would
             // commit everything the tab had not, and a ROLLBACK would throw it away.
-            let in_session = c.in_session();
+            let in_session = c.in_tx();
             if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
             // Rows the statements changed, for a transaction's log to say what each run did.
             let mut affected: u64 = 0;
@@ -2677,7 +2753,8 @@ async fn script(req: Value) -> R {
             }
         }
         Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures}))
-    }).await.map_err(|e| e.to_string())?
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
 }
 
 // Runs a script on one connection and returns every result set it produces - a procedure's
@@ -2686,7 +2763,8 @@ async fn script(req: Value) -> R {
 // returns it with the results produced before it.
 #[tauri::command]
 async fn script_results(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let raw = req["sql"].as_str().unwrap_or("").to_string();
         if ro_mode(&req) && !sql_is_readonly(&raw) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
@@ -2741,7 +2819,8 @@ async fn script_results(req: Value) -> R {
         let cancelled = request_id.as_deref().map(|rid| { running_queries().lock().unwrap().remove(rid); take_query_cancelled(rid) }).unwrap_or(false);
         if cancelled { return Ok(json!({"ok":false,"cancelled":true,"error":"Query cancelled.","results":results,"total":total})); }
         Ok(json!({"ok": error.is_none(), "error": error, "results": results, "total": total}))
-    }).await.map_err(|e| e.to_string())?
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
 }
 
 #[tauri::command]
