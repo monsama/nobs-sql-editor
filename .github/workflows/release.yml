@@ -64,7 +64,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-          git commit -m "$VERSION"
+          # The tree can already be at the target version - someone bumped it by hand and only the
+          # tag push failed, say - in which case there is nothing to commit and that is fine; only
+          # the tag (and the build it kicks off) still needs to happen.
+          git diff --cached --quiet || git commit -m "$VERSION"
           git tag -a "v$VERSION" -m "v$VERSION"
           git push origin HEAD:main
           git push origin "v$VERSION"
