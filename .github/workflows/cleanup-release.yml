@@ -1,0 +1,23 @@
+name: cleanup-release
+
+# One-off: deletes a release by ID with this job's own GITHUB_TOKEN, which has the contents:write
+# permission that an external git credential doesn't. Used to remove the stray untagged draft
+# release that softprops/action-gh-release created during the v1.7.0 release (see release.yml's
+# tag-indexing wait, added to stop this happening again). Delete this workflow file once used.
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: "Numeric ID of the release to delete"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X DELETE "repos/${{ github.repository }}/releases/${{ github.event.inputs.release_id }}"
