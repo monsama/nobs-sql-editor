@@ -48,7 +48,7 @@
 
     T(i).selected = new Set([0, 1]);
     m = await open(i, 0, 0);
-    G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 7 : 6); // copy, delete (when it can be edited) and the five exports
+    G.eq('ticked rows bring back every selection command', m.filter(x => /selected/.test(x)).length, T(i).pending ? 8 : 7); // copy, copy with header, delete (when it can be edited) and the five exports
     G.check('and they say how many rows that is', m.includes('Copy 2 selected rows') && m.includes('Export > CSV (2 selected)...'), m);
     // the single overwrite takes one row and one only; several copied rows can go over the same
     // number of ticked ones instead
@@ -81,6 +81,19 @@
       copyRow(i, 0);
       await G.wait(300);
       G.check('and copying one row clears the list', window._rowsClipboard === null, window._rowsClipboard);
+      // with header: the column names come first, then the rows, in the order shown
+      let wrote = null;
+      window.clipWrite = t => { wrote = t; return Promise.resolve('ok'); };
+      const tsv = ris => [T(i).cols, ...ris.map(r => T(i).rows[r])].map(v => v.map(x => x === null ? '' : x).join('\t')).join('\n');
+      copyRow(i, 1, true); await G.wait(100);
+      G.eq('a row with its header', wrote, tsv([1]));
+      copySelRows(i, true); await G.wait(100);
+      G.eq('the ticked rows with their header', wrote, tsv([0, 1]));
+      copyRowsOf(i, [0, 2], true); await G.wait(100);
+      G.eq('the rows of picked cells with their header', wrote, tsv([0, 2]));
+      copyRowsOf(i, [0, 2]); await G.wait(100);
+      G.eq('and without it', wrote, tsv([0, 2]).split('\n').slice(1).join('\n'));
+      G.check('those rows go on the list, as ticked rows do', window._rowsClipboard && window._rowsClipboard.length === 2 && window._rowClipboard === null, window._rowsClipboard);
     } finally { window.clipWrite = realWrite; }
     // Those copies carry the app's own warning about empty values in TSV - true, and not what this
     // scenario is about, so it is taken off the pile rather than counted as something that went wrong.
@@ -110,13 +123,17 @@
     window._rowClipboard = null; window._rowsClipboard = null; window._cellClipboard = null;
     T(i).selected = new Set([0, 1]);
     const rm = await open(i, 0, 1);
-    G.check('two rows ticked: only what acts on both', !rm.some(x => single.test(x)) && rm.includes('Copy 2 selected rows') && (!T(i).pending || rm.includes('Delete 2 selected rows')), rm);
+    G.check('two rows ticked: only what acts on both', !rm.some(x => single.test(x)) && rm.includes('Copy 2 selected rows') && rm.includes('Copy 2 selected rows (with header)') && (!T(i).pending || rm.includes('Delete 2 selected rows')), rm);
     const om = await open(i, 2, 1);
-    G.check('right-clicked outside them: the single row again', om.includes('Copy row') && om.some(x => /^(Edit|View) value/.test(x)), om);
+    G.check('right-clicked outside them: the single row again', om.includes('Copy row') && om.includes('Copy row (with header)') && om.some(x => /^(Edit|View) value/.test(x)), om);
     T(i).selected = new Set();
     T(i).cellSel = new Set(['0:1', '1:1']);
     const cm = await open(i, 0, 1);
     G.check('two cells picked: only what acts on both', !cm.some(x => single.test(x)) && cm.includes('Copy 2 picked cells'), cm);
+    G.check('and their rows are copied, with or without the header', cm.includes('Copy 2 rows') && cm.includes('Copy 2 rows (with header)'), cm);
+    T(i).cellSel = new Set(['0:1', '0:2']);
+    const sm = await open(i, 0, 1);
+    G.check('two cells of one row: that row', sm.includes('Copy row') && sm.includes('Copy row (with header)') && !sm.includes('Copy 2 rows'), sm);
     T(i).cellSel = new Set();
     $('ctx').style.display = 'none';
 
