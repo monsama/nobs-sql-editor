@@ -222,6 +222,8 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .fitmax [data-reserve]{display:inline-flex!important}
  .applyn{min-width:6.6em;font-variant-numeric:tabular-nums} .txn{min-width:2.8em;font-variant-numeric:tabular-nums}
  .statusbar{display:flex;min-width:0} .statusbar>.status:first-child{flex:1;min-width:0} .pagerinfo{white-space:nowrap} .pagerinfo:empty{display:none}
+ /* The server's warnings for the last run, beside its status (setRunWarnings): warnings stand out, Notes do not. */
+ .warnspan{white-space:nowrap;flex:none} .warnspan:empty{display:none} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
  .stk{display:inline-grid} .stk>span{grid-area:1/1} .stk>.off{visibility:hidden}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -886,6 +888,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="txLogSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
  <div id="txLogList" class="clist" style="flex:1;min-height:0"></div>
  <div class="row" style="flex:none;margin-top:10px"><span class="muted" style="font-size:12px">Nothing here is permanent until Commit; Rollback undoes all of it.</span><span style="flex:1"></span><button class="warn" id="txLogRollback" onclick="txLogEnd('rollback')" title="Undo everything in this transaction">Rollback</button><button class="go" id="txLogCommit" onclick="txLogEnd('commit')" title="Make everything in this transaction permanent">Commit</button><button onclick="hide('mTxLog')">Close</button></div></div></div>
+<div class="modal floating" id="mWarn"><div class="box" style="width:900px;max-width:95vw;height:60vh;max-height:700px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mWarn')" title="Drag to move"><h3 style="margin:0 0 10px" id="warnTitle">Server warnings</h3></div>
+ <div id="warnSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
+ <div id="warnList" style="flex:1;min-height:0;overflow:auto"></div>
+ <div class="row" style="flex:none;margin-top:10px"><span style="flex:1"></span><button class="warn write" id="warnApply" style="display:none" onclick="warnApplyAnyway()" title="Save the edits with the values as the server takes them">Apply anyway</button><button id="warnClose" onclick="hide('mWarn')">Close</button></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Transfer script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -1268,7 +1274,9 @@ function hideDead(){const d=$('deadOverlay');if(d)d.style.display='none';}
 async function api(path,p,signal){
  const txe=(p&&p.session)?txWatch(path,p):null;
  const r=await apiCall(path,p,signal);
- if(txe){txe.ok=!!(r&&r.ok);if(r&&!r.ok)txe.error=r.error||(r.aborted?'Cancelled.':'Failed.');if(r&&r.affected!=null)txe.affected=+r.affected;}
+ if(txe){txe.ok=!!(r&&r.ok);if(r&&!r.ok)txe.error=r.error||(r.aborted?'Cancelled.':'Failed.');if(r&&r.affected!=null)txe.affected=+r.affected;
+  // What the server warned about, from the statements that write (not the row guards of an Apply).
+  const ws=r&&r.warnings?warnFromWrites(r.warnings,splitStmts(String(p.sql||''))):[];if(ws.length)txe.warn=warnText(ws);}
  if(p&&p.session&&r&&r.ok===false&&TX_LOST.test(r.error||''))txLost(p.session);
  if(path!=='/api/query'||!p||p.pageSize!=null||!r||!r.ok||!r.hasMore||!r.cursorId)return r;
  // The desktop backend does not repeat cursorId in a fetch answer; the id stays the same.
@@ -1277,6 +1285,7 @@ async function api(path,p,signal){
   cur=await apiCall('/api/fetch-cursor-batch',{cursorId:cid,requestId:p.requestId,pageSize:5000},signal);
   if(!cur||!cur.ok){apiCall('/api/close-cursor',{cursorId:cid});return cur||{ok:false,error:'Reading the rest of the result failed.'};}
   for(const x of cur.rows)rows.push(x);
+  if(cur.warnings&&cur.warnings.length)r.warnings=(r.warnings||[]).concat(cur.warnings);
  }
  r.rows=rows;r.hasMore=false;delete r.cursorId;
  return r;
@@ -2751,10 +2760,45 @@ function txLogRender(){const id=window._txLogTab,t=T(id),box=$('txLogList');if(!
  else box.innerHTML=log.map(e=>{
   const kind=e.grid?'<span class="utag urole">grid edits</span>':'<span class="utag">query</span>';
   const res=e.ok===undefined?'<span class="muted">running...</span>':e.ok?(e.affected!=null?'<span class="'+(+e.affected?'uok':'muted')+'">'+fmtCount(+e.affected)+' row'+(+e.affected===1?'':'s')+' changed</span>':'<span class="uok">done</span>'):'<span class="uwarn">failed: '+esc(String(e.error||'').split('\n')[0])+'</span>';
-  return '<div class="citem"><div class="citem-h"><span class="muted" style="font-family:var(--mono);font-size:12px">'+hm(e.at)+'</span>'+kind+'<span class="citem-t">'+res+'</span></div><pre class="ugrants" style="margin:0;max-height:180px">'+esc(e.sql.trim())+'</pre></div>';}).join('');
+  return '<div class="citem"><div class="citem-h"><span class="muted" style="font-family:var(--mono);font-size:12px">'+hm(e.at)+'</span>'+kind+'<span class="citem-t">'+res+(e.warn?' <span class="uwarn">'+esc(e.warn)+'</span>':'')+'</span></div><pre class="ugrants" style="margin:0;max-height:180px">'+esc(e.sql.trim())+'</pre></div>';}).join('');
  const on=!!(t&&t.txOn),dirty=!!(t&&t.txDirty);
  $('txLogCommit').disabled=!on||!dirty;$('txLogRollback').disabled=!on||!dirty;}
 async function txLogEnd(action){const id=window._txLogTab;hide('mTxLog');if(id!=null)await txEnd(id,action);}
+// ---- the server's warnings ----
+// A statement can succeed while the server changes what it was given - under a sql_mode without
+// STRICT_TRANS_TABLES a string too long is cut short, a number clipped, a bad date turned into
+// 0000-00-00 - and a SELECT can warn too (division by zero). The answers carry them (main.rs,
+// take_warnings), each with the number of the statement it came from. Warnings and errors are
+// counted beside the run's status, as a link to the list; Notes - information, such as DROP TABLE IF
+// EXISTS of a table that is not there - are in the list and the log but do not light it up.
+function warnIsNote(x){return /^note$/i.test(String(x&&x.level||''));}
+function warnText(ws){let w=0,n=0;(ws||[]).forEach(x=>{if(warnIsNote(x))n++;else w++;});const p=[];
+ if(w)p.push(w+' warning'+(w===1?'':'s'));if(n)p.push(n+' note'+(n===1?'':'s'));return p.join(', ');}
+function warnLine(x,stmts){return (x.level||'Warning')+' '+x.code+': '+x.message+(stmts&&stmts.length>1?' (statement '+x.statement+')':'');}
+// What came from the statements that write. The row guards Apply sends are SELECT ... INTO that find
+// no row by design, which the server reports as warning 1329 every time.
+function warnFromWrites(ws,stmts){return (ws||[]).filter(x=>!/^\s*select\b/i.test(sqlHead((stmts||[])[x.statement-1]||'')));}
+// A run's warnings, beside its status and in the log; none clears them. stmts: the statements run.
+function setRunWarnings(id,ws,stmts){const t=T(id);if(!t)return;t.warnings=null;t.warnStmts=stmts||null;warnPaint(id);addRunWarnings(id,ws,true);}
+// More of them: the final query's own (numbered as the run's last statement, after any the steps
+// before it had), or a paged result's, which come with its last page. kept: the numbers as given.
+function addRunWarnings(id,ws,kept){const t=T(id);if(!t||!ws||!ws.length)return;
+ const add=kept?ws:ws.map(x=>Object.assign({},x,{statement:t.warnFinalNo||1}));
+ t.warnings=(t.warnings||[]).concat(add);warnPaint(id);
+ log(warnText(add)+' ('+t.title+'):\n'+add.map(x=>'  '+warnLine(x,t.warnStmts)).join('\n'));}
+function warnPaint(id){const t=T(id),el=$('stw_'+id);if(!t||!el)return;
+ el.innerHTML=t.warnings?'<a href="#" class="'+(t.warnings.some(x=>!warnIsNote(x))?'warnlink':'notelink')+'" title="What the server said about this run" onclick="event.preventDefault();warnShow(\''+id+'\')">'+esc(warnText(t.warnings))+'</a>':'';}
+function warnShow(id){const t=T(id);if(t&&t.warnings)warnOpen(t.title,t.warnings,t.warnStmts);}
+// The list, as a window. apply: the grid edits it stopped, to apply them anyway.
+let _warnApply=null;
+function warnOpen(title,ws,stmts,apply){_warnApply=apply||null;const many=!!(stmts&&stmts.length>1);
+ $('warnTitle').textContent=apply?'Not saved: the server would change values':'Server warnings';
+ $('warnSub').textContent=title+' - '+warnText(ws)+(apply?'. Nothing was saved. Apply anyway stores the values as the server takes them.':'');
+ $('warnList').innerHTML='<table class="utab"><thead><tr>'+(many?'<th>Statement</th>':'')+'<th>Level</th><th>Code</th><th>Message</th></tr></thead><tbody>'+
+  ws.map(x=>'<tr>'+(many?'<td style="font-family:var(--mono);font-size:12px">'+x.statement+': '+esc(clip(String(stmts[x.statement-1]||'').trim(),80))+'</td>':'')+
+   '<td class="'+(warnIsNote(x)?'muted':'uwarn')+'">'+esc(x.level)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.message)+'</td></tr>').join('')+'</tbody></table>';
+ $('warnApply').style.display=apply?'':'none';$('warnClose').textContent=apply?'Cancel':'Close';show('mWarn');}
+async function warnApplyAnyway(){const a=_warnApply;_warnApply=null;hide('mWarn');if(a)await a();}
 function txToggle(id,manual){const t=T(id);if(!t)return;
  if(manual){t.txOn=true;t.txSession=t.txSession||('tx_'+id+'_'+Date.now().toString(36));}
  else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}t.txOn=false;txClose(t);}
@@ -2821,6 +2865,7 @@ async function fetchNextBatch(id){
   if(!r.ok){toast(timeLimitNote(r.error,true),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
   t.rows=(t.rows||[]).concat(r.rows);
   t.hasMore=!!r.hasMore;
+  addRunWarnings(id,r.warnings);
   if(!t.hasMore){t.cursorId=null;t.cursorReqId=null;} // server already closed it once exhausted
   // renderBody (not renderGrid) deliberately: it only rewrites tbody's own innerHTML, not the
   // scrollable wrap element's - renderGrid replacing wrap's innerHTML resets scrollTop to 0,
@@ -3655,7 +3700,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on a connection of its own, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
-  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
+  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div><span class="status warnspan" id="stw_'+id+'"></span>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);vpWire(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
@@ -4315,6 +4360,7 @@ async function runScriptResults(id,sql,reqId,seq){
  const n=t.resultSets.length;
  if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';log('SCRIPT OK ('+stmts.length+' statements, '+n+' results)');}
  else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
+ setRunWarnings(id,r.warnings,stmts);
  if(writes&&t.db)loadObjects(t.db);
 }
 function showResultSet(id,i){
@@ -4405,6 +4451,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
  // A CALL, or more than one SELECT: every result is shown, each in its own tab.
  const multiResult=scriptShowsResults(stmts);
  if(t.resultSets){t.resultSets=null;renderResultSetTabs(id);}
+ setRunWarnings(id,null,stmts);
  const reqId=(crypto.randomUUID?crypto.randomUUID():('r'+Date.now()+Math.random()));
  // Starting a fresh run in this tab (including "run again"/toggling the last query, which all
  // funnel through runSql) replaces whatever result set is currently loaded, so any cursor left
@@ -4445,6 +4492,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
+      setRunWarnings(id,scriptR.warnings,stmts);
       if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     }
     const _q=(leadingAreAllUse&&stmts.length>1?sql:lastStmt).trim().replace(/;+\s*$/,'');
@@ -4469,6 +4517,10 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     // rebuilt at all, even though this new table has a PK and should show +Row/Apply/etc.
     {const eb=$('edit_'+id);eb.style.display='none';}
     t.cursorId=r.cursorId||null;t.hasMore=!!r.hasMore;t.cursorReqId=t.cursorId?reqId:null;
+    // The query is the last statement of the run, whichever steps ran before it. A result read in
+    // pages has its warnings with its last page (fetchNextBatch).
+    t.warnFinalNo=stmts.length||1;
+    addRunWarnings(id,r.warnings);
     if(!r.columns.length){st.textContent=r.message||'Query OK.';$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
     const ra=$('resultActions_'+id);if(ra)ra.style.display='inline-flex';
     refreshRunTableBinding(id,lastStmt,tableDb);
@@ -4524,6 +4576,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       if(t.db)loadObjects(t.db);
     } else if(r.ok){st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
     else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
+    setRunWarnings(id,r.warnings,stmts);
   }
  } finally {
   if(!stale()){t.runningReqId=null;t.abortCtrl=null;setRunning(id,false);}
@@ -6666,10 +6719,11 @@ function revertChanges(id){const t=T(id);t.pending={upd:{},del:new Set(),ins:[]}
 // changed it since - and a literal written for the wrong mode can end in the wrong place: under
 // backslash escapes, the value \ written as '\' swallows the quote and the SQL after it. So that
 // session is asked first, and the literals follow what it says.
-async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const W=typeof window!=='undefined'?window:{};const nbe0=W.noBackslashEscapes;
+// anyway: save even where the server warns it would change a value (see warnOpen).
+async function applyChanges(id,preview,anyway){if(roBlock())return;const t=T(id);const W=typeof window!=='undefined'?window:{};const nbe0=W.noBackslashEscapes;
  if(t&&sessOf(t)){await sessFree(t);try{const m=await api('/api/query',{sql:'SELECT @@SESSION.sql_mode',session:sessOf(t)});if(m&&m.ok&&m.rows&&m.rows.length)W.noBackslashEscapes=/NO_BACKSLASH_ESCAPES/i.test(String(m.rows[0][0]||''));}catch(e){}}
- try{return await applyChangesRun(id,preview);}finally{W.noBackslashEscapes=nbe0;}}
-async function applyChangesRun(id,preview){const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
+ try{return await applyChangesRun(id,preview,anyway);}finally{W.noBackslashEscapes=nbe0;}}
+async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
  const bc=await gridBinCols(id);
  const isHex=v=>/^0x[0-9A-Fa-f]*$/.test(String(v));
  const isPlainInt=v=>/^-?\d+$/.test(String(v));
@@ -6757,10 +6811,16 @@ async function applyChangesRun(id,preview){const t=T(id);const S=[];const tbl=qi
  // parent that does not exist and silently break referential integrity the schema was
  // written to guarantee.
  await sessFree(t);
- const r=await api('/api/script',{sql:S.join('\n'),transaction:true,session:sessOf(t)});
+ // A value the server would store otherwise than typed - cut short, clipped, a zero date - stops
+ // the save (failOnWarnings): nothing is kept, the warnings are shown, and Apply anyway saves them
+ // as the server takes them.
+ const r=await api('/api/script',{sql:S.join('\n'),transaction:true,session:sessOf(t),failOnWarnings:!anyway});
+ const stmts=splitStmts(S.join('\n')),ws=warnFromWrites(r.warnings,stmts);
+ if(!r.ok&&r.warned){log('APPLY stopped: '+warnText(ws)+'\n'+ws.map(x=>'  '+warnLine(x,stmts)).join('\n'));
+  warnOpen(t.title+' - Apply',ws,stmts,()=>applyChanges(id,false,true));return false;}
  // true once saved, so Commit (txEnd) can tell whether to go on; it waits for the grid to show what
  // was saved, since until then the reload is still reading on the tab's connection.
- if(r.ok){log('Applied '+changes+' change(s).');toast('Applied '+changes+' change(s).','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);return true;}else{log('APPLY error: '+r.error);toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
+ if(r.ok){log('Applied '+changes+' change(s).');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{log('APPLY error: '+r.error);toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");

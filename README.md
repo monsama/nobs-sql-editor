@@ -112,6 +112,9 @@ Export files are kept wherever you saved them.
   that reads is measured.
 - An UPDATE or DELETE without a WHERE of its own asks before it runs (it changes or removes every
   row of its table). The question can be switched off in Settings → General.
+- The server's warnings for a run (a value cut short, a string read as a number) are counted
+  beside its status; click the count for the list, with the statement each came from. Notes are
+  listed too, but do not stand out.
 - Your own fonts and text sizes for the editor, the results and the interface, and an interface
   zoom (Settings → General).
 - Query history, and a reusable query library with export and import.
@@ -177,6 +180,9 @@ Export files are kept wherever you saved them.
   one row. Otherwise nothing is saved. This catches a row changed or deleted since it was loaded,
   and a TIMESTAMP key in the hour the clocks go back (it shows the same as its neighbour). FLOAT
   keys are shown rounded, so they are matched by their text.
+- **Grid edits are stored as typed, or not at all.** When the server warns that it would store a
+  value otherwise (cut short, clipped, a zero date - possible under a `sql_mode` without
+  `STRICT_TRANS_TABLES`), nothing is saved; the warnings are shown, with **Apply anyway**.
 - **Reading in another character set (read-only).** A value that reads `cafÃ©` is either stored
   wrong or being read wrong, and a grid cannot tell you which. The server transcodes text into
   the session's character set before sending it, so the box beside the connection lets you read

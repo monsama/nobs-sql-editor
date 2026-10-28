@@ -35,11 +35,16 @@ function extractConst(src, name) {
 }
 
 const NAMES = ['applyChanges', 'applyChangesRun', 'keyWhere', 'oneRowGuard', 'oneRowGuardMany', 'litAs', 'lit', 'strLit',
-  'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput'];
-const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n');
+  'pastedHexColumns', 'looksLikePastedHex', 'normalizeHexInput', 'splitStmts', 'sqlHead'];
+// How Apply reads the server's warnings. An edition without them yet gets stand-ins that find none.
+const hasWarnings = html.includes('function warnFromWrites(');
+const WARN_NAMES = ['warnIsNote', 'warnText', 'warnLine', 'warnFromWrites'];
+const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => extractFunction(html, n)).join('\n') + '\n' +
+  (hasWarnings ? WARN_NAMES.map(n => extractFunction(html, n)).join('\n')
+    : 'function warnFromWrites(){return [];}function warnText(){return "";}function warnLine(){return "";}');
 
-async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview, modeOf }) {
-  const sent = [], toasts = [], sessions = [], shown = [];
+async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview, modeOf, anyway }) {
+  const sent = [], toasts = [], sessions = [], shown = [], opened = [], requests = [], runWarn = [];
   const win = { noBackslashEscapes: false };
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
@@ -49,13 +54,15 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
-    api: async (p, d) => { if (d.sql === 'SELECT @@SESSION.sql_mode') return { ok: true, rows: [[modeOf || '']] }; sent.push(d.sql); sessions.push(d.session); return typeof reply === 'function' ? reply(d.sql) : reply; },
+    api: async (p, d) => { if (d.sql === 'SELECT @@SESSION.sql_mode') return { ok: true, rows: [[modeOf || '']] }; sent.push(d.sql); sessions.push(d.session); requests.push(d); return typeof reply === 'function' ? reply(d.sql) : reply; },
     viewText: (title, text) => shown.push({ title, text }),
+    warnOpen: (title, ws, stmts, again) => opened.push({ title, ws, stmts, again }),
+    setRunWarnings: (id, ws) => runWarn.push(ws),
     window: win,
   };
   const keys = Object.keys(env);
-  const result = await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x', preview);
-  return { win, sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending };
+  const result = await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x', preview, anyway);
+  return { win, sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending, opened, requests, runWarn };
 }
 const guardOf = where => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM `d`.`t` WHERE ' + where + ') <> 1 INTO @nobs_one_row;';
 
@@ -140,6 +147,46 @@ test('Show SQL shows exactly what Apply would run, and runs nothing', async () =
   assert.match(r.shown[0].title, /1 change$/);
   assert.deepEqual(Object.keys(r.pending.upd), ['0:1'], 'the edit is still pending');
   assert.equal(saved.result, true, 'and Apply itself says it saved');
+});
+
+// A value the server would store otherwise than typed - cut short under a sql_mode without
+// STRICT_TRANS_TABLES - stops the save, and the warnings are shown with a way to apply anyway.
+const truncated = { statement: 2, level: 'Warning', code: 1265, message: "Data truncated for column 'v' at row 1" };
+const warnSkip = hasWarnings ? false : 'this edition does not read the server\'s warnings yet';
+const oneEdit = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'a very long value' }, types: { id: 'int', v: 'varchar' } };
+
+test('Apply asks the server to keep nothing when it warns', { skip: warnSkip }, async () => {
+  const r = await apply(oneEdit);
+  assert.equal(r.requests[0].failOnWarnings, true);
+  assert.equal(r.requests[0].transaction, true);
+});
+
+test('a save the server warned about is not kept, and the warnings are shown', { skip: warnSkip }, async () => {
+  const r = await apply({ ...oneEdit, reply: { ok: false, warned: true, warnings: [truncated] } });
+  assert.equal(r.result, false, 'Commit must not go on');
+  assert.deepEqual(Object.keys(r.pending.upd), ['0:1'], 'the edit is still pending');
+  assert.equal(r.opened.length, 1);
+  assert.deepEqual(r.opened[0].ws, [truncated]);
+  assert.match(r.opened[0].stmts[1], /^UPDATE `d`\.`t` SET `v`='a very long value'/, 'the list can name the statement');
+  assert.ok(!r.toasts.some(m => /^ERR Apply failed/.test(m)), 'it is not reported as a failure: ' + r.toasts);
+});
+
+test('Apply anyway saves without the check', { skip: warnSkip }, async () => {
+  let n = 0;
+  const r = await apply({ ...oneEdit, reply: () => (n++ === 0 ? { ok: false, warned: true, warnings: [truncated] } : { ok: true, warnings: [truncated] }) });
+  await r.opened[0].again();
+  assert.equal(r.requests.length, 2);
+  assert.equal(r.requests[1].failOnWarnings, false);
+  assert.ok(r.toasts.some(m => m === 'Applied 1 change(s), with 1 warning.'), r.toasts.join());
+  assert.deepEqual(r.runWarn, [[truncated]], 'and what the server said stays beside the status');
+});
+
+test('the warning every row guard gives is not one about the edits', { skip: warnSkip }, async () => {
+  const guard = { statement: 1, level: 'Warning', code: 1329, message: 'No data - zero rows fetched, selected, or processed' };
+  const r = await apply({ ...oneEdit, reply: { ok: true, warnings: [guard] } });
+  assert.equal(r.result, true);
+  assert.ok(r.toasts.includes('Applied 1 change(s).'), r.toasts.join());
+  assert.deepEqual(r.runWarn, [], 'nothing to show');
 });
 
 // Copied cells: the block keeps the shape they were picked in, and a paste puts them back in it.
