@@ -72,25 +72,6 @@ jobs:
           git push origin HEAD:main
           git push origin "v$VERSION"
 
-      # The push above returns before GitHub's API has necessarily indexed the new tag ref
-      # internally. Dispatching build.yml immediately risks softprops/action-gh-release's own
-      # "release not yet discoverable by tag" retries (in build.yml) running out before the tag
-      # catches up, which makes it fall back to creating an untagged draft release instead of one
-      # against v$VERSION. Waiting here for the tag to actually resolve via the API avoids that.
-      - name: Wait for the new tag to be visible to the GitHub API
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for i in $(seq 1 15); do
-            if gh api "repos/${{ github.repository }}/git/refs/tags/v$VERSION" >/dev/null 2>&1; then
-              echo "Tag v$VERSION is visible to the API."
-              exit 0
-            fi
-            echo "Tag not indexed yet, waiting... ($i/15)"
-            sleep 4
-          done
-          echo "::warning::Tag v$VERSION still not visible after waiting; dispatching the build anyway."
-
       - name: Start the installer build on the new tag
         env:
           GH_TOKEN: ${{ github.token }}

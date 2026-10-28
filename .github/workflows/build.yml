@@ -214,6 +214,26 @@ jobs:
           body_path: release-notes-append.md
           fail_on_unmatched_files: true
 
+      - name: Fix the release's tag if it fell back to "untagged"
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.SIGNPATH_API_TOKEN != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub's "get release by tag" API can't return a draft release by tag - that lookup
+          # only ever finds published releases. softprops/action-gh-release uses it right after
+          # creating the draft to confirm the release landed, gets nothing, retries a couple of
+          # times, then gives up and creates a second release tagged "untagged-<sha>" instead of
+          # v$VERSION. The release it made first is fine - it just has the wrong tag_name - so find
+          # it by its (correct) name and fix the tag directly rather than resorting to retries.
+          TAG="${{ github.ref_name }}"
+          ID=$(gh api "repos/${{ github.repository }}/releases" --jq \
+            ".[] | select(.name == \"$TAG\" and (.tag_name | startswith(\"untagged-\"))) | .id" | head -n1)
+          if [ -n "$ID" ]; then
+            echo "Release $ID was created as \"$TAG\" but tagged wrong; fixing tag_name to $TAG."
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$ID" -f tag_name="$TAG"
+          fi
+
       - name: Publish GitHub Release (unsigned)
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.SIGNPATH_API_TOKEN == '' }}
         uses: softprops/action-gh-release@v3
@@ -227,3 +247,18 @@ jobs:
           append_body: true
           body_path: release-notes-append.md
           fail_on_unmatched_files: true
+
+      - name: Fix the release's tag if it fell back to "untagged"
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.SIGNPATH_API_TOKEN == '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # See the signed publish step above for why this is needed.
+          TAG="${{ github.ref_name }}"
+          ID=$(gh api "repos/${{ github.repository }}/releases" --jq \
+            ".[] | select(.name == \"$TAG\" and (.tag_name | startswith(\"untagged-\"))) | .id" | head -n1)
+          if [ -n "$ID" ]; then
+            echo "Release $ID was created as \"$TAG\" but tagged wrong; fixing tag_name to $TAG."
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$ID" -f tag_name="$TAG"
+          fi
