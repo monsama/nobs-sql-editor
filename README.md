@@ -102,6 +102,9 @@ Export files are kept wherever you saved them.
 **Editor**
 - Tabbed SQL editor with syntax highlighting, and autocomplete that knows the tables and aliases
   of the statement.
+- Open a `.sql` file in a tab of its own, named after the file, and save it back (Ctrl+O, Ctrl+S
+  in the editor; Save as from the tab's menu). The file keeps its line endings and byte order
+  mark, and a tab whose text is not saved to its file shows a `*`.
 - Find and replace (Ctrl+F / Ctrl+H), formatting, undo for every editor command.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
   script with several SELECTs, shows each result in a tab of its own.
