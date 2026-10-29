@@ -100,8 +100,8 @@ Export files are kept wherever you saved them.
 - SSL/TLS modes up to full certificate verification, and PAM or LDAP sign-in over TLS.
 
 **Editor**
-- Tabbed SQL editor with syntax highlighting, and autocomplete that knows the tables and aliases
-  of the statement.
+- Tabbed SQL editor with syntax highlighting, line numbers (the caret's line marked), and
+  autocomplete that knows the tables and aliases of the statement.
 - Find and replace (Ctrl+F / Ctrl+H), formatting, undo for every editor command.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
   script with several SELECTs, shows each result in a tab of its own.
