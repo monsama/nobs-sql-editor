@@ -111,10 +111,13 @@ if ($StopServers -and -not $NoServers) {
   Write-Host "`n===== Stopping the test servers =====" -ForegroundColor Cyan
   # Shut down properly: killed mid-write, MariaDB's Aria logs are left damaged and it will not start
   # again on that data. Forced only if a server is still up after half a minute, and only the ones
-  # started on the test folder - a server of your own is left alone.
+  # started on the test folder - a server of your own is left alone. The client is MariaDB's, which
+  # signs in to MySQL's root (caching_sha2_password) only with the plugin the start script puts
+  # beside it; without --plugin-dir MySQL refused the SHUTDOWN and was always forced.
+  $pluginDir = Join-Path (Split-Path $MysqlBin) 'plugin'
   foreach ($dsn in @($MariaDsn, $MysqlDsn) | Where-Object { $_ }) {
     $h, $p, $u, $pw = $dsn.Split(':', 4)
-    & $MysqlBin --protocol=TCP "-h$h" "-P$p" "-u$u" "-p$pw" -e 'SHUTDOWN' 2>$null
+    & $MysqlBin --protocol=TCP "-h$h" "-P$p" "-u$u" "-p$pw" "--plugin-dir=$pluginDir" -e 'SHUTDOWN' 2>$null
   }
   $ci = if ($Root) { $Root } else { 'C:\nobs-ci' }
   $mine = { Get-CimInstance Win32_Process -Filter "Name='mariadbd.exe' OR Name='mysqld.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($ci) } }
