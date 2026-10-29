@@ -1,5 +1,4 @@
-// What the server warns about is shown: a value cut short under a sql_mode without
-// STRICT_TRANS_TABLES, a string read as a number in a SELECT, a Note from DROP TABLE IF EXISTS. And a
+// What the server warns about is shown: a value cut short (by INSERT IGNORE), a string read as a number in a SELECT, a Note from DROP TABLE IF EXISTS. And a
 // grid edit the server would store otherwise than typed is not kept until the user says so.
 (async () => {
   if (typeof setRunWarnings !== 'function') { G.skip('server warnings', 'this edition does not show the server\'s warnings yet'); return G.report(); }
@@ -13,12 +12,15 @@ CREATE TABLE ${DB}.w (id INT PRIMARY KEY, v VARCHAR(3));
 INSERT INTO ${DB}.w VALUES (1,'abc');`);
     i = openTab('warn', '', DB, false, null);
 
-    const t = await run(i, `SET SESSION sql_mode = ''; INSERT INTO ${DB}.w VALUES (2, 'toolong')`);
+    // IGNORE turns the error a strict sql_mode gives into the warning, on every server. Switching the
+    // session's sql_mode off instead is a warning of its own on MySQL 5.7 (3090, NO_AUTO_CREATE_USER
+    // deprecated), so the count was 2 there.
+    const t = await run(i, `DO 0; INSERT IGNORE INTO ${DB}.w VALUES (2, 'toolong')`);
     G.eq('a value cut short is counted beside the status', shown(i), '1 warning');
     G.check('with its code and statement', (t.warnings || []).some(w => w.code === 1265 && w.statement === 2), t.warnings);
     G.check('and it stands out', !!$('stw_' + i).querySelector('.warnlink'), $('stw_' + i).innerHTML);
     warnShow(i);
-    G.check('the link lists it, statement and all', $('mWarn').classList.contains('show') && /1265/.test($('warnList').innerText) && /INSERT INTO/.test($('warnList').innerText), $('warnList').innerText.slice(0, 300));
+    G.check('the link lists it, statement and all', $('mWarn').classList.contains('show') && /1265/.test($('warnList').innerText) && /INSERT IGNORE INTO/.test($('warnList').innerText), $('warnList').innerText.slice(0, 300));
     G.check('as a list, with nothing to apply', $('warnApply').style.display === 'none', $('warnApply').style.display);
     hide('mWarn');
     G.check('it is in the log too', G.logs.some(m => /1 warning[\s\S]*Warning 1265/.test(m)), G.logs.slice(-3));
