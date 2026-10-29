@@ -2636,18 +2636,22 @@ async fn script(req: Value) -> R {
             // commit everything the tab had not, and a ROLLBACK would throw it away.
             let in_session = c.in_session();
             if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
-            // Rows the statements changed, for a transaction's log to say what each run did.
+            // Rows the statements changed, for a transaction's log to say what each run did, and
+            // each statement's own count and time, for the output window.
             let mut affected: u64 = 0;
+            let mut done: Vec<Value> = Vec::new();
+            let started = std::time::Instant::now();
             for (idx, stmt) in statements.iter().enumerate() {
+                let t0 = std::time::Instant::now();
                 let ran = c.query_drop(stmt);
-                if ran.is_ok() { affected += c.affected_rows(); }
+                if ran.is_ok() { let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, t0)); }
                 if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
                     if transactional { let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" }); }
                     let e = db_err(e);
                     let note = if !transactional { "" } else if in_session { "\n\nNone of these changes were applied. The tab's transaction is still open." } else { "\n\nNo changes were applied - the batch was rolled back." };
-                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
+                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"statements":if transactional { vec![] } else { done },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
                 }
             }
             if transactional && in_session {
@@ -2658,7 +2662,7 @@ async fn script(req: Value) -> R {
                     return Ok(json!({"ok":false,"error":commit_failure_message(&db_err(e))}));
                 }
             }
-            return Ok(json!({"ok":true,"affected":affected}));
+            return Ok(json!({"ok":true,"affected":affected,"statements":done,"elapsedMs":started.elapsed().as_millis() as u64}));
         }
 
         // Continue-on-error mode: run every statement regardless of earlier failures, and
@@ -2666,9 +2670,11 @@ async fn script(req: Value) -> R {
         // that needs fixing in one pass, not stopping at (and hiding everything past) the first.
         let mut succeeded = 0usize;
         let mut failures: Vec<Value> = Vec::new();
+        let (mut affected, mut done, started) = (0u64, Vec::new(), std::time::Instant::now());
         for (idx, stmt) in statements.iter().enumerate() {
+            let t0 = std::time::Instant::now();
             match c.query_drop(stmt) {
-                Ok(_) => { succeeded += 1; }
+                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, t0)); }
                 Err(e) => {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2676,8 +2682,17 @@ async fn script(req: Value) -> R {
                 }
             }
         }
-        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures}))
+        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures,"affected":affected,"statements":done,"elapsedMs":started.elapsed().as_millis() as u64}))
     }).await.map_err(|e| e.to_string())?
+}
+
+// What the output window says about one statement that ran: its number, its start on one line, the
+// rows it changed and how long it took.
+fn stmt_report(idx: usize, stmt: &str, affected: u64, t0: std::time::Instant) -> Value {
+    let one_line = stmt.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut sql: String = one_line.chars().take(80).collect();
+    if one_line.chars().count() > 80 { sql.push_str("..."); }
+    json!({"index": idx + 1, "sql": sql, "affected": affected, "ms": t0.elapsed().as_millis() as u64})
 }
 
 // Runs a script on one connection and returns every result set it produces - a procedure's
@@ -9439,5 +9454,20 @@ mod review_tests {
         sweep_secret_files_in(dir.path(), std::time::Duration::from_secs(1));
         let left: Vec<String> = std::fs::read_dir(dir.path()).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
         assert_eq!(left, ["other.txt"], "an old one goes, and nothing else");
+    }
+}
+
+#[cfg(test)]
+mod stmt_report_tests {
+    use super::*;
+
+    #[test]
+    fn a_statement_is_reported_on_one_line_with_its_rows() {
+        let r = stmt_report(2, "UPDATE t\n   SET v = 1\n WHERE id < 10", 12, std::time::Instant::now());
+        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone()), (json!(3), json!("UPDATE t SET v = 1 WHERE id < 10"), json!(12)));
+        let long = format!("INSERT INTO t VALUES {}", "(1),".repeat(40));
+        let r = stmt_report(0, &long, 40, std::time::Instant::now());
+        let sql = r["sql"].as_str().unwrap();
+        assert!(sql.ends_with("...") && sql.chars().count() == 83, "{sql}");
     }
 }

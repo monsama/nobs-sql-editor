@@ -2656,6 +2656,21 @@ function togglePin(db,name){const p=pinnedTables(db);const i=p.indexOf(name);if(
 
 function fmtCount(n){n=Math.round(+n||0);return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");}
 function fmtMs(ms){ms=+ms||0;if(ms>=10000)return Math.round(ms/1000)+'s';if(ms>=1000)return (ms/1000).toFixed(1)+'s';return Math.round(ms)+'ms';}
+// --- What a run says in the output window ---------------------------------------------------
+// Every run from a tab gets a line that starts with the time and the tab's name, then what ran - the
+// statement's start on one line - and what came of it: the rows a write changed, the rows a query
+// returned, the error, and how long it took. A script lists each statement under its first line.
+function runClock(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
+function sqlOneLine(sql,max){const x=String(sql==null?'':sql).replace(/\s+/g,' ').trim();max=max||80;return x.length>max?x.slice(0,max)+'...':x;}
+function runLog(id,msg){const t=T(id);log('['+runClock()+'] '+(t?t.title:'Query')+': '+msg);}
+// Rows changed means something only for a statement that writes rows; a CREATE or a SET is just OK.
+function stmtWrites(sql){return /^(insert|update|delete|replace|load\s+data)\b/i.test(sqlHead(String(sql||'')));}
+function rowsAffected(n){n=+n||0;return fmtCount(n)+' row'+(n===1?'':'s')+' affected';}
+function stmtOutcome(st){return (stmtWrites(st.sql)?rowsAffected(st.affected):'OK')+', '+fmtMs(st.ms);}
+// The rows the writes of a script changed, or null when none of its statements writes rows.
+function scriptAffected(sts){const w=(sts||[]).filter(x=>stmtWrites(x.sql));return w.length?w.reduce((a,x)=>a+(+x.affected||0),0):null;}
+// One statement: one line. Several: a line for the script, and one under it for each statement.
+function stmtLines(sts,total){return (sts||[]).map(x=>'  '+x.index+(total?'/'+total:'')+'. '+x.sql+' -> '+stmtOutcome(x));}
 // The statement behind the grid: the result picked from a script's results, else the last
 // statement run.
 function gridSql(t){const rs=t.resultSets&&t.resultSets[t.resultIdx||0];if(rs)return rs.sql;const s=splitStmts(String(t.curRun||'')).filter(x=>!isCommentOnly(x));return s.length?s[s.length-1]:'';}
@@ -4298,7 +4313,7 @@ function scriptShowsResults(stmts){
 }
 // Runs such a script on one connection and shows each result in a tab of its own. These grids
 // are read-only: a result of a script is not tied to one table's rows.
-async function runScriptResults(id,sql,reqId,seq){
+async function runScriptResults(id,sql,reqId,seq){const t0=performance.now();
  const t=T(id);const st=$('st_'+id);const stale=()=>!T(id)||T(id).runSeq!==seq;
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const writes=stmts.some(s=>!/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));
@@ -4313,8 +4328,8 @@ async function runScriptResults(id,sql,reqId,seq){
  if(t.resultSets.length){showResultSet(id,0);}
  else{t.cols=[];t.rows=[];$('res_'+id).innerHTML='';renderResultSetTabs(id);updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';}
  const n=t.resultSets.length;
- if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';log('SCRIPT OK ('+stmts.length+' statements, '+n+' results)');}
- else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
+ if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';runLog(id,'SCRIPT OK ('+stmts.length+' statements, '+n+' results, '+fmtMs(performance.now()-t0)+')'+(stmts.length===1?': '+sqlOneLine(stmts[0]):''));}
+ else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');runLog(id,logErr(r.error||'Failed.'));}
  if(writes&&t.db)loadObjects(t.db);
 }
 function showResultSet(id,i){
@@ -4445,7 +4460,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
-      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';runLog(id,'ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     }
     const _q=(leadingAreAllUse&&stmts.length>1?sql:lastStmt).trim().replace(/;+\s*$/,'');
     // pageSize is always sent for the main Run path: the backend opens a server-side cursor for
@@ -4458,7 +4473,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:sessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
-    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
@@ -4469,7 +4484,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     // rebuilt at all, even though this new table has a PK and should show +Row/Apply/etc.
     {const eb=$('edit_'+id);eb.style.display='none';}
     t.cursorId=r.cursorId||null;t.hasMore=!!r.hasMore;t.cursorReqId=t.cursorId?reqId:null;
-    if(!r.columns.length){st.textContent=r.message||'Query OK.';$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
+    if(!r.columns.length){st.textContent=r.message||'Query OK.';runLog(id,sqlOneLine(_q)+' -> OK, '+fmtMs(r.elapsedMs));$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
     const ra=$('resultActions_'+id);if(ra)ra.style.display='inline-flex';
     refreshRunTableBinding(id,lastStmt,tableDb);
     // Column types and NULL-ability are read again for every result: the tab may now show another
@@ -4491,7 +4506,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     } else { t.estRows=null; }
     if(stale())return;
     t.lastElapsedMs=r.elapsedMs;
-    if(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300){log(fmtCount(t.rows.length)+' row(s) fetched in '+fmtMs(r.elapsedMs)+' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+').');}
+    runLog(id,sqlOneLine(_q)+' -> '+fmtCount(t.rows.length)+' row'+(t.rows.length===1?'':'s')+(t.hasMore?' (more as you scroll)':'')+', '+fmtMs(r.elapsedMs)+(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300?' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+')':''));
     renderGrid(id);updatePager(id);
     updateStatusLine(id);
     updateSchemaBadge(id);
@@ -4506,8 +4521,9 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       // clean or partially failed - this is the whole point of turning the option on, seeing
       // every problem in one pass rather than fixing and re-running one failure at a time.
       if(!r.failures.length){
-        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed.';
-        log('SCRIPT OK ('+r.succeeded+'/'+r.total+' statements)');
+        const ra=scriptAffected(r.statements);
+        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+        runLog(id,'SCRIPT OK ('+r.succeeded+'/'+r.total+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(r.statements?'\n'+stmtLines(r.statements,r.total).join('\n'):''));
       } else {
         st.className='status err';
         st.textContent=r.succeeded+' of '+r.total+' succeeded, '+r.failures.length+' failed (see log for details).';
@@ -4519,11 +4535,18 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
         const succeededIdx=[];for(let i=1;i<=r.total;i++){if(!failedIdx.has(i))succeededIdx.push(i);}
         const succNote=succeededIdx.length?' (statement(s) '+succeededIdx.join(', ')+')':'';
         const detail=r.failures.map(f=>'Statement '+f.index+' of '+r.total+': '+f.error+'\n  '+f.preview).join('\n\n');
-        log('SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+'.\n\nFailed:\n'+detail);
+        const ra=scriptAffected(r.statements);
+        runLog(id,'SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+(ra!=null?', '+rowsAffected(ra):'')+'.'+(r.statements&&r.statements.length?'\n'+stmtLines(r.statements,r.total).join('\n'):'')+'\n\nFailed:\n'+detail);
       }
       if(t.db)loadObjects(t.db);
-    } else if(r.ok){st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
-    else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
+    } else if(r.ok){const sts=r.statements,ra=scriptAffected(sts);
+      st.textContent='OK. '+stmts.length+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+      // One statement says it all on one line; a script gets a line, and one per statement under it.
+      if(sts&&sts.length===1)runLog(id,sts[0].sql+' -> '+stmtOutcome(sts[0]));
+      else runLog(id,'SCRIPT OK ('+stmts.length+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(sts?'\n'+stmtLines(sts,sts.length).join('\n'):''));
+      if(t.db)loadObjects(t.db);}
+    else{st.className='status err';st.textContent=timeLimitNote(r.error);const sts=r.statements;
+      runLog(id,'SCRIPT ERROR: '+r.error+(sts&&sts.length?'\nRan before it:\n'+stmtLines(sts).join('\n'):''));await schemaGoneNote(id,r.error);}
   }
  } finally {
   if(!stale()){t.runningReqId=null;t.abortCtrl=null;setRunning(id,false);}
