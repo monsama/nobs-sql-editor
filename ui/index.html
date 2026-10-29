@@ -465,6 +465,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .citem{padding:10px 14px;border-top:1px solid var(--bd2)} .citem:first-child{border-top:0} .citem:hover{background:var(--hover)}
  .citem-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
  .citem-t{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ /* The history's rows: a dot for what came of the run, the time, the database, the SQL on one line. */
+ .citem.hist{padding:6px 14px} .citem.hist .citem-h{margin-bottom:0}
+ .hdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)} .hdot.hok{background:var(--erd-pk)} .hdot.herr{background:var(--err-line)} .hdot.hcan{background:var(--log-warn)}
+ .htime{flex:none;min-width:84px} .hdb{flex:none;font-weight:600} .hsql{font-family:var(--mono);font-size:12px}
+ .hcount{flex:none;font-size:11px;padding:0 6px;border-radius:var(--r-s);background:var(--panel)} .herrtext{color:var(--err-line);font-size:12px;margin:4px 0 6px;white-space:pre-wrap}
  .citem-a{display:flex;gap:6px;flex:none}
  .cempty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13px}
  /* The file browser: a path to type into, and the folder as a list of name, date and size. */
@@ -917,8 +922,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 </div></div>
 
 <div class="modal floating" id="mHist"><div class="box" style="width:1200px;max-width:95vw;height:80vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mHist')" title="Drag to move"><h3 style="margin:0 0 10px">Query history</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mHist')" title="Maximize" id="maxBtn_mHist" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mHist')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
+ <div class="row" style="flex:none;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><input id="histQ" type="search" placeholder="Search the SQL, database or error" oninput="histRender()" style="flex:1;min-width:220px" spellcheck="false"><select id="histScope" onchange="histRender()" title="Whose runs"><option value="conn">This connection</option><option value="all">All connections</option></select><select id="histOut" onchange="histRender()" title="What came of them"><option value="">Any outcome</option><option value="ok">OK</option><option value="err">Errors</option><option value="cancel">Cancelled</option></select><select id="histWhen" onchange="histRender()" title="When they ran"><option value="0">Any time</option><option value="1">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select><span id="histCount" class="muted"></span></div>
  <div id="histList" class="clist" style="flex:1;min-height:0"></div>
- <div class="row" style="flex:none"><button class="warn" onclick="clearHistory()">Clear history</button><span style="flex:1"></span><button onclick="hide('mHist')">Close</button></div></div></div>
+ <div class="row" style="flex:none"><button class="warn" onclick="clearHistory(false)" title="Delete the runs of the connection you are on">Clear this connection's</button><button class="warn" onclick="clearHistory(true)" title="Delete the runs of every connection">Clear all</button><span style="flex:1"></span><button onclick="hide('mHist')">Close</button></div></div></div>
 <div class="modal floating" id="mPlan"><div class="box" style="width:780px;max-width:95vw;height:560px;display:flex;flex-direction:column;overflow:hidden;top:70px;left:160px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mPlan')" title="Drag to move"><h3 id="planTitle" style="margin:0 0 10px">Query plan</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mPlan')" title="Maximize" id="maxBtn_mPlan" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mPlan')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div id="planBody" style="overflow:auto;flex:1;min-height:0"></div>
  <div class="row" style="justify-content:flex-end;flex:none;align-items:center"><span id="planNote" class="muted" style="flex:1;font-size:12px"></span><button id="planMeasureBtn" onclick="planMeasure()" title="Run the query and show what really happened at each step - the rows read and the time taken - beside what the plan expected">Measure</button><button onclick="hide('mPlan')">Close</button></div></div></div>
@@ -965,6 +971,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setgroup">Running queries</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Asks for confirmation before running an UPDATE or DELETE that has no WHERE clause of its own, since it would change or remove every row of the table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Query history</div><div class="setnote">Keeps each query you run - with its time, connection, database, outcome, duration and rows - in a file beside the library, for the History window. The oldest go once there are more than this many. A statement with a password is never kept.</div></div><div class="setrc" style="display:flex;gap:8px;align-items:center"><input type="number" id="cfgHistLimit" min="100" max="100000" step="100" style="width:90px" onchange="setHistLimit(this.value)" title="How many runs the history keeps"><input type="checkbox" id="cfgHistOn" onchange="setHistOn(this.checked)" title="Keep a query history"></div></div>
   </div>
   <div class="setgroup">Notifications</div>
   <div class="setcard">
@@ -1758,7 +1765,7 @@ function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');i
 // The About page: its buttons get their icons when it is shown, and its heading the version this is.
 async function aboutPage(){const pg=document.querySelector('#mSettings .setpage[data-p="about"]');if(pg)decorateIcons(pg);if(window._aboutVersion)return;
  try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}}catch(e){}}
-async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
+async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgHistOn'))$('cfgHistOn').checked=histOn();if($('cfgHistLimit'))$('cfgHistLimit').value=histLimit();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
  await refreshToolsStatus();setTimeout(()=>refreshToolsStatus(false,true),50);}
@@ -3639,7 +3646,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   // two independent buttons - stacked in one shared grid cell (both always in layout, only one
   // ever visible) so swapping between them on every run/cancel never shifts Run Query Selection/
   // Explain/Format, which display:none toggling used to do on every single query execution.
-  '<div class="toolbar"><span style="display:inline-grid"><button class="primary" id="runbtn_'+id+'" style="grid-area:1/1" title="Run the query (F5)" onclick="runTab(\''+id+'\')">Run Query</button><button class="warn" id="cancelbtn_'+id+'" style="grid-area:1/1;visibility:hidden" title="Cancel the running query" onclick="cancelQuery(\''+id+'\')">Cancel</button></span><button title="Run the selected text (Ctrl+Enter) - or, if nothing is selected, whichever statement the cursor is currently inside" onclick="runSel(\''+id+'\')" data-ic="runsel" data-fit="4">Run Selection</button><button title="Show how the server will run the current statement: the plan as a diagram, and the EXPLAIN table in the results" onclick="explainTab(\''+id+'\')" data-ic="explain" data-fit="4">Explain</button><button title="Reformat the query for readability (safe - only changes whitespace/line breaks, never the query itself)" onclick="formatTabSql(\''+id+'\')" data-ic="format" data-fit="3">Format</button>'+
+  '<div class="toolbar"><span style="display:inline-grid"><button class="primary" id="runbtn_'+id+'" style="grid-area:1/1" title="Run the query (F5)" onclick="runTab(\''+id+'\',true)">Run Query</button><button class="warn" id="cancelbtn_'+id+'" style="grid-area:1/1;visibility:hidden" title="Cancel the running query" onclick="cancelQuery(\''+id+'\')">Cancel</button></span><button title="Run the selected text (Ctrl+Enter) - or, if nothing is selected, whichever statement the cursor is currently inside" onclick="runSel(\''+id+'\')" data-ic="runsel" data-fit="4">Run Selection</button><button title="Show how the server will run the current statement: the plan as a diagram, and the EXPLAIN table in the results" onclick="explainTab(\''+id+'\')" data-ic="explain" data-fit="4">Explain</button><button title="Reformat the query for readability (safe - only changes whitespace/line breaks, never the query itself)" onclick="formatTabSql(\''+id+'\')" data-ic="format" data-fit="3">Format</button>'+
   '<span class="tbsep"></span>'+
   lastBtn+selBtn+applyBtn+
   '<span class="tbsep"></span>'+
@@ -3695,7 +3702,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   if((e.ctrlKey||e.metaKey)&&!e.altKey&&['f','h'].includes(e.key.toLowerCase())){e.preventDefault();acHide();findOpen(id,e.key.toLowerCase()==='h');return;}
   if(e.key==='F3'){e.preventDefault();if($('fr_'+id)&&$('fr_'+id).style.display!=='none')findStep(id,e.shiftKey?-1:1);else findOpen(id,false);return;}
   if(e.key==='Escape'&&$('fr_'+id)&&$('fr_'+id).style.display!=='none'){e.preventDefault();findClose(id);return;}
-  if(e.key==='F5'||e.key==='F9'){e.preventDefault();runTab(id);}
+  if(e.key==='F5'||e.key==='F9'){e.preventDefault();runTab(id,true);}
   else if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();runSel(id);}
   else if(e.ctrlKey&&e.code==='Space'){e.preventDefault();acUpdate(id,true);}
   else if(e.ctrlKey&&!e.shiftKey&&!e.altKey&&e.key.toLowerCase()==='d'){
@@ -3877,7 +3884,9 @@ function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.string
   // restored tab showed no blocks, and the next quick filter built a WHERE without the old ones.
   filters:t.table&&!t.sqlEdited&&t.filterClauses&&t.filterClauses.length?t.filterClauses.slice():undefined})));}catch(e){return;}
  try{localStorage.setItem('session:'+k,json);return;}catch(e){}
- try{const h=hist();localStorage.setItem('history',JSON.stringify(h.slice(0,20)));localStorage.setItem('session:'+k,json);return;}catch(e){}
+ // A history the storage still holds from before goes to its file (histMigrate), and the tabs are
+ // saved again once it has made room.
+ try{if(localStorage.getItem('history')!=null){histMigrate().then(done=>{if(done)saveSession(key);});return;}}catch(e){}
  if(!window._sessionSaveWarned){window._sessionSaveWarned=true;const m='The open tabs could not be saved - the browser storage for this app is full. Copy anything you need out of them before closing the app.';toast(m,true);log(m);}}
 function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=localStorage.getItem('session:'+key);if(raw!=null){arr=JSON.parse(raw);}else if(!localStorage.getItem('_sessionMigrated')){const old=localStorage.getItem('session');if(old)arr=JSON.parse(old);localStorage.setItem('_sessionMigrated','1');}}catch(e){}if(Array.isArray(arr)&&arr.length){arr.forEach(t=>{
   // Table tabs only ever pull PAGE_BATCH rows per round trip through the cursor-streaming
@@ -3966,7 +3975,9 @@ function splitStmts(sql,withPos){let out=[],cur='',curStart=0,i=0,q=null,delim='
 // On the tab of a procedure, function or trigger, Run is Apply: its SQL drops the object and creates
 // it again, and Apply puts the previous version back when the new one fails. Run went straight to the
 // server, and on MySQL a CREATE that failed after the DROP left the routine gone.
-async function runTab(id){const t=T(id);if(t&&t.ddl&&/^(procedure|function|trigger)$/.test(t.ddl.type)){await applyDdl(id);return;}await runSql(id,$('ed_'+id).value);}
+// user: started by the user (the Run button, F5), and so kept in the history; opening a table runs
+// its tab too, and that is not.
+async function runTab(id,user){const t=T(id);if(t&&t.ddl&&/^(procedure|function|trigger)$/.test(t.ddl.type)){await applyDdl(id);return;}if(user&&t)t._histNext=true;await runSql(id,$('ed_'+id).value);}
 async function explainTab(id){
  const ta=$('ed_'+id);const sel=ta.value.substring(ta.selectionStart,ta.selectionEnd).trim();
  // Without a selection, the statement the cursor is in, as Run at the cursor takes it - it used to
@@ -3976,6 +3987,7 @@ async function explainTab(id){
  else{const hit=stmtAtCursor(ta.value,ta.selectionStart);stmt=hit!=null?hit:ta.value;}
  stmt=String(stmt).trim().replace(/;+\s*$/,'');
  if(!stmt){toast('Nothing to explain.',true);return;}
+ if(T(id))T(id)._histNext=true;
  await runSql(id,'EXPLAIN '+stmt);
  planShow(id,stmt);
 }
@@ -4225,7 +4237,7 @@ function formatTabSql(id){const ta=$('ed_'+id);
  if(!ok||ta.value!==next)ta.value=next;
  syncHl(id);markEdited(id);log('Formatted query.');}
 async function runSel(id){
- const ta=$('ed_'+id);
+ const ta=$('ed_'+id);if(T(id))T(id)._histNext=true;
  const sel=ta.value.substring(ta.selectionStart,ta.selectionEnd).trim();
  if(sel){await runSql(id,sel);return;}
  // No selection: run whichever statement the cursor is currently positioned within, rather
@@ -4377,10 +4389,10 @@ function timeLimitNote(err,reading){err=String(err==null?'':err);
  if(reading)return err+'\n\n'+lim+' ended the query while its rows were still being read: the server counts the time a result stays open. The rows shown are all that arrived. Add a LIMIT, or raise the time limit in the connection, to read more.';
  return err+'\n\n'+lim+' stopped it. Edit the connection to change the limit.';}
 // runSql(): send the editor SQL to the server and show the rows (or the error).
-async function runSql(id,sql,paging){const t=T(id);if(!t)return;
+async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!t._histNext;t._histNext=false;
  if(!paging&&!(await okToRunUnfiltered(t,splitStmts(String(sql==null?'':sql)).filter(s=>!isCommentOnly(s))))){const s0=$('st_'+id);if(s0){s0.className='status';s0.textContent='Not run.';}return;}
  if(sql!=null&&sql!==t.curRun){t.prevRun=t.curRun;t.curRun=sql;}const st=$('st_'+id);st.className='status';st.textContent='Running\u2026';
- addHistory(sql);
+ const hr=(!paging&&userRun)?histStart(t,sql):null;
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const lastStmt=(stmts[stmts.length-1]||sql).trim();
  // Any multi-statement input is now eligible to show a result grid, as long as its FINAL
@@ -4425,7 +4437,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
  const stale=()=>!T(id)||t.runSeq!==seq;
  try{
   if(multiResult){
-    await runScriptResults(id,sql,reqId,seq);
+    await runScriptResults(id,sql,reqId,seq);if(hr&&t.resultSets)hr.results=t.resultSets.length;
   } else if(isSelect){
     if(needsScriptStep){
       // Each leading statement was already correctly, individually extracted by splitStmts()
@@ -4495,6 +4507,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     renderGrid(id);updatePager(id);
     updateStatusLine(id);
     updateSchemaBadge(id);
+    if(hr){hr.rows=t.rows.length;if(t.hasMore)hr.more=true;}
   } else {
     if(roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
     const continueOnError=!!($('coe_'+id)&&$('coe_'+id).checked);
@@ -4522,11 +4535,12 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
         log('SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+'.\n\nFailed:\n'+detail);
       }
       if(t.db)loadObjects(t.db);
-    } else if(r.ok){st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
+    } else if(r.ok){if(hr&&r.affected!=null)hr.affected=+r.affected;st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
     else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
   }
  } finally {
   if(!stale()){t.runningReqId=null;t.abortCtrl=null;setRunning(id,false);}
+  histEnd(hr,stale()?null:st);
  }
 }
 
@@ -4561,7 +4575,7 @@ function updatePager(id){const t=T(id);const p=$('pager_'+id);if(!p)return;const
  if(filtered&&loaded){p.innerHTML='<span class="muted">'+fmtCount(total)+' of '+fmtCount(loaded)+(t.hasMore?'+':'')+' loaded row(s) match'+at+'</span>';return;}
  // Unfiltered, the count is the status line's to give.
  p.innerHTML='';}
-function toggleLast(id){const t=T(id);const ta=$('ed_'+id);if(t.prevRun==null){log('No previous query to toggle to yet.');return;}edSetAll(id,t.prevRun);runSql(id,t.prevRun);}
+function toggleLast(id){const t=T(id);const ta=$('ed_'+id);if(t.prevRun==null){log('No previous query to toggle to yet.');return;}edSetAll(id,t.prevRun);t._histNext=true;runSql(id,t.prevRun);}
 function toggleAll(id){const t=T(id);if(!t.table)return;const ta=$('ed_'+id);const base='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+';';const cur=(ta.value||'').trim();if(cur!==base.trim()){t.beforeAll=ta.value;edSetAll(id,base);}else if(t.beforeAll!=null){edSetAll(id,t.beforeAll);}else{edSetAll(id,base);}runSql(id,ta.value);}
 function selBtnHtml(id,table){return table?'<button title="Toggle between your query and SELECT * (the whole table)" onclick="toggleAll(\''+id+'\')" data-ic="wholetable" data-fit="2">Base query</button>':'';}
 // t.table (and thus row-edit capability, export-as-table, quick filter, ...) used to be fixed
@@ -6983,18 +6997,44 @@ async function dlBinary(blob,name){
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
 
 // ---- history ----
-function hist(){try{return JSON.parse(localStorage.getItem('history')||'[]');}catch(e){return[];}}
-// A statement that carries a password - CREATE/ALTER USER ... IDENTIFIED BY '...', SET PASSWORD,
-// a replication password - is not kept: history lives in plain text in the browser's storage, and
-// a copy with the password masked would set that mask as the password if it were run again.
-// Writing can fail once the storage is full; that used to throw before the query was even sent,
-// and the tab sat at "Running..." for good.
-function addHistory(sql){sql=sql.trim();if(!sql)return;
- // A statement that carries a password is not kept: in single or double quotes, and in any
- // ..._PASSWORD = (MASTER_, SOURCE_) or PASSWORD 'x' (CREATE SERVER) form. Double quotes and the
- // newer names used to go into the history as typed.
- if(/\b(identified\b[\s\S]*?\b(by|as|using)|set\s+password\b[^;]*?=|\w*password\s*(\(|=)?)\s*['"]/i.test(sql))return;
- try{let h=hist().filter(x=>x!==sql);h.unshift(sql);h=h.slice(0,200);localStorage.setItem('history',JSON.stringify(h));}catch(e){}}
+// Each run the user starts - Run, Run selection or the statement at the cursor, Explain, Last query -
+// is kept in the history file (main.rs, hist_*): when, on which connection and database, from which
+// tab, the SQL, and what came of it - OK, the error, or cancelled - with how long it took and the
+// rows it returned or changed. The app's own runs (opening a table, paging, a quick filter, the
+// reload after Apply) are not: they would bury the user's. The history used to be plain SQL in the
+// browser's storage: 200 entries shared by every connection, cut to 20 when the storage filled up.
+function histOn(){try{return localStorage.getItem('histOn')!=='off';}catch(e){return true;}}
+function setHistOn(on){try{localStorage.setItem('histOn',on?'on':'off');}catch(e){}}
+function histLimit(){let n=NaN;try{n=parseInt(localStorage.getItem('histLimit')||'',10);}catch(e){}return n>=100?Math.min(n,100000):5000;}
+function setHistLimit(v){const n=Math.max(100,Math.min(100000,parseInt(v,10)||5000));try{localStorage.setItem('histLimit',String(n));}catch(e){}const el=$('cfgHistLimit');if(el)el.value=n;}
+// A statement that carries a password is not kept: a copy with the password masked would set that
+// mask as the password if it were run again. In single or double quotes, and in any ..._PASSWORD =
+// (MASTER_, SOURCE_) or PASSWORD 'x' (CREATE SERVER) form.
+function histSecret(sql){return /\b(identified\b[\s\S]*?\b(by|as|using)|set\s+password\b[^;]*?=|\w*password\s*(\(|=)?)\s*['"]/i.test(String(sql));}
+// The connection a run belongs to: its saved name, or user@host:port for one typed in.
+function histConn(){const cn=$('connlist')?$('connlist').value:'';if(cn)return cn;return ($('user')?$('user').value:'')+'@'+($('host')?$('host').value:'')+':'+($('port')?$('port').value:'');}
+// A run's entry, begun when it starts; null when it is not kept.
+function histStart(t,sql){sql=String(sql==null?'':sql).trim();if(!histOn()||!sql||sql.length>1048576||histSecret(sql))return null;
+ return {id:Date.now().toString(36)+Math.random().toString(36).slice(2,8),ts:Date.now(),conn:histConn(),db:dbOf(t)||'',tab:t.title,sql,
+  n:splitStmts(sql).filter(x=>!isCommentOnly(x)).length,_t0:performance.now()};}
+// Ended, and kept. What came of it is what the run's status line says: an error there (or a statement
+// read-only mode blocked) is an error, a cancel is a cancel. st is null when a newer run in the same
+// tab took over before this one finished.
+async function histEnd(hr,st){if(!hr)return;hr.ms=Math.round(performance.now()-hr._t0);delete hr._t0;
+ const txt=st?String(st.textContent||''):'';
+ if(st&&(st.classList.contains('err')||/^Read-only mode/.test(txt))){hr.o='err';hr.err=clip(txt.split('\n')[0],300);}
+ else if(!st||/cancel/i.test(txt))hr.o='cancel';
+ else hr.o='ok';
+ await histMigrate();_histItems=null;
+ const r=await api('/api/hist-add',{entry:hr,limit:histLimit()});
+ if(r&&r.ok===false&&!window._histWarned){window._histWarned=true;log('The query history could not be written: '+r.error);}}
+// The history the browser's storage held before is moved into the file once, oldest first, marked
+// as imported: it has no time, connection or outcome.
+async function histMigrate(){let old=null;try{old=localStorage.getItem('history');}catch(e){}if(old==null)return false;
+ let list=[];try{list=JSON.parse(old)||[];}catch(e){}
+ const entries=(Array.isArray(list)?list:[]).filter(x=>typeof x==='string'&&x.trim()).reverse().map((sql,i)=>({id:'imp'+i+Date.now().toString(36),ts:0,conn:'',db:'',sql:sql.trim(),imported:true}));
+ const r=entries.length?await api('/api/hist-add',{entries,limit:histLimit()}):{ok:true};
+ if(r&&r.ok!==false){try{localStorage.removeItem('history');return true;}catch(e){}}return false;}
 // Same dark "console" code-block treatment as the schema-diff statement list - a past query read
 // as plain wrapped monospace text before, same readability problem for anything longer than a line.
 // Starting height for a code-preview box scales with how many lines the query actually has (capped
@@ -7007,16 +7047,73 @@ function codeBlockStartHeight(text){const lines=String(text||'').split('\n').len
 // block past the visible window - without both, an unbounded resize:both could be dragged to an
 // enormous size and made the whole window unresponsive while it repainted.
 function codeBlockStyle(text){return "display:block;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:11px;line-height:1.5;padding:6px 8px;border-radius:var(--r-s);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;overflow:auto;resize:both;max-width:100%;max-height:calc(100vh - 40px);height:"+codeBlockStartHeight(text);}
-function openHistory(){const box=$('histList');const h=hist();box.innerHTML=h.length?'':'<div class="cempty">No history yet - the queries you run show here.</div>';h.forEach(sql=>{const d=document.createElement('div');d.className='citem';const code=document.createElement('code');code.style.cssText=codeBlockStyle(sql);code.textContent=sql;const bar=document.createElement('div');bar.className='citem-h';const kw=document.createElement('span');kw.className='citem-t muted';kw.textContent=(sql.trim().match(/^\w+/)||[''])[0].toUpperCase();bar.appendChild(kw);const sv=document.createElement('button');sv.className='sm';sv.textContent='Save to library';sv.title='Keep this query in the library under a name';sv.onclick=e=>{e.stopPropagation();histSaveToLib(sql);};bar.appendChild(sv);const op=document.createElement('button');op.className='sm';op.textContent='Open';op.title='Open this query in a new tab';op.style.marginLeft='6px';const open=()=>{hide('mHist');openTab('history',sql,curSchema,false,null);};op.onclick=e=>{e.stopPropagation();open();};bar.appendChild(op);code.ondblclick=open;code.title='Double-click to open in a new tab';d.appendChild(bar);d.appendChild(code);box.appendChild(d);});show('mHist');}
+// The window: a list to search and narrow down - this connection or all, by outcome, by time - with
+// each SQL text once, the newest run of it first and how many times it ran. A click opens an entry:
+// the whole SQL, the error, and what can be done with it.
+let _histItems=null;
+async function openHistory(){show('mHist');await histMigrate();
+ if(!_histItems){const r=await api('/api/hist-list');_histItems=(r&&r.ok&&Array.isArray(r.items))?r.items:[];if(r&&r.ok===false)toast('Could not read the history: '+r.error,true);}
+ histRender();}
+function histWhen(ts){if(!ts)return 'imported';const d=new Date(ts),now=new Date(),p=n=>String(n).padStart(2,'0'),hm=p(d.getHours())+':'+p(d.getMinutes());
+ return d.toDateString()===now.toDateString()?hm:(d.getFullYear()===now.getFullYear()?p(d.getDate())+'.'+p(d.getMonth()+1)+'. '+hm:d.toISOString().slice(0,10)+' '+hm);}
+// The runs the filters let through, folded: one group per SQL text, connection and database.
+function histGroups(items,f){const conn=histConn(),q=String(f.q||'').toLowerCase().trim(),from=f.days>0?new Date(new Date().toDateString()).getTime()-(f.days-1)*86400000:0;
+ const groups=new Map();
+ for(const e of items||[]){
+  if(f.scope==='conn'&&e.conn!==conn&&!e.imported)continue;
+  if(f.out&&e.o!==f.out)continue;
+  if(from&&!(e.ts>=from))continue;
+  if(q&&!(String(e.sql).toLowerCase().includes(q)||String(e.db||'').toLowerCase().includes(q)||String(e.err||'').toLowerCase().includes(q)))continue;
+  const k=e.sql+'\u0001'+(e.conn||'')+'\u0001'+(e.db||'');let g=groups.get(k);
+  if(!g){g={last:e,count:0,ids:[],errs:0};groups.set(k,g);}
+  g.count++;g.ids.push(e.id);if(e.o==='err')g.errs++;}
+ return [...groups.values()];}
+function histRender(){const box=$('histList');if(!box)return;
+ const f={q:$('histQ').value,scope:$('histScope').value,out:$('histOut').value,days:+$('histWhen').value||0};
+ const gs=histGroups(_histItems,f),SHOW=500;
+ $('histCount').textContent=gs.length?(gs.length+' quer'+(gs.length===1?'y':'ies')+(gs.length>SHOW?', the newest '+SHOW+' shown':'')):'';
+ box.innerHTML=gs.length?'':'<div class="cempty">'+((_histItems||[]).length?'Nothing matches.':'No history yet - the queries you run show here.')+'</div>';
+ gs.slice(0,SHOW).forEach(g=>box.appendChild(histRow(g,f.scope==='all')));}
+function histRow(g,showConn){const e=g.last,d=document.createElement('div');d.className='citem hist';
+ const h=document.createElement('div');h.className='citem-h';h.style.cursor='pointer';h.title='Click to show the whole query and what can be done with it';
+ const st=e.o==='err'?['herr','Error']:e.o==='cancel'?['hcan','Cancelled']:e.o==='ok'?['hok','OK']:['','Imported - no outcome kept'];
+ const res=e.o!=='ok'?'':e.rows!=null?fmtCount(e.rows)+(e.more?'+':'')+' row'+(e.rows===1&&!e.more?'':'s'):e.affected!=null?fmtCount(e.affected)+' affected':'';
+ h.innerHTML='<span class="hdot '+st[0]+'" title="'+st[1]+'"></span><span class="muted htime">'+esc(histWhen(e.ts))+'</span>'+
+  (showConn&&e.conn?'<span class="muted">'+esc(e.conn)+'</span>':'')+(e.db?'<span class="hdb">'+esc(e.db)+'</span>':'')+
+  '<span class="citem-t hsql">'+esc(String(e.sql).replace(/\s+/g,' '))+'</span>'+
+  (res?'<span class="muted">'+esc(res)+'</span>':'')+(e.ms!=null?'<span class="muted">'+esc(fmtMs(e.ms))+'</span>':'')+
+  (g.count>1?'<span class="hcount" title="Ran '+g.count+' times'+(g.errs?', '+g.errs+' with an error':'')+'">×'+g.count+'</span>':'');
+ const body=document.createElement('div');body.style.display='none';
+ h.onclick=()=>{const open=body.style.display==='none';body.style.display=open?'':'none';if(open&&!body.firstChild)histDetail(body,g);};
+ d.appendChild(h);d.appendChild(body);return d;}
+function histDetail(body,g){const e=g.last;
+ const code=document.createElement('code');code.style.cssText=codeBlockStyle(e.sql);code.textContent=e.sql;code.title='Double-click to open in a new tab';code.ondblclick=()=>histOpen(e);
+ if(e.err){const er=document.createElement('div');er.className='herrtext';er.textContent=e.err;body.appendChild(er);}
+ const bar=document.createElement('div');bar.className='citem-h';bar.style.margin='6px 0 0';
+ const btn=(label,title,fn,cls)=>{const b=document.createElement('button');b.className='sm'+(cls?' '+cls:'');b.textContent=label;b.title=title;b.onclick=ev=>{ev.stopPropagation();fn();};bar.appendChild(b);};
+ btn('Open','Open this query in a new tab, on its database',()=>histOpen(e));
+ btn('Insert','Insert it into the editor of the current tab, at the cursor',()=>histInsert(e));
+ btn('Copy','Copy the query',()=>copyText(e.sql,'Copied the query.'));
+ btn('Save to library','Keep this query in the library under a name',()=>histSaveToLib(e.sql,e.db));
+ const sp=document.createElement('span');sp.style.flex='1';bar.appendChild(sp);
+ btn(g.count>1?'Delete '+g.count+' runs':'Delete','Take '+(g.count>1?'these runs':'this run')+' out of the history',()=>histDelete(g.ids),'warn');
+ body.appendChild(code);body.appendChild(bar);}
+function histOpen(e){hide('mHist');openTab('history',e.sql,e.db||curSchema,false,null);}
+function histInsert(e){const id=activeTab,ta=id&&$('ed_'+id);if(!ta){histOpen(e);return;}hide('mHist');edReplaceRange(id,ta.selectionStart,ta.selectionEnd,e.sql);syncHl(id);}
+async function histDelete(ids){const r=await api('/api/hist-delete',{ids});if(r&&r.ok===false){toast('Could not delete: '+r.error,true);return;}
+ const drop=new Set(ids);_histItems=(_histItems||[]).filter(x=>!drop.has(x.id));histRender();}
 // A query from the history, kept in the library: asked for a name, with the SQL there to trim
-// before it is saved. The history keeps no schema, so it is saved against the current one.
-async function histSaveToLib(sql){const res=await inputBox({title:'Save to library',okText:'Save',fields:[{key:'name',label:'Name',value:''},{key:'sql',label:'SQL',type:'textarea',value:sql}]});
+// before it is saved, under the database it ran on.
+async function histSaveToLib(sql,db){const res=await inputBox({title:'Save to library',okText:'Save',fields:[{key:'name',label:'Name',value:''},{key:'sql',label:'SQL',type:'textarea',value:sql}]});
  if(!res)return;const name=(res.name||'').trim(),q=res.sql||'';
  if(!name){toast('Enter a name for the query.',true);return;}if(!q.trim()){toast('The query is empty.',true);return;}
  await libLoad();if(libAll().some(x=>x.name===name)&&!(await ask('A saved query named "'+name+'" already exists. Replace it?')))return;
- const r=await api('/api/lib-save',{name:name,sql:q,schema:curSchema||'',ts:Date.now()});if(!r.ok){toast(r.error||'Save failed',true);return;}
+ const r=await api('/api/lib-save',{name:name,sql:q,schema:db||curSchema||'',ts:Date.now()});if(!r.ok){toast(r.error||'Save failed',true);return;}
  await libLoad();libRender();toast('Saved "'+name+'" to the library.');log('Saved query "'+name+'" to library.');}
-async function clearHistory(){localStorage.removeItem('history');openHistory();}
+async function clearHistory(all){const what=all?'the whole query history, of every connection':'the query history of '+histConn();
+ if(!(await ask('Delete '+what+'?')))return;
+ const r=await api('/api/hist-clear',all?{}:{only:histConn()});if(r&&r.ok===false){toast('Could not clear: '+r.error,true);return;}
+ _histItems=null;await openHistory();}
 let _libCache=[];
 function libAll(){return _libCache.slice();}
 // --- Query library: saved queries, kept on the server so they survive restarts.

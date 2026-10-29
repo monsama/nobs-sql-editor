@@ -114,7 +114,10 @@ Export files are kept wherever you saved them.
   row of its table). The question can be switched off in Settings → General.
 - Your own fonts and text sizes for the editor, the results and the interface, and an interface
   zoom (Settings → General).
-- Query history, and a reusable query library with export and import.
+- Query history: every query you run, with its time, connection, database, outcome (or error),
+  duration and rows, kept in a file (5,000 runs by default, set in Settings → General). Search it
+  and narrow it to this connection, errors or a time span; open, insert or copy a query again.
+- A reusable query library with export and import.
 
 **Results and editing**
 - Result grids with per-column filtering and sorting, column resize and show/hide, and a
