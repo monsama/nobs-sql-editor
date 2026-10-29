@@ -2644,7 +2644,7 @@ async fn script(req: Value) -> R {
             for (idx, stmt) in statements.iter().enumerate() {
                 let t0 = std::time::Instant::now();
                 let ran = c.query_drop(stmt);
-                if ran.is_ok() { let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, t0)); }
+                if ran.is_ok() { let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
                 if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2674,7 +2674,7 @@ async fn script(req: Value) -> R {
         for (idx, stmt) in statements.iter().enumerate() {
             let t0 = std::time::Instant::now();
             match c.query_drop(stmt) {
-                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, t0)); }
+                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
                 Err(e) => {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2687,12 +2687,16 @@ async fn script(req: Value) -> R {
 }
 
 // What the output window says about one statement that ran: its number, its start on one line, the
-// rows it changed and how long it took.
-fn stmt_report(idx: usize, stmt: &str, affected: u64, t0: std::time::Instant) -> Value {
+// rows it changed and how long it took. For an UPDATE the server also says how many rows its WHERE
+// found ("Rows matched: 5  Changed: 2  Warnings: 0"): a row that already held the new value is
+// matched but not changed, and the two numbers apart tell the user so.
+fn stmt_report(idx: usize, stmt: &str, affected: u64, info: &str, t0: std::time::Instant) -> Value {
     let one_line = stmt.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut sql: String = one_line.chars().take(80).collect();
     if one_line.chars().count() > 80 { sql.push_str("..."); }
-    json!({"index": idx + 1, "sql": sql, "affected": affected, "ms": t0.elapsed().as_millis() as u64})
+    let matched = info.split("Rows matched:").nth(1)
+        .and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse::<u64>().ok());
+    json!({"index": idx + 1, "sql": sql, "affected": affected, "matched": matched, "ms": t0.elapsed().as_millis() as u64})
 }
 
 // Runs a script on one connection and returns every result set it produces - a procedure's
@@ -9463,11 +9467,12 @@ mod stmt_report_tests {
 
     #[test]
     fn a_statement_is_reported_on_one_line_with_its_rows() {
-        let r = stmt_report(2, "UPDATE t\n   SET v = 1\n WHERE id < 10", 12, std::time::Instant::now());
-        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone()), (json!(3), json!("UPDATE t SET v = 1 WHERE id < 10"), json!(12)));
+        let r = stmt_report(2, "UPDATE t\n   SET v = 1\n WHERE id < 10", 12, "Rows matched: 15  Changed: 12  Warnings: 0", std::time::Instant::now());
+        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone(), r["matched"].clone()), (json!(3), json!("UPDATE t SET v = 1 WHERE id < 10"), json!(12), json!(15)));
         let long = format!("INSERT INTO t VALUES {}", "(1),".repeat(40));
-        let r = stmt_report(0, &long, 40, std::time::Instant::now());
+        let r = stmt_report(0, &long, 40, "Records: 40  Duplicates: 0  Warnings: 0", std::time::Instant::now());
         let sql = r["sql"].as_str().unwrap();
         assert!(sql.ends_with("...") && sql.chars().count() == 83, "{sql}");
+        assert!(r["matched"].is_null(), "only an UPDATE says how many rows it matched: {r}");
     }
 }
