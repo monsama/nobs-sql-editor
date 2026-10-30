@@ -100,8 +100,8 @@ Export files are kept wherever you saved them.
 - SSL/TLS modes up to full certificate verification, and PAM or LDAP sign-in over TLS.
 
 **Editor**
-- Tabbed SQL editor with syntax highlighting, and autocomplete that knows the tables and aliases
-  of the statement.
+- Tabbed SQL editor with syntax highlighting, line numbers (the caret's line marked), and
+  autocomplete that knows the tables and aliases of the statement.
 - Open a `.sql` file in a tab of its own, named after the file, and save it back (Ctrl+O, Ctrl+S
   in the editor; Save as from the tab's menu). The file keeps its line endings and byte order
   mark, and a tab whose text is not saved to its file shows a `*`.

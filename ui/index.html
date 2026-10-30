@@ -210,7 +210,13 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 .vpasc{border-left:1px solid var(--bd2)}
 .vptext{flex:1;min-width:0;border:0;outline:none;resize:none;background:var(--bg);color:var(--fg);white-space:pre;overflow:auto}
 .vptext.wrap{white-space:pre-wrap;overflow-wrap:anywhere} .vptext[readonly]{background:var(--even)}
- .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
+ .hl,.editor{position:absolute;inset:0 0 0 var(--gutw,0px);margin:0;padding:8px;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
+ /* Line numbers, in a gutter left of the text: the same font and line height, scrolled with it. The
+    padding below lets it scroll as far as the editor does when a horizontal scrollbar takes room. The
+    line the caret is on has a band (gutcur), placed in lines (1.4em each) from the top. */
+ .gutter{position:absolute;left:0;top:0;bottom:0;width:var(--gutw,0px);font-family:var(--mono);font-size:var(--edfs,13px);overflow:hidden;box-sizing:border-box;background:var(--panel);border-right:1px solid var(--bd2);user-select:none;-webkit-user-select:none;cursor:default;z-index:1}
+ .gutnums{margin:0;padding:8px 8px 48px 0;text-align:right;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;color:var(--muted)}
+ .gutcur{position:absolute;left:0;right:0;height:1.4em;font-size:var(--edfs,13px);background:color-mix(in srgb,var(--accent) 14%,transparent);pointer-events:none}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
  .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
@@ -2008,8 +2014,18 @@ const KW=RESERVED;
 function hl(code){let re=/(\/\*[\s\S]*?\*\/|--[^\n]*)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`]|``)*`)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)|([\s\S])/g;let out='',m;
  while((m=re.exec(code))){if(m[1])out+='<span class="c-com">'+esc(m[1])+'</span>';else if(m[2])out+='<span class="c-str">'+esc(m[2])+'</span>';else if(m[3])out+='<span class="c-num">'+esc(m[3])+'</span>';else if(m[4])out+=(KW.has(m[4].toLowerCase())?'<span class="c-kw">'+esc(m[4])+'</span>':esc(m[4]));else out+=esc(m[5]);}
  return out;}
-function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;
+function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;gutSync(id);
  const fm=$('fm_'+id);if(fm&&fm.style.display!=='none'){if(fm._v!==ta.value)findPaint(id);fm.scrollTop=ta.scrollTop;fm.scrollLeft=ta.scrollLeft;}}
+// The gutter's numbers are written again only when the number of lines changes, and its width only
+// when that number gets another digit; the band follows the caret, and the scroll follows the editor's.
+function gutSync(id){const ta=$('ed_'+id),g=$('gut_'+id);if(!ta||!g)return;const v=ta.value;
+ let n=1;for(let i=v.indexOf('\n');i>=0;i=v.indexOf('\n',i+1))n++;
+ if(g._n!==n){g._n=n;const a=new Array(n);for(let i=0;i<n;i++)a[i]=i+1;g.firstChild.textContent=a.join('\n');
+  const d=Math.max(2,String(n).length);if(g._d!==d){g._d=d;g.parentNode.style.setProperty('--gutw','calc('+d+'ch + 16px)');}}
+ gutCaret(id);g.scrollTop=ta.scrollTop;}
+function gutCaret(id){const ta=$('ed_'+id),g=$('gut_'+id);if(!ta||!g)return;const v=ta.value,end=ta.selectionEnd;
+ let line=0;for(let i=v.indexOf('\n');i>=0&&i<end;i=v.indexOf('\n',i+1))line++;
+ if(g._line!==line){g._line=line;g.lastChild.style.top='calc(8px + '+line+' * 1.4em)';}}
 // ---- find and replace in the editor ----
 // The matches are drawn in a layer of their own under the highlighted text, so the editor keeps its
 // caret and its undo while the find box has the keyboard. Replacing goes through insertText for the
@@ -3732,7 +3748,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  const pane=document.createElement('div');pane.className='tabpane';pane.id='pane_'+id;
  const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')" data-ic="lastq" data-fit="2">Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
  const pager='<span id="pager_'+id+'" class="status pagerinfo"></span>';
- pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
+ pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><div class="gutter" id="gut_'+id+'" aria-hidden="true"><pre class="gutnums"></pre><div class="gutcur"></div></div><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
   '<div class="edsplit" id="es_'+id+'" title="Drag to resize the editor - double-click to reset" ondblclick="edSplitReset(\''+id+'\')">'+
   '<span class="edfold toedge up" title="Give the whole pane to the results" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'editor\')">&#9652;</span>'+
   '<span class="edfold toedge down" title="Give the whole pane to the editor" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'results\')">&#9662;</span>'+
@@ -3780,7 +3796,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
    if(!fold)ew.style.height=Math.max(44,Math.min(raw,maxH))+'px';syncHl(id);};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
- ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);if(T(id)&&T(id).file)refreshTabDirty(id);});ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
+ ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);if(T(id)&&T(id).file)refreshTabDirty(id);});['keyup','mouseup','select','focus'].forEach(ev=>ta.addEventListener(ev,()=>gutCaret(id)));ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
  ta.addEventListener('blur',()=>{setTimeout(acHide,150);saveSession();});
  ta.addEventListener('keydown',e=>{
   if(acVisible()){
