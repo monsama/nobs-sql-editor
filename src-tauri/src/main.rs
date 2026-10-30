@@ -908,7 +908,7 @@ type Table = (Vec<String>, Rows);
 // What opening a cursor answers: column names, which are binary, and which are BIT.
 type CursorOpen = Result<(Vec<String>, Vec<bool>, Vec<bool>), String>;
 // What open_cursor answers: cursor id, columns, binary and BIT flags, the first rows, has_more.
-type CursorFirstPage = (String, Vec<String>, Vec<bool>, Vec<bool>, Rows, bool);
+type CursorFirstPage = (String, Vec<String>, Vec<bool>, Vec<bool>, Rows, bool, Vec<Value>);
 
 // Which columns are binary/BIT is decided here for display encoding; run_select_bin also hands
 // it back so the grid can refuse to write a decimal into one. Typing 8 into a BIT(8) cell stored
@@ -969,6 +969,37 @@ enum CursorCmd {
 struct CursorBatch {
     rows: Vec<Vec<Option<String>>>,
     has_more: bool,
+    // The server's warnings for the statement, with the last page (take_warnings).
+    warnings: Vec<Value>,
+}
+
+// ---------- The server's warnings ----------
+// A statement can succeed and still have the server change what it was given: under a sql_mode
+// without STRICT_TRANS_TABLES a string too long for its column is cut short, a number out of range
+// is clipped, a bad date becomes 0000-00-00 - each with a warning and an OK. The count comes with
+// every statement's answer; the warnings themselves only from SHOW WARNINGS, on the same
+// connection, before the next statement replaces them. So they are asked for after each statement
+// that has any, and nothing is spent on the ones that have none. `stmt` is the statement's number
+// in what was run, for the list the page shows.
+fn take_warnings(c: &mut Conn, stmt: usize, out: &mut Vec<Value>) {
+    if c.warnings() == 0 { return; }
+    let Ok(rows) = c.query::<mysql::Row, _>("SHOW WARNINGS") else { return };
+    for r in rows {
+        let s = |i: usize| r.get_opt::<String, usize>(i).and_then(|v| v.ok()).unwrap_or_default();
+        out.push(json!({"statement": stmt, "level": s(0), "code": s(1).parse::<u32>().unwrap_or(0), "message": s(2)}));
+    }
+}
+// Whether warnings mean a value was not stored as given: Warning or Error (a Note is information,
+// as DROP TABLE IF EXISTS of a table that is not there), from a statement that writes. A SELECT
+// warns too - the row guards Apply sends find no row by design, which SELECT ... INTO reports as
+// 1329 - but changes nothing.
+fn warnings_change_data(warnings: &[Value], statements: &[String]) -> bool {
+    warnings.iter().any(|w| {
+        let level = w["level"].as_str().unwrap_or("");
+        let n = w["statement"].as_u64().unwrap_or(0) as usize;
+        let head = statements.get(n.wrapping_sub(1)).map(|s| s.trim_start().to_ascii_uppercase()).unwrap_or_default();
+        !level.eq_ignore_ascii_case("note") && !head.starts_with("SELECT")
+    })
 }
 // Registry of open cursors, keyed by a server-generated cursorId: the frontend only ever holds
 // the id, never the sender itself, and looks it up here on every subsequent fetch/close. Same
@@ -1215,6 +1246,7 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // one row at every page boundary (100k rows at the default pageSize surfaced as 99,901,
         // with has_more=false, so nothing indicated the loss).
         let mut carry: Option<Vec<Option<String>>> = None;
+        let mut last: Option<(std::sync::mpsc::Sender<Result<CursorBatch, String>>, CursorBatch)> = None;
         loop {
             // Idle safety net: an abandoned cursor (tab closed without the UI's cleanup call
             // reaching the backend, app crashed, etc.) can't hold its DB connection open forever.
@@ -1251,10 +1283,14 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
                         }
                     }
                     let has_more = carry.is_some();
-                    let done = err.is_some() || !has_more;
-                    let resp = match err { Some(e) => Err(e), None => Ok(CursorBatch { rows, has_more }) };
-                    let _ = reply.send(resp);
-                    if done { break; }
+                    let batch = CursorBatch { rows, has_more, warnings: Vec::new() };
+                    match err {
+                        Some(e) => { let _ = reply.send(Err(e)); break; }
+                        // The last page waits for the statement's warnings, which the connection
+                        // can only be asked for once the result is let go, below.
+                        None if !has_more => { last = Some((reply, batch)); break; }
+                        None => { let _ = reply.send(Ok(batch)); }
+                    }
                 }
                 Ok(CursorCmd::Close) => break,
                 Err(_) => break, // idle timeout, or every Sender (incl. the registry's) was dropped
@@ -1272,6 +1308,10 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         }
         drop(result);
         if killed { let _ = conn.query_drop("DO 0"); }
+        if let Some((reply, mut batch)) = last {
+            take_warnings(&mut conn, 1, &mut batch.warnings);
+            let _ = reply.send(Ok(batch));
+        }
         }
         if let Some(id) = home { sess_return(&id, conn); }
     });
@@ -1308,7 +1348,7 @@ fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<Strin
     if !cols.is_empty() && batch.has_more {
         cursors().lock().unwrap().insert(cursor_id.clone(), cmd_tx);
     }
-    Ok((cursor_id, cols, bin, bit, batch.rows, batch.has_more))
+    Ok((cursor_id, cols, bin, bit, batch.rows, batch.has_more, batch.warnings))
 }
 
 // ---------- SQL text helpers (identifier + literal, Workbench-style + hex rule) ----------
@@ -2114,13 +2154,13 @@ async fn query(req: Value) -> R {
         let kill = if c.in_session() { Some((c.connection_id(), req["conn"].clone())) } else { None };
         let (conn, home) = c.into_parts();
         let result = match open_cursor(conn, sql, page_size, request_id.clone(), home, kill) {
-            Ok((cursor_id, cols, bin, bit, rows, has_more)) => {
+            Ok((cursor_id, cols, bin, bit, rows, has_more, warnings)) => {
                 cursor_persists = has_more;
                 if cols.is_empty() {
-                    Ok(json!({"ok":true,"columns":[],"rows":[],"elapsedMs":t.elapsed().as_millis() as u64,"message":"Query OK. No result set."}))
+                    Ok(json!({"ok":true,"columns":[],"rows":[],"elapsedMs":t.elapsed().as_millis() as u64,"message":"Query OK. No result set.","warnings":warnings}))
                 } else {
                     let cursor_id_for_response = if has_more { Some(cursor_id) } else { None };
-                    Ok(json!({"ok":true,"columns":cols,"rows":rows,"binaryCols":bin,"bitCols":bit,"hasMore":has_more,"cursorId":cursor_id_for_response,"elapsedMs":t.elapsed().as_millis() as u64}))
+                    Ok(json!({"ok":true,"columns":cols,"rows":rows,"binaryCols":bin,"bitCols":bit,"hasMore":has_more,"cursorId":cursor_id_for_response,"elapsedMs":t.elapsed().as_millis() as u64,"warnings":warnings}))
                 }
             }
             Err(e) => {
@@ -2170,7 +2210,7 @@ async fn fetch_cursor_batch(req: Value) -> R {
                 // has_more false means the cursor thread already exhausted, deregistered, and
                 // exited on its own - nothing left here to clean up in that case.
                 if !batch.has_more { cursors().lock().unwrap().remove(&cursor_id); }
-                Ok(json!({"ok":true,"rows":batch.rows,"hasMore":batch.has_more}))
+                Ok(json!({"ok":true,"rows":batch.rows,"hasMore":batch.has_more,"warnings":batch.warnings}))
             }
             Ok(Err(e)) => {
                 cursors().lock().unwrap().remove(&cursor_id);
@@ -2714,17 +2754,26 @@ async fn script(req: Value) -> R {
             if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
             // Rows the statements changed, for a transaction's log to say what each run did.
             let mut affected: u64 = 0;
+            let mut warnings: Vec<Value> = Vec::new();
             for (idx, stmt) in statements.iter().enumerate() {
                 let ran = c.query_drop(stmt);
-                if ran.is_ok() { affected += c.affected_rows(); }
+                if ran.is_ok() { affected += c.affected_rows(); take_warnings(&mut c, idx + 1, &mut warnings); }
                 if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
                     if transactional { let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" }); }
                     let e = db_err(e);
                     let note = if !transactional { "" } else if in_session { "\n\nNone of these changes were applied. The tab's transaction is still open." } else { "\n\nNo changes were applied - the batch was rolled back." };
-                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
+                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"warnings":warnings,"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
                 }
+            }
+            // Grid edits are meant to be stored as typed. When the server warned that it stored a
+            // value otherwise - cut short, clipped, turned into a zero date - nothing is kept, and
+            // the page shows the warnings and lets the user apply them anyway (failOnWarnings off).
+            if transactional && req["failOnWarnings"].as_bool().unwrap_or(false) && warnings_change_data(&warnings, &statements) {
+                let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" });
+                return Ok(json!({"ok":false,"warned":true,"affected":0,"warnings":warnings,
+                    "error":"The server would not store every value as given, so nothing was saved."}));
             }
             if transactional && in_session {
                 let _ = c.query_drop("RELEASE SAVEPOINT nobs_batch");
@@ -2734,7 +2783,7 @@ async fn script(req: Value) -> R {
                     return Ok(json!({"ok":false,"error":commit_failure_message(&db_err(e))}));
                 }
             }
-            return Ok(json!({"ok":true,"affected":affected}));
+            return Ok(json!({"ok":true,"affected":affected,"warnings":warnings}));
         }
 
         // Continue-on-error mode: run every statement regardless of earlier failures, and
@@ -2742,9 +2791,10 @@ async fn script(req: Value) -> R {
         // that needs fixing in one pass, not stopping at (and hiding everything past) the first.
         let mut succeeded = 0usize;
         let mut failures: Vec<Value> = Vec::new();
+        let mut warnings: Vec<Value> = Vec::new();
         for (idx, stmt) in statements.iter().enumerate() {
             match c.query_drop(stmt) {
-                Ok(_) => { succeeded += 1; }
+                Ok(_) => { succeeded += 1; take_warnings(&mut c, idx + 1, &mut warnings); }
                 Err(e) => {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2752,7 +2802,7 @@ async fn script(req: Value) -> R {
                 }
             }
         }
-        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures}))
+        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures,"warnings":warnings}))
     }).await.map_err(|e| e.to_string())?;
     mark_reset(&sid, r)
 }
@@ -2787,6 +2837,7 @@ async fn script_results(req: Value) -> R {
         let total = statements.len();
         let mut results: Vec<Value> = Vec::new();
         let mut error: Option<String> = None;
+        let mut warnings: Vec<Value> = Vec::new();
         'statements: for (idx, stmt) in statements.iter().enumerate() {
             let preview: String = stmt.chars().take(120).collect();
             let mut qr = match c.query_iter(stmt) {
@@ -2815,10 +2866,12 @@ async fn script_results(req: Value) -> R {
                 results.push(json!({"statement": idx + 1, "sql": preview, "columns": cols, "binaryCols": bin, "bitCols": bit,
                                     "rows": rows, "rowCount": count, "truncated": count > max_rows}));
             }
+            drop(qr);
+            take_warnings(&mut c, idx + 1, &mut warnings);
         }
         let cancelled = request_id.as_deref().map(|rid| { running_queries().lock().unwrap().remove(rid); take_query_cancelled(rid) }).unwrap_or(false);
-        if cancelled { return Ok(json!({"ok":false,"cancelled":true,"error":"Query cancelled.","results":results,"total":total})); }
-        Ok(json!({"ok": error.is_none(), "error": error, "results": results, "total": total}))
+        if cancelled { return Ok(json!({"ok":false,"cancelled":true,"error":"Query cancelled.","results":results,"total":total,"warnings":warnings})); }
+        Ok(json!({"ok": error.is_none(), "error": error, "results": results, "total": total, "warnings": warnings}))
     }).await.map_err(|e| e.to_string())?;
     mark_reset(&sid, r)
 }
@@ -7024,6 +7077,99 @@ mod live_tests {
         println!("  cancelled query        -> {}", r["error"].as_str().unwrap_or(""));
         assert_eq!(r["error"], "Query cancelled.");
         assert_eq!(r["cancelled"], true);
+    }
+}
+
+#[cfg(test)]
+mod warnings_tests {
+    use super::*;
+    fn conn_json() -> Option<Value> {
+        let dsn = std::env::var("NOBS_TEST_DSN").ok()?;
+        let p: Vec<&str> = dsn.split(':').collect();
+        if p.len() != 4 { return None; }
+        Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"}))
+    }
+    fn codes(r: &Value) -> Vec<(u64, String, u64)> {
+        r["warnings"].as_array().cloned().unwrap_or_default().iter()
+            .map(|w| (w["statement"].as_u64().unwrap_or(0), w["level"].as_str().unwrap_or("").to_string(), w["code"].as_u64().unwrap_or(0))).collect()
+    }
+    const NON_STRICT: &str = "SET SESSION sql_mode = ''";
+
+    // Only a warning from a statement that writes means a value was not stored as given: a Note is
+    // information, and the row guards Apply sends are SELECTs that find no row by design (1329).
+    #[test]
+    fn only_a_writing_statement_s_warning_changes_data() {
+        let stmts: Vec<String> = vec!["SELECT 1 FROM t INTO @g".into(), "UPDATE t SET v='x'".into()];
+        let w = |n: u64, level: &str| vec![json!({"statement":n,"level":level,"code":1})];
+        assert!(!warnings_change_data(&w(1, "Warning"), &stmts), "a guard's warning");
+        assert!(!warnings_change_data(&w(2, "Note"), &stmts), "a note");
+        assert!(warnings_change_data(&w(2, "Warning"), &stmts));
+        assert!(warnings_change_data(&w(2, "Error"), &stmts));
+        assert!(!warnings_change_data(&[], &stmts));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_value_cut_short_is_reported_with_its_statement() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = script(json!({"sql":format!("DROP TABLE IF EXISTS nobs_test.warn_t; CREATE TABLE nobs_test.warn_t (id INT PRIMARY KEY, v VARCHAR(3)); {NON_STRICT}; INSERT INTO nobs_test.warn_t VALUES (1, 'abcdef')"),"conn":conn,"db":"nobs_test"})).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        let c = codes(&r);
+        assert!(c.iter().any(|(s, l, code)| *s == 4 && l == "Warning" && *code == 1265), "the INSERT's truncation: {c:?}");
+        assert!(c.iter().any(|(s, l, code)| *s == 1 && l == "Note" && *code == 1051), "DROP TABLE IF EXISTS of a missing table is a Note: {c:?}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn grid_edits_the_server_would_change_are_not_kept() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        script(json!({"sql":"DROP TABLE IF EXISTS nobs_test.warn_g; CREATE TABLE nobs_test.warn_g (id INT PRIMARY KEY, v VARCHAR(3)); INSERT INTO nobs_test.warn_g VALUES (1, 'abc')","conn":conn,"db":"nobs_test"})).await.unwrap();
+        let batch = format!("{NON_STRICT};\nUPDATE nobs_test.warn_g SET v='toolong' WHERE id=1 LIMIT 1;");
+        let r = script(json!({"sql":batch,"conn":conn,"db":"nobs_test","transaction":true,"failOnWarnings":true})).await.unwrap();
+        assert_eq!((r["ok"].clone(), r["warned"].clone()), (json!(false), json!(true)), "{r}");
+        let v = query(json!({"sql":"SELECT v FROM nobs_test.warn_g WHERE id=1","conn":conn})).await.unwrap();
+        assert_eq!(v["rows"][0][0], "abc", "nothing was kept");
+        let anyway = script(json!({"sql":batch,"conn":conn,"db":"nobs_test","transaction":true})).await.unwrap();
+        assert_eq!(anyway["ok"], true, "without the check it saves, as the server takes it: {anyway}");
+        let v = query(json!({"sql":"SELECT v FROM nobs_test.warn_g WHERE id=1","conn":conn})).await.unwrap();
+        assert_eq!(v["rows"][0][0], "too");
+        script(json!({"sql":"DROP TABLE nobs_test.warn_g","conn":conn})).await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_select_s_warnings_come_with_its_rows() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = query(json!({"sql":"SELECT CAST('abc' AS SIGNED) AS n","conn":conn})).await.unwrap();
+        assert!(codes(&r).iter().any(|(_, l, code)| l == "Warning" && *code == 1292), "{r}");
+        let clean = query(json!({"sql":"SELECT 1","conn":conn})).await.unwrap();
+        assert_eq!(clean["warnings"], json!([]), "a statement without any costs no SHOW WARNINGS");
+    }
+
+    // A result read in pages has its warnings with the last page: the server counts them once every
+    // row is sent.
+    #[tokio::test]
+    #[ignore]
+    async fn a_paged_result_s_warnings_come_with_its_last_page() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let sql = "SELECT CAST(x AS SIGNED) AS n FROM (SELECT 'a' AS x UNION ALL SELECT 'b' UNION ALL SELECT 'c') d";
+        let first = query(json!({"sql":sql,"conn":conn,"pageSize":1})).await.unwrap();
+        assert_eq!(first["hasMore"], true, "{first}");
+        let mut last = json!(null);
+        for _ in 0..5 {
+            last = fetch_cursor_batch(json!({"cursorId":first["cursorId"],"pageSize":1})).await.unwrap();
+            if last["hasMore"] != true { break; }
+        }
+        assert!(codes(&last).iter().any(|(_, l, code)| l == "Warning" && *code == 1292), "{last}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn every_result_of_a_script_has_its_statement_s_warnings() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = script_results(json!({"sql":"SELECT 1; SELECT CAST('abc' AS SIGNED)","conn":conn})).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        assert!(codes(&r).iter().any(|(s, _, code)| *s == 2 && *code == 1292), "{r}");
     }
 }
 
