@@ -240,6 +240,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.grid th:first-child,table.grid td:first-child{text-align:center;padding-left:2px;padding-right:2px} table.grid input[type=checkbox]{margin:0;vertical-align:middle}
  table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} /* While a block is being dragged the browser must not also be selecting the text under it. */
  .dragsel,body.gridpicking{user-select:none;-webkit-user-select:none}
+ /* The focused cell's row and column, quieter than its ring: a faint tint across the row with a bar at
+    its left end, which stays in view when the grid is scrolled sideways, and a line under the column's name.
+    A row whose checkbox is ticked is marked the same way. */
+ table.grid tr:is(.kbrow,.rowpick) td{background:color-mix(in srgb,var(--accent) 7%,var(--bg))} table.grid tr:is(.kbrow,.rowpick) td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+ table.grid th.kbcol{background:color-mix(in srgb,var(--accent) 10%,var(--gridh));box-shadow:inset 0 -2px 0 var(--accent)}
  /* A picked cell: enough to see which ones are in, without hiding what is written in them. */
  /* A picked block: a solid tint (mixed into the page background, as a cell's background does not
     reach under its lines), the lines inside it in the tint, and its outline on a layer over each
@@ -5040,7 +5045,7 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
    // into every picked cell at once when some are picked.
    if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.isComposing){const tg=e.target;
     if(!(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'||tg.tagName==='SELECT'))&&typeIntoCells(id,e.key)){e.preventDefault();return;}}
-   gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('td.editable');if(td){const tr=td.closest('tr[data-r]');if(tr){const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0)gridSetFocus(id,ri,ci,false);}}});
+   gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('tbody tr[data-r] > td');if(td){const tr=td.parentNode;const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0&&ci<t2.cols.length)gridSetFocus(id,ri,ci,false);}});
   let _vraf=null;wrap.addEventListener('scroll',()=>{if(_vraf)return;_vraf=requestAnimationFrame(()=>{_vraf=null;renderBody(id);maybePrefetchNextBatch(id,wrap);});});
   wrap.dataset.kbWired='1';}}
 // Silently tops up a tab's loaded rows once the user scrolls near the bottom of the grid's own
@@ -5107,7 +5112,7 @@ function syncFilterRowTop(id){
 // all of it left. Hung on the next cell instead, the overhang goes the other way, over a
 // neighbour that paints earlier - the whole band is there, centred on the line, at 100%, 125% and
 // 150% display scaling alike. The last column's handle goes on the filler cell at the end.
-function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');h+='<th style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
+function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');const gf=gridFocusOf(id);h+='<th'+(gf&&gf.ci===ci?' class="kbcol"':'')+' style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
 // Typed into a column filter or the search box: a result of thousands of rows is filtered again once
 // the typing pauses, not at every key, which made each key wait for a pass over all of it. A small
 // result follows the typing at once.
@@ -5187,15 +5192,15 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
   if(endIdx<startIdx)endIdx=startIdx;
   topH=startIdx*rowH;botH=(view.length-endIdx)*rowH;
  }
- const slice=view.slice(startIdx,endIdx);
+ const slice=view.slice(startIdx,endIdx),gf=gridFocusOf(id);
  const nCols=1+(ed?1:0)+t.cols.length;
  let h='';
  if(topH>0)h+='<tr class="vpad" style="height:'+topH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
- slice.forEach((ri,k)=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);const vi=startIdx+k,up=vi>0?view[vi-1]:null,dn=vi<view.length-1?view[vi+1]:null;h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+'">';
+ slice.forEach((ri,k)=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);const vi=startIdx+k,up=vi>0?view[vi-1]:null,dn=vi<view.length-1?view[vi+1]:null;const fr=gf&&gf.ri===ri;h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+(fr?' kbrow':'')+(t.selected.has(ri)?' rowpick':'')+'">';
   h+='<td style="text-align:center;width:22px"><input type="checkbox" class="rowsel" '+(t.selected.has(ri)?'checked':'')+' onclick="rowSelClick(event,\''+id+'\','+ri+',this)"></td>';
   if(ed)h+='<td class="delcell" onclick="toggleDel(\''+id+'\','+ri+')">'+(del?'\u21A9':'\u00D7')+'</td>';
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
-   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn);
+   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn)+(fr&&gf.ci===ci?' kbfocus':'');
    const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ':'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
@@ -5807,12 +5812,20 @@ function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t
   if(pos>=0){const rowH=t._rowH||23;wrap.scrollTop=Math.max(0,pos*rowH-rowH*4);renderBody(id);tr=wrap.querySelector('tr[data-r="'+ri+'"]');}
  }
  if(!tr)return null;return tr.children[ci+off]||null;}
+// The focus belongs to the rows it was set on: after a new run or a reload the grid has other rows, and
+// nothing is marked until a cell is picked again.
+function gridFocusOf(id){const f=gridFocus[id],t=T(id);return f&&t&&f.rows===t.rows?f:null;}
+// The focused cell's row and column name are marked too (kbrow, kbcol), more quietly than the cell.
+function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
+ const t=T(id),hdr=$('sortrow_'+id),th=hdr&&t&&hdr.children[1+(t.pk?1:0)+f.ci];if(th)th.classList.toggle('kbcol',on);}
 function gridSetFocus(id,ri,ci,scroll){const t=T(id);if(!t)return;const view=viewIndices(id);if(view.indexOf(ri)<0)return;
- const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}
- gridFocus[id]={ri,ci};const el=gridCellEl(id,ri,ci);if(el){el.classList.add('kbfocus');if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}
+ const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);
+ gridFocus[id]={ri,ci,rows:t.rows};gridMarkFocus(id,gridFocus[id],true);const el=gridCellEl(id,ri,ci);if(el){if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}
  vpShow(id,{ri,ci});}
-function gridClearFocus(id){const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}delete gridFocus[id];}
-function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id];
+function gridClearFocus(id){const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);delete gridFocus[id];}
+// A read-only result (no key, e.g. from a join) is moved about in the same way; only Enter and F2, which
+// open the editor, need a key.
+function gridKeyNav(id,e){const t=T(id);if(!t||!t.cols)return;const f=gridFocus[id];
  const view=viewIndices(id);
  if(!f){ if(['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Tab'].includes(e.key) && view.length){e.preventDefault();gridSetFocus(id,view[0],0);} return; }
  let {ri,ci}=f; const rowPos=view.indexOf(ri); if(rowPos<0)return;
@@ -5823,7 +5836,7 @@ function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id
  else if(e.key==='ArrowRight'){e.preventDefault();if(ci<nCols-1)gridSetFocus(id,ri,ci+1);}
  else if(e.key==='Tab'){e.preventDefault();if(e.shiftKey){if(ci>0)gridSetFocus(id,ri,ci-1);else if(rowPos>0)gridSetFocus(id,view[rowPos-1],nCols-1);}
    else{if(ci<nCols-1)gridSetFocus(id,ri,ci+1);else if(rowPos<view.length-1)gridSetFocus(id,view[rowPos+1],0);}}
- else if(e.key==='Enter'||e.key==='F2'){e.preventDefault();const el=gridCellEl(id,ri,ci);if(el)inlineEdit(el,id,ri,ci);}
+ else if((e.key==='Enter'||e.key==='F2')&&t.pk){e.preventDefault();const el=gridCellEl(id,ri,ci);if(el)inlineEdit(el,id,ri,ci);}
  else if(e.key==='Escape'){gridClearFocus(id);}
 }
 // No delay/timer here to disambiguate a single click from the first click of a double-click - the
@@ -6491,6 +6504,11 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  const multi=(npick>1&&pickKeys.includes(key))||(nsel>1&&!!t.selected&&t.selected.has(ri));
  // How many, in words the menu can say: "row" for one of them, "3 rows" for more.
  const rows=n=>n===1?'row':n+' rows';
+ // The rows a row copy takes: those of the picked cells when the click is inside several of them (in
+ // the order shown), else this one. Read-only results pick cells too.
+ const pickAll=t.cellSel?[...t.cellSel].filter(k=>pickView.has(+k.split(':')[0])):[],inPick=pickAll.length>1&&pickAll.includes(key);
+ const copyIdx=inPick?(r=>viewIndices(id).filter(x=>r.has(x)))(new Set(pickAll.map(k=>+k.split(':')[0]))):[ri];
+ const tickMulti=!inPick&&nsel>1&&!!t.selected&&t.selected.has(ri);
  // A copied row belongs to the table it came from: one with a different number of columns cannot
  // be pasted here, so it is not offered here.
  const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
@@ -6514,7 +6532,10 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   !multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],
   (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;window._cellClipboard=pickedCellsGrid(id);copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,
   !multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],
-  !multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],
+  // The row, or the rows of the picked cells when right-clicked inside them; each with or without the
+  // column names as a first line. Several ticked rows have their own copies just below.
+  ...(tickMulti?[]:[['Copy '+rows(copyIdx.length),()=>copyRowsOf(id,copyIdx)],['Copy '+rows(copyIdx.length)+' (with header)',()=>copyRowsOf(id,copyIdx,true)]]),
+  sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows')+' (with header)',()=>copySelRows(id,true)],
   // paste
   ...pasteCells,
   !multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],
@@ -6634,8 +6655,11 @@ function clipWrite(text,alsoTry){
 function copyText(text,okMsg,alsoTry){
  return clipWrite(text,alsoTry).then(st=>{ if(st==='ok')log(okMsg); return st; });
 }
-function copyRow(id,ri){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(vals.map(v=>v===null?'':v).join('\t'),'Copied 1 row (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
-function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+// head: the column names go first, as a line of their own.
+function rowsTsv(t,rowsData,head){return (head?[t.cols]:[]).concat(rowsData).map(vals=>vals.map(v=>v===null?'':v).join('\t')).join('\n');}
+function copyRowsOf(id,idxs,head){if(idxs.length===1)return copyRow(id,idxs[0],head);const t=T(id);const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=null;copyText(rowsTsv(t,rowsData,head),'Copied '+idxs.length+' rows'+(head?' with their header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+function copyRow(id,ri,head){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(rowsTsv(t,[vals],head),'Copied 1 row'+(head?' with its header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
+function copySelRows(id,head){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;copyText(rowsTsv(t,rowsData,head),'Copied '+idxs.length+' row(s)'+(head?' with their header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
 // "Copy row" and the selection copy keep a single row and a list apart, since pasting several
 // rows only makes sense as new rows, never as an overwrite of one target row - but a single-row
 // paste shouldn't care which command put that one row there, and whichever copy came last is the
