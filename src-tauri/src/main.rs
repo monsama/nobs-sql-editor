@@ -5191,6 +5191,60 @@ async fn pick_save_path(app: tauri::AppHandle, req: Value) -> R {
     Ok(json!(p))
 }
 
+// A .sql file opened in a tab, or saved from one through Save As, may be written again by Save for as
+// long as the app runs: the user picked it in a dialog once. Any other path still needs the dialog.
+fn sql_file_grants() -> &'static Mutex<std::collections::HashSet<String>> {
+    static G: std::sync::OnceLock<Mutex<std::collections::HashSet<String>>> = std::sync::OnceLock::new();
+    G.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+// The Open dialog, and the file picked there as text. The page is given the text without a byte
+// order mark, and told whether there was one, so Save can write it back the same way. A file that
+// is not UTF-8 is not opened: read as something else and saved, it would come back changed.
+#[tauri::command]
+async fn open_sql_file(app: tauri::AppHandle) -> R {
+    use tauri_plugin_dialog::DialogExt;
+    let d = app.dialog().file().add_filter("SQL files", &["sql"]).add_filter("All files", &["*"]);
+    let picked = tokio::task::spawn_blocking(move || d.blocking_pick_file()).await.map_err(|e| e.to_string())?;
+    let Some(fp) = picked else { return Ok(Value::Null) };
+    let p = fp.into_path().map_err(|e| e.to_string())?;
+    let path = p.to_string_lossy().to_string();
+    let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.clone());
+    Ok(read_sql_file(&path, &name))
+}
+fn read_sql_file(path: &str, name: &str) -> Value {
+    const MAX: u64 = 50 * 1024 * 1024;
+    match std::fs::metadata(path) {
+        Ok(m) if m.len() > MAX => return json!({"ok":false,"error":format!("{name} is larger than 50 MB. Use Import to run a file that size.")}),
+        Err(e) => return json!({"ok":false,"error":e.to_string()}),
+        _ => {}
+    }
+    let bytes = match std::fs::read(path) { Ok(b) => b, Err(e) => return json!({"ok":false,"error":e.to_string()}) };
+    let bom = bytes.starts_with(&[0xEF, 0xBB, 0xBF]);
+    match String::from_utf8(if bom { bytes[3..].to_vec() } else { bytes }) {
+        Ok(text) => {
+            sql_file_grants().lock().unwrap().insert(path.to_string());
+            json!({"ok":true,"path":path,"name":name,"content":text,"bom":bom})
+        }
+        Err(_) => json!({"ok":false,"error":format!("{name} is not UTF-8 text, so it is not opened: saved again, it would not be the same file.")}),
+    }
+}
+
+// Save writes a file opened or saved before (see sql_file_grants); Save As first asks pick_save_path,
+// whose one-time grant this takes and turns into a lasting one.
+#[tauri::command]
+fn save_sql_file(req: Value) -> R {
+    let path = req["path"].as_str().unwrap_or("");
+    let content = req["content"].as_str().unwrap_or("");
+    if path.is_empty() { return Ok(json!({"ok":false,"error":"no path"})); }
+    let known = sql_file_grants().lock().unwrap().contains(path);
+    if !known && !take_save_grant(path) { return Ok(json!({"ok":false,"error":"not a file opened here or chosen in the Save dialog"})); }
+    match std::fs::write(path, content) {
+        Ok(_) => { sql_file_grants().lock().unwrap().insert(path.to_string()); Ok(json!({"ok":true})) }
+        Err(e) => Ok(json!({"ok":false,"error":e.to_string()})),
+    }
+}
+
 // The GUI tests cannot click through a native Save dialog, so a debug build (which is what they run)
 // lets them name the file; a release build does not.
 #[tauri::command]
@@ -6145,7 +6199,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, open_sql_file, save_sql_file, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -9629,6 +9683,37 @@ mod review_tests {
         let r = save_text(json!({"path": p, "content": "x"})).unwrap();
         assert_eq!(r["ok"], false, "save_text refuses a path that was not picked: {r}");
         assert!(!std::path::Path::new(&p).exists(), "and writes nothing");
+    }
+
+    #[test]
+    fn a_sql_file_opened_in_a_tab_is_saved_again_as_it_came() {
+        let dir = std::env::temp_dir().join(format!("nobs-sqlfile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("q.sql").to_string_lossy().to_string();
+        let r = save_sql_file(json!({"path": p, "content": "x"})).unwrap();
+        assert_eq!(r["ok"], false, "a path nobody picked is refused: {r}");
+        // the BOM is taken off the text and reported; a CRLF stays in it
+        std::fs::write(&p, b"\xEF\xBB\xBFSELECT 'caf\xC3\xA9';\r\n").unwrap();
+        let r = read_sql_file(&p, "q.sql");
+        assert_eq!((r["ok"].clone(), r["bom"].clone(), r["content"].clone()), (json!(true), json!(true), json!("SELECT 'café';\r\n")));
+        // opened, it may be saved as often as wanted
+        for n in 0..2 {
+            let r = save_sql_file(json!({"path": p, "content": format!("SELECT {n};")})).unwrap();
+            assert_eq!(r["ok"], true, "{r}");
+        }
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "SELECT 1;");
+        // a file that is not UTF-8 is not opened
+        let latin = dir.join("latin.sql").to_string_lossy().to_string();
+        std::fs::write(&latin, b"SELECT 'caf\xE9';").unwrap();
+        let r = read_sql_file(&latin, "latin.sql");
+        assert_eq!(r["ok"], false, "{r}");
+        assert!(!sql_file_grants().lock().unwrap().contains(&latin), "and not granted");
+        // Save As: the dialog's one-time grant becomes a lasting one
+        let other = dir.join("new.sql").to_string_lossy().to_string();
+        save_grants().lock().unwrap().insert(other.clone());
+        assert_eq!(save_sql_file(json!({"path": other, "content": "a"})).unwrap()["ok"], true);
+        assert_eq!(save_sql_file(json!({"path": other, "content": "b"})).unwrap()["ok"], true);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
