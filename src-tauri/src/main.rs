@@ -5529,7 +5529,7 @@ fn download_mariadb_tools() -> R {
     let mut got_plugins = 0usize;
     for i in 0..zipf.len() {
         let mut f = zipf.by_index(i).map_err(|e| e.to_string())?;
-        let full = f.name().to_string();
+        let full = f.name().map_err(|e| e.to_string())?.to_string();
         let base = full.rsplit(['/', '\\']).next().unwrap_or("").to_string();
         if want.contains(&base.as_str()) {
             let out = dest.join(&base);
@@ -5664,7 +5664,8 @@ fn download_mysql_tools_blocking() -> R {
     let mut got: Vec<String> = Vec::new();
     for i in 0..zipf.len() {
         let mut f = zipf.by_index(i).map_err(|e| e.to_string())?;
-        let Some(base) = mysql_zip_member(f.name()) else { continue };
+        let Ok(fname) = f.name() else { continue };
+        let Some(base) = mysql_zip_member(&fname) else { continue };
         let mut o = std::fs::File::create(dest.join(&base)).map_err(|e| e.to_string())?;
         std::io::copy(&mut f, &mut o).map_err(|e| e.to_string())?;
         got.push(base);
