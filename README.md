@@ -105,6 +105,10 @@ Export files are kept wherever you saved them.
 - Find and replace (Ctrl+F / Ctrl+H), formatting, undo for every editor command.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
   script with several SELECTs, shows each result in a tab of its own.
+- Each tab keeps its own connection between runs, as the mysql client does: `@variables`,
+  temporary tables and `SET SESSION` carry from one run to the next. A connection the server has
+  closed is opened again, and the tab says what was lost. Right-click a tab for a fresh
+  connection, or switch this off in Settings → General.
 - Explain draws the plan: every table read as a card, a full scan in red and an index lookup in
   green, with the joins, sorts and subqueries around them. **Measure** runs the query and shows
   what really happened at each step - the rows read and the time taken - beside what was expected
@@ -127,7 +131,8 @@ Export files are kept wherever you saved them.
   Edit it there and Save it into the cell, save it as a file, or load it from one.
 - **Go to referenced row** follows a foreign key, into another database too.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open across its runs
-  until Commit or Rollback, with a log of what it has run.
+  until Commit or Rollback, with a log of what it has run. It is the tab's own connection, so what
+  the session held before is still there.
 - Charts: a result as bars or a line.
 - Read the same rows in another character set, to tell text stored wrong from text read wrong.
 

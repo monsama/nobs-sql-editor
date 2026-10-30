@@ -965,6 +965,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setgroup">Running queries</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Asks for confirmation before running an UPDATE or DELETE that has no WHERE clause of its own, since it would change or remove every row of the table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Keep each tab's connection between runs</div><div class="setnote">Each query tab runs on a connection of its own and keeps it, so what one run leaves - @variables, temporary tables, SET SESSION - is there for the next, as in the mysql client. Off, every run opens a new connection with nothing carried over. With Auto-commit off a tab always keeps its connection, for its transaction. The server counts one connection per tab that has run something.</div></div><div class="setrc"><input type="checkbox" id="cfgKeepConn" onchange="setKeepConn(this.checked)" title="Keep each query tab's connection between its runs"></div></div>
   </div>
   <div class="setgroup">Notifications</div>
   <div class="setcard">
@@ -1266,8 +1267,11 @@ function hideDead(){const d=$('deadOverlay');if(d)d.style.display='none';}
 // lists such as a schema's tables or its column names for autocomplete stopped at 1000 in both.
 // Only the grid passes pageSize; for everyone else the remaining rows are read here.
 async function api(path,p,signal){
+ // Whether a run on the tab's kept connection is in its transaction (see runSessOf).
+ if(p&&p.session&&p.sessionTx===undefined){const tb=tabs.find(x=>x.sessId===p.session);if(tb)p.sessionTx=!!tb.txOn;}
  const txe=(p&&p.session)?txWatch(path,p):null;
  const r=await apiCall(path,p,signal);
+ if(p&&p.session&&r&&r.sessionReset)sessReset(p.session);
  if(txe){txe.ok=!!(r&&r.ok);if(r&&!r.ok)txe.error=r.error||(r.aborted?'Cancelled.':'Failed.');if(r&&r.affected!=null)txe.affected=+r.affected;}
  if(p&&p.session&&r&&r.ok===false&&TX_LOST.test(r.error||''))txLost(p.session);
  if(path!=='/api/query'||!p||p.pageSize!=null||!r||!r.ok||!r.hasMore||!r.cursorId)return r;
@@ -1758,7 +1762,7 @@ function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');i
 // The About page: its buttons get their icons when it is shown, and its heading the version this is.
 async function aboutPage(){const pg=document.querySelector('#mSettings .setpage[data-p="about"]');if(pg)decorateIcons(pg);if(window._aboutVersion)return;
  try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}}catch(e){}}
-async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
+async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgKeepConn'))$('cfgKeepConn').checked=keepConnOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
  await refreshToolsStatus();setTimeout(()=>refreshToolsStatus(false,true),50);}
@@ -2520,6 +2524,9 @@ async function connect() {window._connFormTouched=true;window._newConnPrev=null;
   window._activeConnName = $('connlist').value || '';
   paintConnGo();
   window._activeReadOnly = window.readOnly;
+  // A tab keeps the connection it opened, to the server it was opened to. Connecting again - to the
+  // same saved connection with a changed host, say - must not leave its runs going there.
+  tabs.forEach(t=>{if(!t.txOn)tabSessClose(t);});
   // Whether a backslash inside a string is an escape on this server. With NO_BACKSLASH_ESCAPES in
   // its sql_mode it is an ordinary character, and every literal the app wrote - grid edits,
   // comments, passwords - stored C:\temp as C:\\temp, one more pair on every save. strLit()
@@ -2555,7 +2562,7 @@ async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirt
   if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped'+(open.length?'; what was not committed is rolled back':'')+'.')))return;
   await Promise.all(running.map(t=>cancelQuery(t.id)));}
  disconnect();}
-function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeConnName='';window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';_cs.tabIndex=-1;}window.curAccent='';window.readOnly=false;window.curEnv='';
+function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession||t.sessId){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeConnName='';window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';_cs.tabIndex=-1;}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
@@ -2679,8 +2686,7 @@ async function allResultRows(id){const t=T(id);
  const rs=t.resultSets&&t.resultSets[t.resultIdx||0];
  // The same request the grid's rows came from (in the PowerShell edition that can be the exact-text
  // form of the query), in the same session.
- await sessFree(t);
- const q=await api('/api/query',Object.assign({},(!rs&&t.lastRunQ)||{sql,db:dbOf(t)},{session:sessOf(t)}));
+ const q=await tabQuery(t,Object.assign({},(!rs&&t.lastRunQ)||{sql,db:dbOf(t)}));
  if(!q.ok){toast(q.error,true);return null;}
  return {cols:q.columns,rows:q.rows};}
 // How many rows the LIMIT at the very end of a statement allows - LIMIT n, LIMIT offset,n and
@@ -2717,7 +2723,40 @@ function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st
 // stays open until Commit or Rollback. The tab keeps track of whether it has sent anything that
 // changes data, so closing it or disconnecting can say so before the changes are rolled back.
 const TX_LOST=/holding this tab's transaction was lost/;
+// The tab's transaction, for what has to go into it: grid edits applied, Commit and Rollback.
 function sessOf(t){return t&&t.txOn?t.txSession:undefined;}
+// ---- the connection a tab keeps ----
+// A tab's runs share a connection of its own (main.rs, sess_checkout), so what one run leaves -
+// @variables, temporary tables, SET SESSION - is there for the next, as in the mysql client. Before,
+// every run opened a new connection with Auto-commit on, and `SET @x=1;` then `SELECT @x;` gave NULL.
+// With Auto-commit off the same connection is the tab's transaction: one id for both (t.sessId), and
+// each run says which it wants (sessionTx, added in api()), so switching keeps what the session holds.
+// It can be switched off in Settings; reading in another character set never uses it, since that
+// reading is a connection setting the kept connection was not opened with.
+function keepConnOn(){try{return localStorage.getItem('keepConn')!=='off';}catch(e){return true;}}
+function setKeepConn(on){try{localStorage.setItem('keepConn',on?'on':'off');}catch(e){}
+ // Off: the connections kept for Auto-commit runs are let go; a tab's transaction keeps its own.
+ if(!on)tabs.forEach(t=>{if(!t.txOn)tabSessClose(t);});}
+function tabSess(t){return t.sessId||(t.sessId='tab_'+t.id+'_'+Date.now().toString(36));}
+// The session a run from the editor goes to: the transaction with Auto-commit off, else the kept
+// connection - or none, and a new connection, when keeping is off or another charset is being read.
+function runSessOf(t){if(!t)return undefined;if(t.txOn)return t.txSession;return keepConnOn()&&!window.browseCharset?tabSess(t):undefined;}
+// Lets the tab's connection go, whichever it was kept for. The server rolls back what was not committed.
+function tabSessClose(t){if(t&&t.sessId){api('/api/session-end',{session:t.sessId,action:'close'});t.sessId=null;}if(t)t.txSession=null;}
+// A query the tab asks besides its runs - reading every row of a result, a plan - that may need
+// what the runs left in the connection, but must not stop a result still being read from it. In a
+// transaction it goes into the transaction, as always. Otherwise it runs on a connection of its own,
+// and only when that cannot find a table, column or database (a temporary table, most likely) on
+// the tab's connection, after closing the result there.
+async function tabQuery(t,p){const tx=sessOf(t);
+ if(tx){await sessFree(t);return api('/api/query',Object.assign({},p,{session:tx}));}
+ const r=await api('/api/query',p),s=runSessOf(t);
+ if(r.ok||!s||!/\b(1146|1054|1049)\b|doesn't exist|Unknown (table|column|database)/i.test(r.error||''))return r;
+ await sessFree(t,true);return api('/api/query',Object.assign({},p,{session:s}));}
+// The kept connection had died (the server's wait_timeout, a dropped network) and a new one was opened.
+function sessReset(session){const t=tabs.find(x=>x.sessId===session);if(!t)return;
+ const m='This tab\'s connection had been closed, so a new one was opened. What earlier runs left in it - @variables, temporary tables, SET SESSION - is gone.';
+ log(m+' ('+t.title+')');toast(m,true);}
 // Whether SQL only reads. Only for telling the user there is something to commit; the server is
 // what decides.
 // Whether a run only reads, so needs no Commit. Read as the server reads it: strings and quoted names
@@ -2755,9 +2794,18 @@ function txLogRender(){const id=window._txLogTab,t=T(id),box=$('txLogList');if(!
  const on=!!(t&&t.txOn),dirty=!!(t&&t.txDirty);
  $('txLogCommit').disabled=!on||!dirty;$('txLogRollback').disabled=!on||!dirty;}
 async function txLogEnd(action){const id=window._txLogTab;hide('mTxLog');if(id!=null)await txEnd(id,action);}
+// Auto-commit off: the tab's kept connection becomes its transaction, with what it already holds.
+// On again: the transaction ends and the connection is kept for the runs that follow - or let go,
+// when keeping is off.
 function txToggle(id,manual){const t=T(id);if(!t)return;
- if(manual){t.txOn=true;t.txSession=t.txSession||('tx_'+id+'_'+Date.now().toString(36));}
- else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}t.txOn=false;txClose(t);}
+ if(manual){t.txOn=true;t.txSession=tabSess(t);}
+ else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}
+  if(!t.txOn){txPaint(id);return;}
+  t.txOn=false;t.txSession=null;t.txDirty=false;t.txLog=[];
+  // The result on screen holds the connection while it is still being read; it is closed so the
+  // release does not wait for it.
+  if(keepConnOn()&&t.sessId){if(t.cursorId){t.hasMore=false;closeCursorFor(t);updateStatusLine(id);}api('/api/session-end',{session:t.sessId,action:'release'});}
+  else tabSessClose(t);}
  txPaint(id);}
 // Commit saves the grid's pending edits first - Apply and then Commit in one click - and commits
 // nothing if they cannot be saved: the transaction stays open, with the reason on screen. Rollback
@@ -2773,8 +2821,8 @@ async function txEnd(id,action){const t=T(id);if(!t||!t.txOn)return;
  t.txDirty=false;t.txLog=[];txPaint(id);log(m+' ('+t.title+')');toast(m);
  if(t.table)await openRun(id);else if(t.curRun&&t.cols&&t.cols.length&&txReadsOnly(t.curRun))await runSql(id,t.curRun);
  const st=$('st_'+id);if(st){st.className='status';st.textContent=m;}}
-// Lets the tab's connection go. The server rolls back whatever was not committed.
-function txClose(t){if(t&&t.txSession){api('/api/session-end',{session:t.txSession,action:'close'});t.txSession=null;}if(t){t.txDirty=false;t.txLog=[];}}
+// Lets the tab's connection go, with its transaction. The server rolls back whatever was not committed.
+function txClose(t){tabSessClose(t);if(t){t.txDirty=false;t.txLog=[];}}
 // A toggle button: pressed or not, kept in .checked like the checkbox it stands in for.
 function togPress(b,on){b.checked=on===undefined?!b.checked:!!on;b.classList.toggle('ison',b.checked);b.setAttribute('aria-pressed',String(b.checked));}
 function txPaint(id){const t=T(id),cb=$('txac_'+id),bar=$('txbar_'+id),cm=$('txcommit_'+id);const on=!!(t&&t.txOn),dirty=!!(t&&(t.txDirty||(t.txOn&&pendingCount(t)>0)));
@@ -2787,7 +2835,8 @@ function txPaint(id){const t=T(id),cb=$('txac_'+id),bar=$('txbar_'+id),cm=$('txc
 // an export - waited for it, and after 15 seconds failed as "still busy with the statement before".
 // So the cursor is closed first, and the close waited for: the rows already read stay, and what was
 // not read yet comes with the next run.
-async function sessFree(t){if(!t||!sessOf(t)||!t.cursorId)return;const c=t.cursorId;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;
+// run: the result came from a run, on the tab's kept connection, rather than in its transaction.
+async function sessFree(t,run){if(!t||!(run?runSessOf(t):sessOf(t))||!t.cursorId)return;const c=t.cursorId;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;
  try{await api('/api/close-cursor',{cursorId:c});}catch(e){}if(typeof updateStatusLine==='function')updateStatusLine(t.id);}
 function closeCursorFor(t){if(t&&t.cursorId){api('/api/close-cursor',{cursorId:t.cursorId});t.cursorId=null;t.cursorReqId=null;}}
 // Pulls the next PAGE_BATCH rows from the tab's open cursor and APPENDS them to t.rows in place,
@@ -3620,7 +3669,10 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  // middle button after the browser has had its say; mousedown only stops the paste-on-click that
  // X11-style middle-click would otherwise start.
  tb.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();closeTabAsk(id);}});
- tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],tabs.length>1&&['Close others',()=>closeOthers(id)],tabs.length>1&&['Close all',()=>closeAll()]]);};
+ tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[
+  // A fresh start for the tab's session: its @variables, temporary tables and settings let go.
+  tab.sessId&&!tab.txOn&&!tab.runningReqId&&['New connection for this tab',()=>{if(tab.cursorId){tab.hasMore=false;closeCursorFor(tab);updateStatusLine(id);}tabSessClose(tab);toast('The next run in this tab opens a new connection.');}],
+  ['Close',()=>closeTabAsk(id)],tabs.length>1&&['Close others',()=>closeOthers(id)],tabs.length>1&&['Close all',()=>closeAll()]]);};
  tb.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);tb.classList.add('dragging');});
  tb.addEventListener('dragend',()=>{tb.classList.remove('dragging');});
  tb.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';tb.classList.add('dragover');});
@@ -3652,7 +3704,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   // and whatever else is showing. Commit and Rollback stay put with auto-commit on, just unavailable.
   '<span class="tbsep"></span><span class="tbgroup runopts" style="display:inline-flex;align-items:center;gap:6px">'+
   '<button class="tog" id="coe_'+id+'" aria-pressed="false" onclick="togPress(this)" data-ic="skiperr" data-fit="1" title="Continue on error: if a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT.">Continue on error</button>'+
-  '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on a connection of its own, until you Commit or Roll back.">Auto-commit</button>'+
+  '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on the tab\'s own connection, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
   '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
@@ -3891,7 +3943,7 @@ function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=l
 });}}
 // Closes every tab without the "unsaved changes" prompt - only called right after the user has
 // already confirmed switching connections (connect() asks that separately, once, up front).
-function clearAllTabsSilently(){[...tabs].forEach(t=>{const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
+function clearAllTabsSilently(){[...tabs].forEach(t=>{tabSessClose(t);const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
 // Deliberately does NOT prepend "USE <schema>;" to the new tab's text - that's redundant
 // (Api-Query/Api-Script already receive the schema via a SEPARATE db parameter, passed to
 // mysql.exe as --database=..., independent of whatever text is in the query itself), and it was
@@ -4030,8 +4082,7 @@ function planHtml(json){let plan;try{plan=typeof json==='string'?JSON.parse(json
  return head+'<ul class="plan">'+Object.keys(plan).map(k=>planNode(k,plan[k])).join('')+'</ul><details class="pjson"><summary>The plan as the server gave it (JSON)</summary><pre>'+esc(JSON.stringify(plan,null,2))+'</pre></details>';}
 let _planCtx=null;
 async function planShow(id,stmt){const t=T(id);if(!t)return;
- await sessFree(t);
- const r=await api('/api/query',{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t),session:sessOf(t)});
+ const r=await tabQuery(t,{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t)});
  _planCtx={id,stmt};
  $('planTitle').textContent='Query plan - '+t.title;
  $('planBody').innerHTML=r.ok&&r.rows&&r.rows.length?planHtml(r.rows[0][0]):'<div class="unone">'+esc(r.error||'The server gave no plan for this statement.')+'</div>';
@@ -4052,8 +4103,8 @@ function planMs(ms){ms=+ms||0;return ms>=1000?(ms/1000).toFixed(ms>=10000?1:2)+'
 // each with what it expected and what it did.
 async function planMeasure(){const c=_planCtx,t=c&&T(c.id);if(!t||!planReadsOnly(c.stmt))return;
  const b=$('planMeasureBtn');b.disabled=true;b.textContent='Measuring…';$('planNote').textContent='Running the query…';
- try{await sessFree(t);
-  const r=await api('/api/query',{sql:(window.mariadb?'ANALYZE FORMAT=JSON ':'EXPLAIN ANALYZE ')+c.stmt,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()});
+ try{
+  const r=await tabQuery(t,{sql:(window.mariadb?'ANALYZE FORMAT=JSON ':'EXPLAIN ANALYZE ')+c.stmt,db:dbOf(t),timeLimit:timeLimitSec()});
   if(_planCtx!==c)return;
   if(!r.ok){const old=!window.mariadb&&/syntax|1064/i.test(r.error||'');
    $('planNote').textContent='';
@@ -4303,7 +4354,7 @@ async function runScriptResults(id,sql,reqId,seq){
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const writes=stmts.some(s=>!/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));
  if(writes&&roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
- const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+ const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
  if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
  if(stale())return;
  t.table=null;t.pk=null;t.pending=null;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;t.exact=false;
@@ -4392,12 +4443,11 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
  //    mysql's batch mode, so the existing single-result-set parser sees exactly the same output
  //    it would for the SELECT alone. Cheapest path, one round trip, used whenever it applies.
  //  - otherwise (a leading statement is something OTHER than USE - another SELECT, an UPDATE,
- //    etc): those leading statements run first as a SCRIPT (a SEPARATE connection from the one
- //    that runs the displayed final query) purely for their side effects, then the final
- //    statement runs alone as the actual displayed query. Committed data changes and schema
- //    switches ARE correctly visible to the final query this way, but genuinely session-scoped
- //    state (user-defined @variables, temp tables, an uncommitted transaction spanning both
- //    steps) will NOT carry over, since that state belongs to a connection that's now closed.
+ //    etc): those leading statements run first as a SCRIPT purely for their side effects, then
+ //    the final statement runs alone as the actual displayed query. Both go to the tab's kept
+ //    connection (runSessOf), so session state - @variables, temporary tables - carries from the
+ //    first step to the second. With keeping switched off in Settings each step opens its own
+ //    connection, and only committed changes and schema switches reach the final query.
  const isSelectLast=/^(select|show|describe|desc|explain|with|table|values)\b/i.test(sqlHead(lastStmt));
  const leadingAreAllUse=stmts.length>1&&stmts.slice(0,-1).every(s=>/^use\s+\S/i.test(sqlHead(s)));
  const needsScriptStep=stmts.length>1&&isSelectLast&&!leadingAreAllUse;
@@ -4411,7 +4461,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
  // open from the PREVIOUS run must be closed first - otherwise re-running in the same tab leaks
  // the old cursor's thread/connection indefinitely. Fire-and-forget, doesn't block the new run -
  // except in a transaction, whose one connection that cursor holds: there the close is waited for.
- if(sessOf(t))await sessFree(t);
+ if(runSessOf(t))await sessFree(t,true);
  closeCursorFor(t);
  t.abortCtrl=new AbortController();t.runningReqId=reqId;setRunning(id,true);
  // Which run this is. A second run can start on this tab while this one is still in flight - the
@@ -4442,7 +4492,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       // statement - but extending the CLI's own "$$" convention this far tested cleanly, while
       // still being implausible to ever collide with real SQL content.
       const leadingSql=stmts.slice(0,-1).map(s=>'DELIMITER $$$$$$$$\n'+s+'\n$$$$$$$$\nDELIMITER ;').join('\n');
-      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
       if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
@@ -4455,7 +4505,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     // the same call, or else the one the query is sent with.
     const runDb=dbOf(t);
     const tableDb=(leadingAreAllUse&&useTarget(stmts))||runDb;
-    t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:sessOf(t)},t.abortCtrl.signal);
+    t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:runSessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
     if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
@@ -4498,7 +4548,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
   } else {
     if(roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
     const continueOnError=!!($('coe_'+id)&&$('coe_'+id).checked);
-    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
     if(r.aborted){if(T(id)){st.className='status';st.textContent='Cancelled.';}return;}
     if(stale())return;
     if(r.failures){

@@ -16,7 +16,8 @@ that lives in `ui/index.html` and so is out of `cargo test`'s reach: the grid's
 sort/filter ordering, the SQL the Users dialog builds, the connection store and its
 request bridge (including reading a whole result for callers other than the grid),
 which table a result grid saves to and how saving finds each row, the value panel's views and
-encodings and that a value saved from it is stored exactly as it was read, the new-version notice, the table designer (driven with real `information_schema` rows
+encodings and that a value saved from it is stored exactly as it was read, which connection a
+tab's runs, transaction, plans and exports go to, the new-version notice, the table designer (driven with real `information_schema` rows
 from MySQL 8 and MariaDB 12), and recovery from a failed procedure/trigger recreate. They pull the functions straight out
 of the HTML file rather than keeping a copy, so a change to the real code is
 what they measure. No dependencies, no `npm ci` needed. The PowerShell edition runs
@@ -168,10 +169,11 @@ SELECT (SELECT COUNT(*) FROM ro_canary)      AS ro_canary,      -- 3
 Remove it all afterwards with `DROP DATABASE nobs_test;`.
 
 > The fixture deliberately does not end on a `SELECT`. A pasted script whose
-> last statement is a `SELECT` is split into two steps that run on separate
-> connections, so the `USE` in the script would not reach the `SELECT` and it
-> would fail with *No database selected*. Worth knowing when writing your own
-> scripts, not just this one.
+> last statement is a `SELECT` is split into two steps. Both run on the tab's
+> kept connection, so the script's `USE` reaches the `SELECT` - but with
+> **Keep each tab's connection between runs** switched off in Settings they run
+> on separate connections, and the `SELECT` fails with *No database selected*.
+> Worth knowing when writing your own scripts, not just this one.
 
 Work through the scenarios in order - they are sorted by what a failure costs.
 
