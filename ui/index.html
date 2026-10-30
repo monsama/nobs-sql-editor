@@ -361,6 +361,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .status{padding:3px 8px;font-size:12px;color:var(--fg);border-top:1px solid var(--bd2);background:var(--panel)} .status.err{color:#e06}
  #loghdr{background:#333;color:#ddd;padding:2px 8px;font-size:11px;display:flex;justify-content:space-between}
  #log{height:104px;overflow:auto;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:12px;padding:6px 8px;white-space:pre-wrap}
+ #log .ln{border-left:3px solid transparent;padding-left:6px;margin-left:-6px} #log .ln.ok{border-left-color:var(--erd-pk)}
+ #log .ln.warn{border-left-color:var(--log-warn)} #log .ln.err{border-left-color:var(--err-line);color:#f2b8b0}
+ #log .ln.jump{cursor:pointer} #log .ln.jump:hover{background:rgba(255,255,255,.07)}
  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9000}
 .modal.floating{background:transparent;pointer-events:none}
 .modal.minimized{display:none !important}
@@ -728,7 +731,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="sideResize" title="Drag to resize the sidebar (double-click to fit the names)"><span id="sideFold" class="edfold vert toedge left" title="Hide the sidebar" onmousedown="event.stopPropagation()" onclick="toggleSide()">&#9666;</span></div>
  <div id="content"><div id="tabsbar"></div><div id="panes" style="flex:1;display:flex;flex-direction:column;min-height:0"><div id="overview" style="display:none;flex:1;overflow:auto;padding:14px"></div></div></div>
 </div>
-<div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
+<div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="display:inline-flex;gap:12px"><span style="cursor:pointer" onclick="event.stopPropagation();logCopy()" title="Copy the whole output">copy</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''" title="Empty the output">clear</span></span></div><div id="log"></div>
 <div id="ctx"></div>
 <div id="minimizedTray" style="display:none;position:fixed;bottom:10px;right:10px;gap:8px;z-index:9500;max-width:70vw;flex-wrap:wrap;justify-content:flex-end"></div>
 <div id="colPicker"></div>
@@ -1250,7 +1253,25 @@ function sslCaToggle(){const w=$('sslcaWrap');if(w)w.style.display=(/^verify(-ca
 // SET PASSWORD ... = '...'. A quoted value ends at a quote that is not doubled, which is how the app
 // writes one under either sql_mode (strLit doubles quotes; only backslashes differ).
 function sqlNoSecrets(s){return String(s).replace(/(\bidentified\b(?:\s+(?:with|via)\s+[\w$]+)?\s+(?:by|as|using)\s+(?:password\s*)?\(?\s*|\b\w*password\s*(?:=\s*|\(\s*)?|\bset\s+password\b(?:\s+for\s+(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=@]+)(?:\s*@\s*(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=]+))?)?\s*=\s*(?:password\s*\(\s*)?)(['"])(?:\\[\s\S]|(?!\2)[\s\S]|\2\2)*\2/gi,"$1'***'");}
-function log(s){const l=$('log');l.textContent+=sqlNoSecrets(s)+"\n";l.scrollTop=l.scrollHeight;}
+// Each entry is a line of its own, marked by what it says: green for what went through, red for an
+// error, amber for a warning or a cancel. A caller that knows says which (meta.kind); the rest is read
+// from the text. An error from a run carries where its statement is (meta.jump), and a click on it
+// selects that statement in the tab's editor.
+function log(s,meta){const l=$('log');const d=document.createElement('div');const k=meta&&meta.kind!=null?meta.kind:logKind(s);d.className='ln'+(k?' '+k:'');d.textContent=sqlNoSecrets(s);
+ if(meta&&meta.jump){d.classList.add('jump');d.title='Click to show this statement in the editor';d.onclick=()=>logJump(meta.jump);}
+ l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function logKind(s){s=String(s);if(/\bERROR\b|^APPLY error|\nFailed:\n/.test(s))return 'err';if(/\bwarnings?\b|\bcancel/i.test(s))return 'warn';if(/\bOK\b|^Applied\b|^Saved\b/.test(s))return 'ok';return '';}
+function logCopy(){const t=$('log').innerText;if(!t.trim()){toast('The output is empty.');return;}copyText(t,'Copied the output.');}
+// The statement number an error names ("Statement 3 of 5 failed"), or 0.
+function errStmtNo(e){const m=String(e||'').match(/\bStatement (\d+) of \d+/);return m?+m[1]:0;}
+// Finds the text that ran in the editor, as it is now, and selects the statement in it; n counts from 1,
+// and 0 is the last. The text may have been changed since, and then it is said.
+function logJump(j){const t=T(j.id),ta=$('ed_'+j.id);if(!t||!ta){toast('That tab has been closed.',true);return;}
+ const ran=String(j.sql||'').replace(/\r\n/g,'\n'),base=ran.trim()?ta.value.indexOf(ran):-1,parts=splitStmts(ran,true);
+ const p=parts.length?parts[(j.n>0&&j.n<=parts.length?j.n:parts.length)-1]:null;
+ if(base<0||!p){toast('The editor has changed since that run, so the statement is not where it was.',true);return;}
+ const raw=ran.slice(p.start,p.end),a=base+p.start+(raw.length-raw.trimStart().length),b=base+p.start+raw.trimEnd().length;
+ activate(j.id);ta.focus();ta.setSelectionRange(a,b);findScrollTo(ta,a);syncHl(j.id);}
 // The output panel's 104px are worth having back when nothing has gone wrong - folded, its header
 // stays, so the log is one click away and new lines still collect behind it. Kept like the
 // sidebar's width, per browser.
@@ -2693,6 +2714,23 @@ function togglePin(db,name){const p=pinnedTables(db);const i=p.indexOf(name);if(
 
 function fmtCount(n){n=Math.round(+n||0);return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");}
 function fmtMs(ms){ms=+ms||0;if(ms>=10000)return Math.round(ms/1000)+'s';if(ms>=1000)return (ms/1000).toFixed(1)+'s';return Math.round(ms)+'ms';}
+// --- What a run says in the output window ---------------------------------------------------
+// Every run from a tab gets a line that starts with the time and the tab's name, then what ran - the
+// statement's start on one line - and what came of it: the rows a write changed, the rows a query
+// returned, the error, and how long it took. A script lists each statement under its first line.
+function runClock(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
+function sqlOneLine(sql,max){const x=String(sql==null?'':sql).replace(/\s+/g,' ').trim();max=max||80;return x.length>max?x.slice(0,max)+'...':x;}
+function runLog(id,msg,kind,jump){const t=T(id);log('['+runClock()+'] '+(t?t.title:'Query')+': '+msg,{kind:kind==='-'?'':(kind||'ok'),jump:jump?{id,sql:jump.sql,n:jump.n||0}:null});}
+// Rows changed means something only for a statement that writes rows; a CREATE or a SET is just OK.
+function stmtWrites(sql){return /^(insert|update|delete|replace|load\s+data)\b/i.test(sqlHead(String(sql||'')));}
+function rowsAffected(n){n=+n||0;return fmtCount(n)+' row'+(n===1?'':'s')+' affected';}
+function stmtOutcome(st){const a=+st.affected||0,m=st.matched;
+ const rows=!stmtWrites(st.sql)?'OK':(m!=null&&+m!==a)?fmtCount(a)+' row'+(a===1?'':'s')+' changed, '+fmtCount(m)+' matched':rowsAffected(a);
+ return rows+', '+fmtMs(st.ms);}
+// The rows the writes of a script changed, or null when none of its statements writes rows.
+function scriptAffected(sts){const w=(sts||[]).filter(x=>stmtWrites(x.sql));return w.length?w.reduce((a,x)=>a+(+x.affected||0),0):null;}
+// One statement: one line. Several: a line for the script, and one under it for each statement.
+function stmtLines(sts,total){return (sts||[]).map(x=>'  '+x.index+(total?'/'+total:'')+'. '+x.sql+' -> '+stmtOutcome(x));}
 // The statement behind the grid: the result picked from a script's results, else the last
 // statement run.
 function gridSql(t){const rs=t.resultSets&&t.resultSets[t.resultIdx||0];if(rs)return rs.sql;const s=splitStmts(String(t.curRun||'')).filter(x=>!isCommentOnly(x));return s.length?s[s.length-1]:'';}
@@ -4491,7 +4529,7 @@ function scriptShowsResults(stmts){
 }
 // Runs such a script on one connection and shows each result in a tab of its own. These grids
 // are read-only: a result of a script is not tied to one table's rows.
-async function runScriptResults(id,sql,reqId,seq){
+async function runScriptResults(id,sql,reqId,seq){const t0=performance.now();
  const t=T(id);const st=$('st_'+id);const stale=()=>!T(id)||T(id).runSeq!==seq;
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const writes=stmts.some(s=>!/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));
@@ -4506,8 +4544,8 @@ async function runScriptResults(id,sql,reqId,seq){
  if(t.resultSets.length){showResultSet(id,0);}
  else{t.cols=[];t.rows=[];$('res_'+id).innerHTML='';renderResultSetTabs(id);updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';}
  const n=t.resultSets.length;
- if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';log('SCRIPT OK ('+stmts.length+' statements, '+n+' results)');}
- else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
+ if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';runLog(id,'SCRIPT OK ('+stmts.length+' statements, '+n+' results, '+fmtMs(performance.now()-t0)+')'+(stmts.length===1?': '+sqlOneLine(stmts[0]):''));}
+ else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');runLog(id,logErr(r.error||'Failed.'),'err',{sql,n:errStmtNo(r.error)});}
  setRunWarnings(id,r.warnings,stmts);
  if(writes&&t.db)loadObjects(t.db);
 }
@@ -4640,7 +4678,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
       setRunWarnings(id,scriptR.warnings,stmts);
-      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';runLog(id,'ERROR: '+scriptR.error,'err',{sql,n:errStmtNo(scriptR.error)});if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     }
     const _q=(leadingAreAllUse&&stmts.length>1?sql:lastStmt).trim().replace(/;+\s*$/,'');
     // pageSize is always sent for the main Run path: the backend opens a server-side cursor for
@@ -4653,7 +4691,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:runSessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
-    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
@@ -4668,7 +4706,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     // pages has its warnings with its last page (fetchNextBatch).
     t.warnFinalNo=stmts.length||1;
     addRunWarnings(id,r.warnings);
-    if(!r.columns.length){st.textContent=r.message||'Query OK.';$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
+    if(!r.columns.length){st.textContent=r.message||'Query OK.';runLog(id,sqlOneLine(_q)+' -> OK, '+fmtMs(r.elapsedMs));$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
     const ra=$('resultActions_'+id);if(ra)ra.style.display='inline-flex';
     refreshRunTableBinding(id,lastStmt,tableDb);
     // Column types and NULL-ability are read again for every result: the tab may now show another
@@ -4690,7 +4728,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
     } else { t.estRows=null; }
     if(stale())return;
     t.lastElapsedMs=r.elapsedMs;
-    if(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300){log(fmtCount(t.rows.length)+' row(s) fetched in '+fmtMs(r.elapsedMs)+' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+').');}
+    runLog(id,sqlOneLine(_q)+' -> '+fmtCount(t.rows.length)+' row'+(t.rows.length===1?'':'s')+(t.hasMore?' (more as you scroll)':'')+', '+fmtMs(r.elapsedMs)+(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300?' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+')':''));
     renderGrid(id);updatePager(id);
     updateStatusLine(id);
     updateSchemaBadge(id);
@@ -4705,8 +4743,9 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
       // clean or partially failed - this is the whole point of turning the option on, seeing
       // every problem in one pass rather than fixing and re-running one failure at a time.
       if(!r.failures.length){
-        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed.';
-        log('SCRIPT OK ('+r.succeeded+'/'+r.total+' statements)');
+        const ra=scriptAffected(r.statements);
+        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+        runLog(id,'SCRIPT OK ('+r.succeeded+'/'+r.total+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(r.statements?'\n'+stmtLines(r.statements,r.total).join('\n'):''));
       } else {
         st.className='status err';
         st.textContent=r.succeeded+' of '+r.total+' succeeded, '+r.failures.length+' failed (see log for details).';
@@ -4718,11 +4757,18 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;
         const succeededIdx=[];for(let i=1;i<=r.total;i++){if(!failedIdx.has(i))succeededIdx.push(i);}
         const succNote=succeededIdx.length?' (statement(s) '+succeededIdx.join(', ')+')':'';
         const detail=r.failures.map(f=>'Statement '+f.index+' of '+r.total+': '+f.error+'\n  '+f.preview).join('\n\n');
-        log('SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+'.\n\nFailed:\n'+detail);
+        const ra=scriptAffected(r.statements);
+        runLog(id,'SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+(ra!=null?', '+rowsAffected(ra):'')+'.'+(r.statements&&r.statements.length?'\n'+stmtLines(r.statements,r.total).join('\n'):'')+'\n\nFailed:\n'+detail,'err',{sql,n:r.failures[0].index});
       }
       if(t.db)loadObjects(t.db);
-    } else if(r.ok){st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
-    else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
+    } else if(r.ok){const sts=r.statements,ra=scriptAffected(sts);
+      st.textContent='OK. '+stmts.length+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+      // One statement says it all on one line; a script gets a line, and one per statement under it.
+      if(sts&&sts.length===1)runLog(id,sts[0].sql+' -> '+stmtOutcome(sts[0]));
+      else runLog(id,'SCRIPT OK ('+stmts.length+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(sts?'\n'+stmtLines(sts,sts.length).join('\n'):''));
+      if(t.db)loadObjects(t.db);}
+    else{st.className='status err';st.textContent=timeLimitNote(r.error);const sts=r.statements;
+      runLog(id,'SCRIPT ERROR: '+r.error+(sts&&sts.length?'\nRan before it:\n'+stmtLines(sts).join('\n'):''),'err',{sql,n:errStmtNo(r.error)});await schemaGoneNote(id,r.error);}
     setRunWarnings(id,r.warnings,stmts);
   }
  } finally {
@@ -6971,7 +7017,7 @@ async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const
  // Rows, not statements: several deletes go in one statement.
  const changes=S.filter(s=>!s.startsWith('SELECT 1 FROM (SELECT 1 AS x')&&!s.startsWith('DELETE FROM')).length+delWh.length;
  if(preview){viewText('SQL that Apply would run - '+changes+' change'+(changes===1?'':'s'),S.join('\n'),{readonly:true});return false;}
- log('APPLY:\n'+S.join('\n'));
+ runLog(id,'APPLY:\n'+S.join('\n'),'-');
  // Runs as one transaction, so a failure part-way leaves the table exactly as it was.
  // Foreign keys are NOT disabled here: they were, which let an edit point a row at a
  // parent that does not exist and silently break referential integrity the schema was
@@ -6986,7 +7032,9 @@ async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const
   warnOpen(t.title+' - Apply',ws,stmts,()=>applyChanges(id,false,true));return false;}
  // true once saved, so Commit (txEnd) can tell whether to go on; it waits for the grid to show what
  // was saved, since until then the reload is still reading on the tab's connection.
- if(r.ok){log('Applied '+changes+' change(s).');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{log('APPLY error: '+r.error);toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
+ // What was done, by kind: rows updated (however many of their cells), inserted and deleted.
+ const nIns=S.filter(x=>x.startsWith('INSERT INTO')).length,what=[[updWh.length,'updated'],[nIns,'inserted'],[delWh.length,'deleted']].filter(x=>x[0]).map(x=>fmtCount(x[0])+' row'+(x[0]===1?'':'s')+' '+x[1]).join(', ');
+ if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+r.error,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");

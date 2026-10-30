@@ -49,7 +49,7 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
-    roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, invalidateTableCache: () => {},
+    roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, runLog: () => {}, invalidateTableCache: () => {},
     openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession, sessFree: async () => {},
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,

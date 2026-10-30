@@ -107,7 +107,11 @@ Export files are kept wherever you saved them.
   mark, and a tab whose text is not saved to its file shows a `*`.
 - Find and replace (Ctrl+F / Ctrl+H), formatting, undo for every editor command.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
-  script with several SELECTs, shows each result in a tab of its own.
+  script with several SELECTs, shows each result in a tab of its own. The output window logs each
+  run with the time, the tab and the statement, and how many rows it changed or returned and how
+  long it took - for a script, each statement on a line of its own. An UPDATE that found more rows
+  than it changed says both. Lines are marked green, red or amber; a click on an error selects its
+  statement in the editor, and the output can be copied or cleared.
 - Each tab keeps its own connection between runs, as the mysql client does: `@variables`,
   temporary tables and `SET SESSION` carry from one run to the next. A connection the server has
   closed is opened again, and the tab says what was lost. Right-click a tab for a fresh
