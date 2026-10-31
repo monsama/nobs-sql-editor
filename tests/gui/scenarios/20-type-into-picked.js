@@ -46,11 +46,16 @@ INSERT INTO ${DB}.p VALUES (1,'a','a'),(2,'b','b'),(3,'c','c'),(4,'d','d');`);
     await libLoad();
     const saved = libAll().find(x => x.name === LIB);
     G.eq('a history entry is saved to the library', saved && saved.sql, 'SELECT 42');
-    openHistory();
-    G.check('each history entry offers it', [...$('histList').querySelectorAll('button')].some(b => b.textContent === 'Save to library'), 'no button');
+    // A run of its own in the history, to open: the scenario's runs are not started by the user.
+    const hid = 'gui' + Date.now();
+    await api('/api/hist-add', { entry: { id: hid, ts: Date.now(), conn: histConn(), db: '', sql: 'SELECT 42 AS from_history', o: 'ok' } });
+    _histItems = null; await openHistory();
+    $('histQ').value = 'from_history'; histRender();
+    const entry = $('histList').querySelector('.citem');
+    if (entry) entry.querySelector('.citem-h').click();
+    G.check('each history entry offers it', !!entry && [...entry.querySelectorAll('button')].some(b => b.textContent === 'Save to library'), 'no button');
     // A click on the query - which is where resizing its box ends - used to open it and close the
     // window. Only Open (or a double-click) opens it now.
-    const entry = $('histList').querySelector('.citem');
     if (entry) {
       entry.querySelector('code').click();
       G.check('clicking a history query, as resizing it does, leaves the window open', getComputedStyle($('mHist')).display !== 'none', '');
@@ -59,6 +64,8 @@ INSERT INTO ${DB}.p VALUES (1,'a','a'),(2,'b','b'),(3,'c','c'),(4,'d','d');`);
       G.check('and Open opens it in a tab', tabs.length === before + 1 && getComputedStyle($('mHist')).display === 'none', tabs.length - before);
     }
     hide('mHist');
+    $('histQ').value = '';
+    await api('/api/hist-delete', { ids: [hid] });
   } finally {
     await G.A('/api/lib-delete', { name: LIB });
     await G.A('/api/script', { sql: `DROP DATABASE IF EXISTS ${DB}` });

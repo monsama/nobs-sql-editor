@@ -5079,6 +5079,101 @@ async fn lib_replace(req: Value) -> R {
     Ok(json!({"ok":true}))
 }
 
+// Query history: one run per line of history.jsonl, beside library.json - when it ran, on which
+// connection and database, the SQL, and what came of it (see histStart in the page). A run is added
+// at the end of the file, so it costs one short write however long the history is. Past the limit
+// the oldest runs go, in one rewrite once the file holds a tenth more than the limit, not at every
+// run. The browser's storage, which held it before, is left to the open tabs.
+fn hist_path() -> std::path::PathBuf {
+    let mut p = config_base();
+    p.push("NOBSSQL-Desktop"); std::fs::create_dir_all(&p).ok(); p.push("history.jsonl"); p
+}
+// Every read and write of the file, and the count of its lines, go through this one lock.
+fn hist_state() -> &'static Mutex<Option<usize>> {
+    static S: OnceLock<Mutex<Option<usize>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(None))
+}
+const HIST_MAX_SQL: usize = 1 << 20;
+fn hist_read_at(path: &std::path::Path) -> Vec<Value> {
+    std::fs::read_to_string(path).unwrap_or_default().lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok()).filter(|v| v.is_object()).collect()
+}
+// Written whole to a file beside it, then put in its place, so a crash leaves the old one or the new.
+fn hist_write_at(path: &std::path::Path, v: &[Value]) -> Result<(), String> {
+    let tmp = path.with_extension("jsonl.tmp");
+    let mut s = String::new();
+    for x in v { s.push_str(&x.to_string()); s.push('\n'); }
+    std::fs::write(&tmp, s).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+// What may be kept: an object with SQL, not empty and not longer than HIST_MAX_SQL.
+fn hist_keep(e: &Value) -> bool {
+    e.is_object() && e["sql"].as_str().map(|s| !s.trim().is_empty() && s.len() <= HIST_MAX_SQL).unwrap_or(false)
+}
+fn hist_add_at(path: &std::path::Path, entries: &[Value], limit: usize, count: &mut Option<usize>) -> Result<usize, String> {
+    let keep: Vec<&Value> = entries.iter().filter(|e| hist_keep(e)).collect();
+    if count.is_none() { *count = Some(hist_read_at(path).len()); }
+    if !keep.is_empty() {
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).map_err(|e| e.to_string())?;
+        let mut s = String::new();
+        for e in &keep { s.push_str(&e.to_string()); s.push('\n'); }
+        f.write_all(s.as_bytes()).map_err(|e| e.to_string())?;
+        *count = Some(count.unwrap_or(0) + keep.len());
+    }
+    if count.unwrap_or(0) > limit + limit / 10 {
+        let all = hist_read_at(path);
+        let from = all.len().saturating_sub(limit);
+        hist_write_at(path, &all[from..])?;
+        *count = Some(all.len() - from);
+    }
+    Ok(keep.len())
+}
+#[tauri::command]
+async fn hist_add(req: Value) -> R {
+    let limit = req["limit"].as_u64().unwrap_or(5000).clamp(100, 100_000) as usize;
+    let entries: Vec<Value> = match req["entries"].as_array() { Some(a) => a.clone(), None => vec![req["entry"].clone()] };
+    let mut st = hist_state().lock().unwrap();
+    match hist_add_at(&hist_path(), &entries, limit, &mut st) {
+        Ok(n) => Ok(json!({"ok":true,"added":n})),
+        Err(e) => Ok(json!({"ok":false,"error":e})),
+    }
+}
+// Newest first.
+#[tauri::command]
+async fn hist_list(_req: Value) -> R {
+    let _st = hist_state().lock().unwrap();
+    let mut v = hist_read_at(&hist_path());
+    v.reverse();
+    Ok(json!({"ok":true,"items":v}))
+}
+// The runs drop() picks are taken out of the file.
+fn hist_remove_at(path: &std::path::Path, drop: impl Fn(&Value) -> bool, count: &mut Option<usize>) -> Result<(), String> {
+    let left: Vec<Value> = hist_read_at(path).into_iter().filter(|e| !drop(e)).collect();
+    hist_write_at(path, &left)?;
+    *count = Some(left.len());
+    Ok(())
+}
+// ids: the runs to take out.
+#[tauri::command]
+async fn hist_delete(req: Value) -> R {
+    let ids: std::collections::HashSet<String> = req["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+    let mut st = hist_state().lock().unwrap();
+    match hist_remove_at(&hist_path(), |e| e["id"].as_str().map(|i| ids.contains(i)).unwrap_or(false), &mut st) {
+        Ok(()) => Ok(json!({"ok":true})),
+        Err(e) => Ok(json!({"ok":false,"error":e})),
+    }
+}
+// only: one connection's runs; without it, every run.
+#[tauri::command]
+async fn hist_clear(req: Value) -> R {
+    let mut st = hist_state().lock().unwrap();
+    let r = match req["only"].as_str() {
+        Some(c) => hist_remove_at(&hist_path(), |e| e["conn"].as_str() == Some(c), &mut st),
+        None => { let _ = std::fs::remove_file(hist_path()); *st = Some(0); Ok(()) }
+    };
+    match r { Ok(()) => Ok(json!({"ok":true})), Err(e) => Ok(json!({"ok":false,"error":e})) }
+}
+
 #[tauri::command]
 async fn search_all_schemas(req: Value) -> R {
     let term = req["term"].as_str().unwrap_or("").trim().to_string();
@@ -6219,7 +6314,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, open_sql_file, save_sql_file, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, open_sql_file, save_sql_file, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, hist_add, hist_list, hist_delete, hist_clear, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -9785,5 +9880,34 @@ mod stmt_report_tests {
         let sql = r["sql"].as_str().unwrap();
         assert!(sql.ends_with("...") && sql.chars().count() == 83, "{sql}");
         assert!(r["matched"].is_null(), "only an UPDATE says how many rows it matched: {r}");
+    }
+}
+
+#[cfg(test)]
+mod hist_tests {
+    use super::*;
+
+    #[test]
+    fn the_history_file_keeps_runs_in_order_and_drops_the_oldest_past_its_limit() {
+        let dir = std::env::temp_dir().join(format!("nobs-hist-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("history.jsonl");
+        let _ = std::fs::remove_file(&p);
+        let run = |n: usize| json!({"id": format!("r{n}"), "sql": format!("SELECT {n}"), "conn": if n.is_multiple_of(2) { "a" } else { "b" }});
+        let mut count = None;
+        // nothing empty, nothing that is not a run
+        assert_eq!(hist_add_at(&p, &[json!({"sql": "  "}), json!("x"), json!({"id": "n"})], 100, &mut count).unwrap(), 0);
+        for n in 0..110 { hist_add_at(&p, &[run(n)], 100, &mut count).unwrap(); }
+        assert_eq!(hist_read_at(&p).len(), 110, "a tenth over the limit is allowed before a rewrite");
+        hist_add_at(&p, &[run(110)], 100, &mut count).unwrap();
+        let all = hist_read_at(&p);
+        assert_eq!((all.len(), all[0]["sql"].clone(), all[99]["sql"].clone()), (100, json!("SELECT 11"), json!("SELECT 110")), "the oldest went, in order");
+        assert_eq!(count, Some(100));
+        hist_remove_at(&p, |e| e["id"] == "r50", &mut count).unwrap();
+        assert!(hist_read_at(&p).iter().all(|e| e["id"] != "r50"));
+        hist_remove_at(&p, |e| e["conn"] == "a", &mut count).unwrap();
+        assert!(hist_read_at(&p).iter().all(|e| e["conn"] == "b"), "one connection's runs go, the others stay");
+        assert_eq!(count, Some(hist_read_at(&p).len()));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
