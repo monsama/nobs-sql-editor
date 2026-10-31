@@ -2761,7 +2761,7 @@ async fn script(req: Value) -> R {
             for (idx, stmt) in statements.iter().enumerate() {
                 let t0 = std::time::Instant::now();
                 let ran = c.query_drop(stmt);
-                if ran.is_ok() { let a = c.affected_rows(); affected += a; take_warnings(&mut c, idx + 1, &mut warnings); done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
+                if ran.is_ok() { let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); take_warnings(&mut c, idx + 1, &mut warnings); }
                 if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2800,7 +2800,7 @@ async fn script(req: Value) -> R {
         for (idx, stmt) in statements.iter().enumerate() {
             let t0 = std::time::Instant::now();
             match c.query_drop(stmt) {
-                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; take_warnings(&mut c, idx + 1, &mut warnings); done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
+                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); take_warnings(&mut c, idx + 1, &mut warnings); }
                 Err(e) => {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -7191,6 +7191,27 @@ mod warnings_tests {
         let c = codes(&r);
         assert!(c.iter().any(|(s, l, code)| *s == 4 && l == "Warning" && *code == 1265), "the INSERT's truncation: {c:?}");
         assert!(c.iter().any(|(s, l, code)| *s == 1 && l == "Note" && *code == 1051), "DROP TABLE IF EXISTS of a missing table is a Note: {c:?}");
+    }
+
+    // The rows an UPDATE matched come from the server's info for the statement, which SHOW WARNINGS
+    // replaces: the report is taken first. With the two the other way round an UPDATE that warned
+    // lost its "matched", and the output window said only how many rows it changed.
+    #[tokio::test]
+    #[ignore]
+    async fn an_update_that_warns_still_says_how_many_rows_it_matched() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let sql = format!("DROP TABLE IF EXISTS nobs_test.warn_m; CREATE TABLE nobs_test.warn_m (id INT PRIMARY KEY, v VARCHAR(3)); \
+            INSERT INTO nobs_test.warn_m VALUES (1, 'abc'), (2, 'def'), (3, 'too'); {NON_STRICT}; \
+            UPDATE nobs_test.warn_m SET v = 'toolong'");
+        for coe in [false, true] {
+            let r = script(json!({"sql":sql,"conn":conn,"db":"nobs_test","continueOnError":coe})).await.unwrap();
+            assert_eq!(r["ok"], true, "{r}");
+            let upd = &r["statements"][4];
+            // 'too' already holds what the cut-short value becomes: matched, not changed
+            assert_eq!((upd["affected"].clone(), upd["matched"].clone()), (json!(2), json!(3)), "continueOnError {coe}: {r}");
+            assert!(codes(&r).iter().any(|(s, _, code)| *s == 5 && *code == 1265), "and its warnings are there too: {r}");
+        }
+        script(json!({"sql":"DROP TABLE nobs_test.warn_m","conn":conn})).await.unwrap();
     }
 
     #[tokio::test]
