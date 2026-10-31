@@ -9893,7 +9893,7 @@ mod hist_tests {
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("history.jsonl");
         let _ = std::fs::remove_file(&p);
-        let run = |n: usize| json!({"id": format!("r{n}"), "sql": format!("SELECT {n}"), "conn": if n % 2 == 0 { "a" } else { "b" }});
+        let run = |n: usize| json!({"id": format!("r{n}"), "sql": format!("SELECT {n}"), "conn": if n.is_multiple_of(2) { "a" } else { "b" }});
         let mut count = None;
         // nothing empty, nothing that is not a run
         assert_eq!(hist_add_at(&p, &[json!({"sql": "  "}), json!("x"), json!({"id": "n"})], 100, &mut count).unwrap(), 0);
