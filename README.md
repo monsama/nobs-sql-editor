@@ -100,11 +100,22 @@ Export files are kept wherever you saved them.
 - SSL/TLS modes up to full certificate verification, and PAM or LDAP sign-in over TLS.
 
 **Editor**
-- Tabbed SQL editor with syntax highlighting, and autocomplete that knows the tables and aliases
-  of the statement.
+- Tabbed SQL editor with syntax highlighting, line numbers (the caret's line marked), and
+  autocomplete that knows the tables and aliases of the statement.
+- Open a `.sql` file in a tab of its own, named after the file, and save it back (Ctrl+O, Ctrl+S
+  in the editor; Save as from the tab's menu). The file keeps its line endings and byte order
+  mark, and a tab whose text is not saved to its file shows a `*`.
 - Find and replace (Ctrl+F / Ctrl+H), formatting, undo for every editor command.
 - Run the whole script, the selection, or the statement at the cursor. A procedure call, or a
-  script with several SELECTs, shows each result in a tab of its own.
+  script with several SELECTs, shows each result in a tab of its own. The output window logs each
+  run with the time, the tab and the statement, and how many rows it changed or returned and how
+  long it took - for a script, each statement on a line of its own. An UPDATE that found more rows
+  than it changed says both. Lines are marked green, red or amber; a click on an error selects its
+  statement in the editor, and the output can be copied or cleared.
+- Each tab keeps its own connection between runs, as the mysql client does: `@variables`,
+  temporary tables and `SET SESSION` carry from one run to the next. A connection the server has
+  closed is opened again, and the tab says what was lost. Right-click a tab for a fresh
+  connection, or switch this off in Settings → General.
 - Explain draws the plan: every table read as a card, a full scan in red and an index lookup in
   green, with the joins, sorts and subqueries around them. **Measure** runs the query and shows
   what really happened at each step - the rows read and the time taken - beside what was expected
@@ -112,6 +123,9 @@ Export files are kept wherever you saved them.
   that reads is measured.
 - An UPDATE or DELETE without a WHERE of its own asks before it runs (it changes or removes every
   row of its table). The question can be switched off in Settings → General.
+- The server's warnings for a run (a value cut short, a string read as a number) are counted
+  beside its status; click the count for the list, with the statement each came from. Notes are
+  listed too, but do not stand out.
 - Your own fonts and text sizes for the editor, the results and the interface, and an interface
   zoom (Settings → General).
 - Query history: every query you run, with its time, connection, database, outcome (or error),
@@ -130,7 +144,8 @@ Export files are kept wherever you saved them.
   Edit it there and Save it into the cell, save it as a file, or load it from one.
 - **Go to referenced row** follows a foreign key, into another database too.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open across its runs
-  until Commit or Rollback, with a log of what it has run.
+  until Commit or Rollback, with a log of what it has run. It is the tab's own connection, so what
+  the session held before is still there.
 - Charts: a result as bars or a line.
 - Read the same rows in another character set, to tell text stored wrong from text read wrong.
 
@@ -180,6 +195,9 @@ Export files are kept wherever you saved them.
   one row. Otherwise nothing is saved. This catches a row changed or deleted since it was loaded,
   and a TIMESTAMP key in the hour the clocks go back (it shows the same as its neighbour). FLOAT
   keys are shown rounded, so they are matched by their text.
+- **Grid edits are stored as typed, or not at all.** When the server warns that it would store a
+  value otherwise (cut short, clipped, a zero date - possible under a `sql_mode` without
+  `STRICT_TRANS_TABLES`), nothing is saved; the warnings are shown, with **Apply anyway**.
 - **Reading in another character set (read-only).** A value that reads `cafÃ©` is either stored
   wrong or being read wrong, and a grid cannot tell you which. The server transcodes text into
   the session's character set before sending it, so the box beside the connection lets you read

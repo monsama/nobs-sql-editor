@@ -908,7 +908,7 @@ type Table = (Vec<String>, Rows);
 // What opening a cursor answers: column names, which are binary, and which are BIT.
 type CursorOpen = Result<(Vec<String>, Vec<bool>, Vec<bool>), String>;
 // What open_cursor answers: cursor id, columns, binary and BIT flags, the first rows, has_more.
-type CursorFirstPage = (String, Vec<String>, Vec<bool>, Vec<bool>, Rows, bool);
+type CursorFirstPage = (String, Vec<String>, Vec<bool>, Vec<bool>, Rows, bool, Vec<Value>);
 
 // Which columns are binary/BIT is decided here for display encoding; run_select_bin also hands
 // it back so the grid can refuse to write a decimal into one. Typing 8 into a BIT(8) cell stored
@@ -969,6 +969,37 @@ enum CursorCmd {
 struct CursorBatch {
     rows: Vec<Vec<Option<String>>>,
     has_more: bool,
+    // The server's warnings for the statement, with the last page (take_warnings).
+    warnings: Vec<Value>,
+}
+
+// ---------- The server's warnings ----------
+// A statement can succeed and still have the server change what it was given: under a sql_mode
+// without STRICT_TRANS_TABLES a string too long for its column is cut short, a number out of range
+// is clipped, a bad date becomes 0000-00-00 - each with a warning and an OK. The count comes with
+// every statement's answer; the warnings themselves only from SHOW WARNINGS, on the same
+// connection, before the next statement replaces them. So they are asked for after each statement
+// that has any, and nothing is spent on the ones that have none. `stmt` is the statement's number
+// in what was run, for the list the page shows.
+fn take_warnings(c: &mut Conn, stmt: usize, out: &mut Vec<Value>) {
+    if c.warnings() == 0 { return; }
+    let Ok(rows) = c.query::<mysql::Row, _>("SHOW WARNINGS") else { return };
+    for r in rows {
+        let s = |i: usize| r.get_opt::<String, usize>(i).and_then(|v| v.ok()).unwrap_or_default();
+        out.push(json!({"statement": stmt, "level": s(0), "code": s(1).parse::<u32>().unwrap_or(0), "message": s(2)}));
+    }
+}
+// Whether warnings mean a value was not stored as given: Warning or Error (a Note is information,
+// as DROP TABLE IF EXISTS of a table that is not there), from a statement that writes. A SELECT
+// warns too - the row guards Apply sends find no row by design, which SELECT ... INTO reports as
+// 1329 - but changes nothing.
+fn warnings_change_data(warnings: &[Value], statements: &[String]) -> bool {
+    warnings.iter().any(|w| {
+        let level = w["level"].as_str().unwrap_or("");
+        let n = w["statement"].as_u64().unwrap_or(0) as usize;
+        let head = statements.get(n.wrapping_sub(1)).map(|s| s.trim_start().to_ascii_uppercase()).unwrap_or_default();
+        !level.eq_ignore_ascii_case("note") && !head.starts_with("SELECT")
+    })
 }
 // Registry of open cursors, keyed by a server-generated cursorId: the frontend only ever holds
 // the id, never the sender itself, and looks it up here on every subsequent fetch/close. Same
@@ -987,20 +1018,38 @@ fn next_cursor_id() -> String {
     format!("cur{}_{}", now, n)
 }
 
-// ---------- Transactions a tab keeps open ----------
-// With auto-commit off, a tab's statements all run on one connection of its own, kept here under
-// the id the tab made up for it, with autocommit=0, until Commit or Rollback. Every other command
-// still opens a connection of its own. The connection is taken out while a statement runs (or a
-// cursor reads from it) and put back after, so two runs from one tab never share it at once.
+// ---------- The connection a tab keeps ----------
+// A tab's runs share one connection of its own, kept here under the id the tab made up for it, so
+// what one run leaves in the session - @variables, temporary tables, SET SESSION, a LOCK TABLES -
+// is there for the next. With auto-commit off it is also the tab's transaction: autocommit=0 until
+// Commit or Rollback. The tab says with every run which of the two it wants (sessionTx), and the
+// connection is switched over when that changes, so turning Auto-commit off and on keeps what the
+// session holds. Every other command still opens a connection of its own. The connection is taken
+// out while a statement runs (or a cursor reads from it) and put back after, so two runs from one
+// tab never share it at once.
 enum SessSlot { Idle(Conn), Busy }
-struct Session { slot: SessSlot }
+struct Session { slot: SessSlot, tx: bool }
 fn sessions() -> &'static Mutex<std::collections::HashMap<String, Session>> {
     static MAP: OnceLock<Mutex<std::collections::HashMap<String, Session>>> = OnceLock::new();
     MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
+// Sessions whose connection was gone when a run asked for it, and was opened again. The run's
+// answer says so (mark_reset): what earlier runs left in the old one is not in the new one.
+fn sess_resets() -> &'static Mutex<std::collections::HashSet<String>> {
+    static SET: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+fn session_id(req: &Value) -> Option<String> {
+    req["session"].as_str().filter(|s| !s.is_empty()).map(String::from)
+}
+fn mark_reset(session: &Option<String>, r: R) -> R {
+    let Some(id) = session else { return r };
+    if !sess_resets().lock().unwrap().remove(id) { return r; }
+    r.map(|mut v| { if let Some(o) = v.as_object_mut() { o.insert("sessionReset".into(), json!(true)); } v })
+}
 // A connection borrowed from a session; dropping it puts it back. If the session was closed in the
 // meantime there is nowhere to put it, and dropping it lets the server roll back what it held.
-struct SessConn { id: String, c: Option<Conn> }
+struct SessConn { id: String, c: Option<Conn>, tx: bool }
 impl std::ops::Deref for SessConn { type Target = Conn; fn deref(&self) -> &Conn { self.c.as_ref().unwrap() } }
 impl std::ops::DerefMut for SessConn { fn deref_mut(&mut self) -> &mut Conn { self.c.as_mut().unwrap() } }
 impl Drop for SessConn { fn drop(&mut self) { if let Some(c) = self.c.take() { sess_return(&self.id, c); } } }
@@ -1008,40 +1057,63 @@ fn sess_return(id: &str, c: Conn) {
     if let Some(s) = sessions().lock().unwrap().get_mut(id) { s.slot = SessSlot::Idle(c); }
 }
 const SESS_LOST: &str = "The connection holding this tab's transaction was lost, so the server rolled back everything it had not committed. The next run starts a new transaction.";
-// The tab's connection: opened with autocommit=0 the first time, and after that the same one - once
-// the statement or cursor still using it hands it back.
-fn sess_checkout(id: &str, connj: &Value) -> Result<SessConn, String> {
+// The tab's connection, as the run asks for it: in the tab's transaction (tx: autocommit=0) or not.
+// Opened the first time; after that the same one - once the statement or cursor still using it
+// hands it back - switched over if the tab turned Auto-commit on or off since its last run.
+//
+// A connection that died meanwhile (the server's wait_timeout, a dropped network) is reported when
+// it held a transaction: everything in it was rolled back, and a run that went on as if nothing had
+// happened would be committing half of something. One that only kept session state is opened again,
+// and the run's answer says so (sessionReset).
+//
+// Turning Auto-commit back on rolls back first. The page only allows it with nothing to commit, so
+// what is rolled back is a locking read's locks; SET autocommit=1 alone would commit them instead.
+fn sess_checkout(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
     loop {
         {
             let mut m = sessions().lock().unwrap();
             match m.get_mut(id) {
                 None => {
-                    m.insert(id.to_string(), Session { slot: SessSlot::Busy });
+                    m.insert(id.to_string(), Session { slot: SessSlot::Busy, tx });
                     drop(m);
-                    let opened = build_conn(connj).and_then(|mut c| c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err));
-                    return match opened {
-                        Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c) }),
-                        Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
-                    };
+                    return sess_open(id, connj, tx);
                 }
                 Some(s) => {
                     if let SessSlot::Idle(_) = s.slot {
                         let SessSlot::Idle(mut c) = std::mem::replace(&mut s.slot, SessSlot::Busy) else { unreachable!() };
+                        let was_tx = std::mem::replace(&mut s.tx, tx);
                         drop(m);
                         if c.ping().is_err() {
-                            sessions().lock().unwrap().remove(id);
-                            return Err(SESS_LOST.to_string());
+                            if was_tx && tx {
+                                sessions().lock().unwrap().remove(id);
+                                return Err(SESS_LOST.to_string());
+                            }
+                            sess_resets().lock().unwrap().insert(id.to_string());
+                            return sess_open(id, connj, tx);
                         }
-                        return Ok(SessConn { id: id.to_string(), c: Some(c) });
+                        if was_tx != tx {
+                            let switched = if tx { c.query_drop("SET autocommit=0") }
+                                           else { c.query_drop("ROLLBACK").and_then(|_| c.query_drop("SET autocommit=1")) };
+                            if let Err(e) = switched { sessions().lock().unwrap().remove(id); return Err(db_err(e)); }
+                        }
+                        return Ok(SessConn { id: id.to_string(), c: Some(c), tx });
                     }
                 }
             }
         }
         if std::time::Instant::now() > deadline {
-            return Err("This tab's transaction is still busy with the statement before. Wait for it, or cancel it, and run again.".to_string());
+            return Err("This tab's connection is still busy with the statement before. Wait for it, or cancel it, and run again.".to_string());
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+// A new connection for a session already registered as busy under `id`; a failure unregisters it.
+fn sess_open(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> {
+    let opened = build_conn(connj).and_then(|mut c| if tx { c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err) } else { Ok(c) });
+    match opened {
+        Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c), tx }),
+        Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
     }
 }
 // Where a command's connection comes from: the tab's session when it names one, else a new one.
@@ -1050,6 +1122,8 @@ impl std::ops::Deref for Db { type Target = Conn; fn deref(&self) -> &Conn { mat
 impl std::ops::DerefMut for Db { fn deref_mut(&mut self) -> &mut Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
 impl Db {
     fn in_session(&self) -> bool { matches!(self, Db::Sess(_)) }
+    // In the tab's own transaction, rather than only on its kept connection.
+    fn in_tx(&self) -> bool { matches!(self, Db::Sess(s) if s.tx) }
     // The connection itself, for a cursor thread to own, and the session to hand it back to.
     fn into_parts(self) -> (Conn, Option<String>) {
         match self { Db::Own(c) => (c, None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
@@ -1074,14 +1148,18 @@ fn apply_time_limit(c: &mut Db, req: &Value) {
         let _ = c.query_drop(format!("SET SESSION max_execution_time = {}", secs * 1000));
     }
 }
+// sessionTx is left out by callers from before the tab kept its connection with Auto-commit on,
+// whose sessions were all transactions.
 fn db_for(req: &Value) -> Result<Db, String> {
     match req["session"].as_str().filter(|s| !s.is_empty()) {
-        Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"])?)),
+        Some(id) => Ok(Db::Sess(sess_checkout(id, &req["conn"], req["sessionTx"].as_bool().unwrap_or(true))?)),
         None => Ok(Db::Own(build_conn(&req["conn"])?)),
     }
 }
-// Commit, Rollback, or Close (roll back and let the connection go) for a tab's session. A session
-// that was never opened has nothing to commit or roll back, which is not an error.
+// Commit, Rollback, or Close (roll back and let the connection go) for a tab's session; Release
+// ends its transaction (rolled back: there is nothing to commit by then) and keeps the connection
+// for the tab's runs with Auto-commit on. A session that was never opened has nothing to commit or
+// roll back, which is not an error.
 #[tauri::command]
 async fn session_end(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
@@ -1093,10 +1171,16 @@ async fn session_end(req: Value) -> R {
             let slot = sessions().lock().unwrap().remove(&id);
             // A busy connection comes back to no session and is dropped there; an idle one is
             // rolled back here rather than left to the server to notice.
-            if let Some(Session { slot: SessSlot::Idle(mut c) }) = slot { let _ = c.query_drop("ROLLBACK"); }
+            if let Some(Session { slot: SessSlot::Idle(mut c), .. }) = slot { let _ = c.query_drop("ROLLBACK"); }
             return Ok(json!({"ok":true,"open":false}));
         }
-        let mut c = match sess_checkout(&id, &req["conn"]) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":e,"lost":e == SESS_LOST})) };
+        if action == "release" {
+            return match sess_checkout(&id, &req["conn"], false) {
+                Ok(_) => Ok(json!({"ok":true,"open":true})),
+                Err(e) => Ok(json!({"ok":false,"error":e})),
+            };
+        }
+        let mut c = match sess_checkout(&id, &req["conn"], true) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":e,"lost":e == SESS_LOST})) };
         let stmt = if action == "commit" { "COMMIT" } else { "ROLLBACK" };
         match c.query_drop(stmt) {
             Ok(_) => Ok(json!({"ok":true,"open":true})),
@@ -1112,7 +1196,16 @@ async fn session_end(req: Value) -> R {
 // Returns a receiver that fires exactly once with the result of OPENING the query (columns +
 // which are binary, or the error `conn.query_iter` failed with), and the sender used for every
 // Fetch/Close for the lifetime of the cursor.
-fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>) -> (
+//
+// `kill` is the connection's id and how to reach the server, for a cursor on a tab's kept
+// connection: closed with rows still to come, the statement is stopped there (KILL QUERY) before
+// the result is let go. Letting it go reads out every row that is left, which held the connection
+// - and so the tab's next run, which waits 15 seconds for it and then gives up - for as long as the
+// rest of a large table took to arrive. KILL QUERY ends the statement and leaves the session as it
+// was. The rest may already have been sent, with the statement over by the time the KILL arrives;
+// one statement of nothing (DO 0) then runs before the connection goes back, so a KILL that found
+// nothing to stop cannot fall on the tab's next statement.
+fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>, kill: Option<(u32, Value)>) -> (
     std::sync::mpsc::Receiver<CursorOpen>,
     std::sync::mpsc::Sender<CursorCmd>,
 ) {
@@ -1153,6 +1246,7 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // one row at every page boundary (100k rows at the default pageSize surfaced as 99,901,
         // with has_more=false, so nothing indicated the loss).
         let mut carry: Option<Vec<Option<String>>> = None;
+        let mut last: Option<(std::sync::mpsc::Sender<Result<CursorBatch, String>>, CursorBatch)> = None;
         loop {
             // Idle safety net: an abandoned cursor (tab closed without the UI's cleanup call
             // reaching the backend, app crashed, etc.) can't hold its DB connection open forever.
@@ -1189,10 +1283,14 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
                         }
                     }
                     let has_more = carry.is_some();
-                    let done = err.is_some() || !has_more;
-                    let resp = match err { Some(e) => Err(e), None => Ok(CursorBatch { rows, has_more }) };
-                    let _ = reply.send(resp);
-                    if done { break; }
+                    let batch = CursorBatch { rows, has_more, warnings: Vec::new() };
+                    match err {
+                        Some(e) => { let _ = reply.send(Err(e)); break; }
+                        // The last page waits for the statement's warnings, which the connection
+                        // can only be asked for once the result is let go, below.
+                        None if !has_more => { last = Some((reply, batch)); break; }
+                        None => { let _ = reply.send(Ok(batch)); }
+                    }
                 }
                 Ok(CursorCmd::Close) => break,
                 Err(_) => break, // idle timeout, or every Sender (incl. the registry's) was dropped
@@ -1202,6 +1300,18 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // make a later fetch/close look like it's still talking to a live cursor), then let
         // `result` and `conn` drop, closing the connection.
         cleanup(&request_id);
+        let mut killed = false;
+        if carry.is_some() {
+            if let Some((cid, connj)) = &kill {
+                if let Ok(mut kc) = build_conn(connj) { killed = kc.query_drop(format!("KILL QUERY {}", cid)).is_ok(); }
+            }
+        }
+        drop(result);
+        if killed { let _ = conn.query_drop("DO 0"); }
+        if let Some((reply, mut batch)) = last {
+            take_warnings(&mut conn, 1, &mut batch.warnings);
+            let _ = reply.send(Ok(batch));
+        }
         }
         if let Some(id) = home { sess_return(&id, conn); }
     });
@@ -1215,9 +1325,9 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
 // page of rows, and has_more. `request_id`, if supplied, is the same id query() registered in
 // running_queries() before calling this - handed to the cursor thread so it (not this function's
 // caller) can eventually clear that registration once the cursor genuinely closes.
-fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>, home: Option<String>) -> Result<CursorFirstPage, String> {
+fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<String>, home: Option<String>, kill: Option<(u32, Value)>) -> Result<CursorFirstPage, String> {
     let cursor_id = next_cursor_id();
-    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id, home);
+    let (open_rx, cmd_tx) = spawn_cursor_thread(conn, sql, cursor_id.clone(), request_id, home, kill);
     let (cols, bin, bit) = match open_rx.recv() {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => return Err(e),
@@ -1238,7 +1348,7 @@ fn open_cursor(conn: Conn, sql: String, first_n: usize, request_id: Option<Strin
     if !cols.is_empty() && batch.has_more {
         cursors().lock().unwrap().insert(cursor_id.clone(), cmd_tx);
     }
-    Ok((cursor_id, cols, bin, bit, batch.rows, batch.has_more))
+    Ok((cursor_id, cols, bin, bit, batch.rows, batch.has_more, batch.warnings))
 }
 
 // ---------- SQL text helpers (identifier + literal, Workbench-style + hex rule) ----------
@@ -1982,7 +2092,8 @@ fn strip_leading_use_statements(sql: &str) -> (Option<String>, String) {
 
 #[tauri::command]
 async fn query(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let sql = req["sql"].as_str().unwrap_or("").to_string();
         if sql.trim().is_empty() { return Ok(json!({"ok":false,"error":"Empty query."})); }
         if ro_mode(&req) && !sql_is_readonly(&sql) {
@@ -2038,15 +2149,18 @@ async fn query(req: Value) -> R {
         // the cursor thread (if one ever ran) has already deregistered itself by the time this
         // returns, and the removal below is what clears it otherwise.
         let mut cursor_persists = false;
+        // A result left half read on the tab's kept connection is stopped at the server when it is
+        // closed (see spawn_cursor_thread), with this connection's id from a connection of its own.
+        let kill = if c.in_session() { Some((c.connection_id(), req["conn"].clone())) } else { None };
         let (conn, home) = c.into_parts();
-        let result = match open_cursor(conn, sql, page_size, request_id.clone(), home) {
-            Ok((cursor_id, cols, bin, bit, rows, has_more)) => {
+        let result = match open_cursor(conn, sql, page_size, request_id.clone(), home, kill) {
+            Ok((cursor_id, cols, bin, bit, rows, has_more, warnings)) => {
                 cursor_persists = has_more;
                 if cols.is_empty() {
-                    Ok(json!({"ok":true,"columns":[],"rows":[],"elapsedMs":t.elapsed().as_millis() as u64,"message":"Query OK. No result set."}))
+                    Ok(json!({"ok":true,"columns":[],"rows":[],"elapsedMs":t.elapsed().as_millis() as u64,"message":"Query OK. No result set.","warnings":warnings}))
                 } else {
                     let cursor_id_for_response = if has_more { Some(cursor_id) } else { None };
-                    Ok(json!({"ok":true,"columns":cols,"rows":rows,"binaryCols":bin,"bitCols":bit,"hasMore":has_more,"cursorId":cursor_id_for_response,"elapsedMs":t.elapsed().as_millis() as u64}))
+                    Ok(json!({"ok":true,"columns":cols,"rows":rows,"binaryCols":bin,"bitCols":bit,"hasMore":has_more,"cursorId":cursor_id_for_response,"elapsedMs":t.elapsed().as_millis() as u64,"warnings":warnings}))
                 }
             }
             Err(e) => {
@@ -2065,7 +2179,8 @@ async fn query(req: Value) -> R {
             if let Some(rid) = &request_id { running_queries().lock().unwrap().remove(rid); let _ = take_query_cancelled(rid); }
         }
         result
-    }).await.map_err(|e| e.to_string())?
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
 }
 
 // Fetches the next page (default 1000 rows) from a cursor previously opened by `query`. Returns
@@ -2095,7 +2210,7 @@ async fn fetch_cursor_batch(req: Value) -> R {
                 // has_more false means the cursor thread already exhausted, deregistered, and
                 // exited on its own - nothing left here to clean up in that case.
                 if !batch.has_more { cursors().lock().unwrap().remove(&cursor_id); }
-                Ok(json!({"ok":true,"rows":batch.rows,"hasMore":batch.has_more}))
+                Ok(json!({"ok":true,"rows":batch.rows,"hasMore":batch.has_more,"warnings":batch.warnings}))
             }
             Ok(Err(e)) => {
                 cursors().lock().unwrap().remove(&cursor_id);
@@ -2608,7 +2723,8 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
 // per-statement context since the whole script was piped to it as one stdin stream.
 #[tauri::command]
 async fn script(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let raw = req["sql"].as_str().unwrap_or("").to_string();
         if ro_mode(&req) && !sql_is_readonly(&raw) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
@@ -2634,21 +2750,34 @@ async fn script(req: Value) -> R {
             // everything rolled back; the others keep the original autocommit behaviour.
             // In a tab's own transaction the batch is a savepoint in it instead: a COMMIT here would
             // commit everything the tab had not, and a ROLLBACK would throw it away.
-            let in_session = c.in_session();
+            let in_session = c.in_tx();
             if transactional { c.query_drop(if in_session { "SAVEPOINT nobs_batch" } else { "START TRANSACTION" }).map_err(db_err)?; }
-            // Rows the statements changed, for a transaction's log to say what each run did.
+            // Rows the statements changed, for a transaction's log to say what each run did, and
+            // each statement's own count and time, for the output window.
             let mut affected: u64 = 0;
+            let mut warnings: Vec<Value> = Vec::new();
+            let mut done: Vec<Value> = Vec::new();
+            let started = std::time::Instant::now();
             for (idx, stmt) in statements.iter().enumerate() {
+                let t0 = std::time::Instant::now();
                 let ran = c.query_drop(stmt);
-                if ran.is_ok() { affected += c.affected_rows(); }
+                if ran.is_ok() { let a = c.affected_rows(); affected += a; take_warnings(&mut c, idx + 1, &mut warnings); done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
                 if let Err(e) = ran {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
                     if transactional { let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" }); }
                     let e = db_err(e);
                     let note = if !transactional { "" } else if in_session { "\n\nNone of these changes were applied. The tab's transaction is still open." } else { "\n\nNo changes were applied - the batch was rolled back." };
-                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
+                    return Ok(json!({"ok":false,"affected":if transactional { 0 } else { affected },"warnings":warnings,"statements":if transactional { vec![] } else { done },"error":format!("Statement {} of {} failed: {}\n\n{}{}{}", idx+1, total, e, preview, suffix, note)}));
                 }
+            }
+            // Grid edits are meant to be stored as typed. When the server warned that it stored a
+            // value otherwise - cut short, clipped, turned into a zero date - nothing is kept, and
+            // the page shows the warnings and lets the user apply them anyway (failOnWarnings off).
+            if transactional && req["failOnWarnings"].as_bool().unwrap_or(false) && warnings_change_data(&warnings, &statements) {
+                let _ = c.query_drop(if in_session { "ROLLBACK TO SAVEPOINT nobs_batch" } else { "ROLLBACK" });
+                return Ok(json!({"ok":false,"warned":true,"affected":0,"warnings":warnings,
+                    "error":"The server would not store every value as given, so nothing was saved."}));
             }
             if transactional && in_session {
                 let _ = c.query_drop("RELEASE SAVEPOINT nobs_batch");
@@ -2658,7 +2787,7 @@ async fn script(req: Value) -> R {
                     return Ok(json!({"ok":false,"error":commit_failure_message(&db_err(e))}));
                 }
             }
-            return Ok(json!({"ok":true,"affected":affected}));
+            return Ok(json!({"ok":true,"affected":affected,"warnings":warnings,"statements":done,"elapsedMs":started.elapsed().as_millis() as u64}));
         }
 
         // Continue-on-error mode: run every statement regardless of earlier failures, and
@@ -2666,9 +2795,12 @@ async fn script(req: Value) -> R {
         // that needs fixing in one pass, not stopping at (and hiding everything past) the first.
         let mut succeeded = 0usize;
         let mut failures: Vec<Value> = Vec::new();
+        let mut warnings: Vec<Value> = Vec::new();
+        let (mut affected, mut done, started) = (0u64, Vec::new(), std::time::Instant::now());
         for (idx, stmt) in statements.iter().enumerate() {
+            let t0 = std::time::Instant::now();
             match c.query_drop(stmt) {
-                Ok(_) => { succeeded += 1; }
+                Ok(_) => { succeeded += 1; let a = c.affected_rows(); affected += a; take_warnings(&mut c, idx + 1, &mut warnings); done.push(stmt_report(idx, stmt, a, &c.info_str(), t0)); }
                 Err(e) => {
                     let preview: String = stmt.chars().take(120).collect();
                     let suffix = if stmt.chars().count() > 120 { "..." } else { "" };
@@ -2676,8 +2808,22 @@ async fn script(req: Value) -> R {
                 }
             }
         }
-        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures}))
-    }).await.map_err(|e| e.to_string())?
+        Ok(json!({"ok":failures.is_empty(),"total":total,"succeeded":succeeded,"failures":failures,"warnings":warnings,"affected":affected,"statements":done,"elapsedMs":started.elapsed().as_millis() as u64}))
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
+}
+
+// What the output window says about one statement that ran: its number, its start on one line, the
+// rows it changed and how long it took. For an UPDATE the server also says how many rows its WHERE
+// found ("Rows matched: 5  Changed: 2  Warnings: 0"): a row that already held the new value is
+// matched but not changed, and the two numbers apart tell the user so.
+fn stmt_report(idx: usize, stmt: &str, affected: u64, info: &str, t0: std::time::Instant) -> Value {
+    let one_line = stmt.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut sql: String = one_line.chars().take(80).collect();
+    if one_line.chars().count() > 80 { sql.push_str("..."); }
+    let matched = info.split("Rows matched:").nth(1)
+        .and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse::<u64>().ok());
+    json!({"index": idx + 1, "sql": sql, "affected": affected, "matched": matched, "ms": t0.elapsed().as_millis() as u64})
 }
 
 // Runs a script on one connection and returns every result set it produces - a procedure's
@@ -2686,7 +2832,8 @@ async fn script(req: Value) -> R {
 // returns it with the results produced before it.
 #[tauri::command]
 async fn script_results(req: Value) -> R {
-    tokio::task::spawn_blocking(move || {
+    let sid = session_id(&req);
+    let r = tokio::task::spawn_blocking(move || {
         let raw = req["sql"].as_str().unwrap_or("").to_string();
         if ro_mode(&req) && !sql_is_readonly(&raw) {
             return Ok(json!({"ok":false,"error":"Read-only mode: statement blocked."}));
@@ -2709,6 +2856,7 @@ async fn script_results(req: Value) -> R {
         let total = statements.len();
         let mut results: Vec<Value> = Vec::new();
         let mut error: Option<String> = None;
+        let mut warnings: Vec<Value> = Vec::new();
         'statements: for (idx, stmt) in statements.iter().enumerate() {
             let preview: String = stmt.chars().take(120).collect();
             let mut qr = match c.query_iter(stmt) {
@@ -2737,11 +2885,14 @@ async fn script_results(req: Value) -> R {
                 results.push(json!({"statement": idx + 1, "sql": preview, "columns": cols, "binaryCols": bin, "bitCols": bit,
                                     "rows": rows, "rowCount": count, "truncated": count > max_rows}));
             }
+            drop(qr);
+            take_warnings(&mut c, idx + 1, &mut warnings);
         }
         let cancelled = request_id.as_deref().map(|rid| { running_queries().lock().unwrap().remove(rid); take_query_cancelled(rid) }).unwrap_or(false);
-        if cancelled { return Ok(json!({"ok":false,"cancelled":true,"error":"Query cancelled.","results":results,"total":total})); }
-        Ok(json!({"ok": error.is_none(), "error": error, "results": results, "total": total}))
-    }).await.map_err(|e| e.to_string())?
+        if cancelled { return Ok(json!({"ok":false,"cancelled":true,"error":"Query cancelled.","results":results,"total":total,"warnings":warnings})); }
+        Ok(json!({"ok": error.is_none(), "error": error, "results": results, "total": total, "warnings": warnings}))
+    }).await.map_err(|e| e.to_string())?;
+    mark_reset(&sid, r)
 }
 
 #[tauri::command]
@@ -5154,6 +5305,60 @@ async fn pick_save_path(app: tauri::AppHandle, req: Value) -> R {
     Ok(json!(p))
 }
 
+// A .sql file opened in a tab, or saved from one through Save As, may be written again by Save for as
+// long as the app runs: the user picked it in a dialog once. Any other path still needs the dialog.
+fn sql_file_grants() -> &'static Mutex<std::collections::HashSet<String>> {
+    static G: std::sync::OnceLock<Mutex<std::collections::HashSet<String>>> = std::sync::OnceLock::new();
+    G.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+// The Open dialog, and the file picked there as text. The page is given the text without a byte
+// order mark, and told whether there was one, so Save can write it back the same way. A file that
+// is not UTF-8 is not opened: read as something else and saved, it would come back changed.
+#[tauri::command]
+async fn open_sql_file(app: tauri::AppHandle) -> R {
+    use tauri_plugin_dialog::DialogExt;
+    let d = app.dialog().file().add_filter("SQL files", &["sql"]).add_filter("All files", &["*"]);
+    let picked = tokio::task::spawn_blocking(move || d.blocking_pick_file()).await.map_err(|e| e.to_string())?;
+    let Some(fp) = picked else { return Ok(Value::Null) };
+    let p = fp.into_path().map_err(|e| e.to_string())?;
+    let path = p.to_string_lossy().to_string();
+    let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.clone());
+    Ok(read_sql_file(&path, &name))
+}
+fn read_sql_file(path: &str, name: &str) -> Value {
+    const MAX: u64 = 50 * 1024 * 1024;
+    match std::fs::metadata(path) {
+        Ok(m) if m.len() > MAX => return json!({"ok":false,"error":format!("{name} is larger than 50 MB. Use Import to run a file that size.")}),
+        Err(e) => return json!({"ok":false,"error":e.to_string()}),
+        _ => {}
+    }
+    let bytes = match std::fs::read(path) { Ok(b) => b, Err(e) => return json!({"ok":false,"error":e.to_string()}) };
+    let bom = bytes.starts_with(&[0xEF, 0xBB, 0xBF]);
+    match String::from_utf8(if bom { bytes[3..].to_vec() } else { bytes }) {
+        Ok(text) => {
+            sql_file_grants().lock().unwrap().insert(path.to_string());
+            json!({"ok":true,"path":path,"name":name,"content":text,"bom":bom})
+        }
+        Err(_) => json!({"ok":false,"error":format!("{name} is not UTF-8 text, so it is not opened: saved again, it would not be the same file.")}),
+    }
+}
+
+// Save writes a file opened or saved before (see sql_file_grants); Save As first asks pick_save_path,
+// whose one-time grant this takes and turns into a lasting one.
+#[tauri::command]
+fn save_sql_file(req: Value) -> R {
+    let path = req["path"].as_str().unwrap_or("");
+    let content = req["content"].as_str().unwrap_or("");
+    if path.is_empty() { return Ok(json!({"ok":false,"error":"no path"})); }
+    let known = sql_file_grants().lock().unwrap().contains(path);
+    if !known && !take_save_grant(path) { return Ok(json!({"ok":false,"error":"not a file opened here or chosen in the Save dialog"})); }
+    match std::fs::write(path, content) {
+        Ok(_) => { sql_file_grants().lock().unwrap().insert(path.to_string()); Ok(json!({"ok":true})) }
+        Err(e) => Ok(json!({"ok":false,"error":e.to_string()})),
+    }
+}
+
 // The GUI tests cannot click through a native Save dialog, so a debug build (which is what they run)
 // lets them name the file; a release build does not.
 #[tauri::command]
@@ -5624,7 +5829,7 @@ fn download_mariadb_tools() -> R {
     let mut got_plugins = 0usize;
     for i in 0..zipf.len() {
         let mut f = zipf.by_index(i).map_err(|e| e.to_string())?;
-        let full = f.name().to_string();
+        let full = f.name().map_err(|e| e.to_string())?.to_string();
         let base = full.rsplit(['/', '\\']).next().unwrap_or("").to_string();
         if want.contains(&base.as_str()) {
             let out = dest.join(&base);
@@ -5759,7 +5964,8 @@ fn download_mysql_tools_blocking() -> R {
     let mut got: Vec<String> = Vec::new();
     for i in 0..zipf.len() {
         let mut f = zipf.by_index(i).map_err(|e| e.to_string())?;
-        let Some(base) = mysql_zip_member(f.name()) else { continue };
+        let Ok(fname) = f.name() else { continue };
+        let Some(base) = mysql_zip_member(&fname) else { continue };
         let mut o = std::fs::File::create(dest.join(&base)).map_err(|e| e.to_string())?;
         std::io::copy(&mut f, &mut o).map_err(|e| e.to_string())?;
         got.push(base);
@@ -6108,7 +6314,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             session_end,
             connect, schemas, objects, ddl, pk, query, exec, rowop, script, script_results, fetch_cursor_batch, close_cursor,
-            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, hist_add, hist_list, hist_delete, hist_clear, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
+            import, export, importcsv, browse, quit_app, save_text, save_binary, pick_save_path, open_sql_file, save_sql_file, set_zoom, grant_save_path_for_test, export_table, cancel_export, cancel_job, app_info, get_config, save_config, check_tool, open_folder, download_tools, download_mysql_tools, tools_status, tools_for_conn, update_check, update_install, open_release_page, conn_list, conn_get, conn_save, conn_delete, conn_primary, conn_clear, quit, lib_list, lib_save, lib_delete, lib_clear, lib_replace, hist_add, hist_list, hist_delete, hist_clear, search_all_schemas, cancel_query, compare_dbs, compare_schemas, compare_apply, compare_tables, compare_rows, compare_rows_apply, compare_rows_diff, compare_rows_apply_diff, compare_cancel, fk, compare_rows_insert_all, compare_rows_fetch_by_pk, gen_user_transfer, process_list, kill_process, schema_erd, open_support_link
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -7040,6 +7246,99 @@ mod live_tests {
         println!("  cancelled query        -> {}", r["error"].as_str().unwrap_or(""));
         assert_eq!(r["error"], "Query cancelled.");
         assert_eq!(r["cancelled"], true);
+    }
+}
+
+#[cfg(test)]
+mod warnings_tests {
+    use super::*;
+    fn conn_json() -> Option<Value> {
+        let dsn = std::env::var("NOBS_TEST_DSN").ok()?;
+        let p: Vec<&str> = dsn.split(':').collect();
+        if p.len() != 4 { return None; }
+        Some(json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"}))
+    }
+    fn codes(r: &Value) -> Vec<(u64, String, u64)> {
+        r["warnings"].as_array().cloned().unwrap_or_default().iter()
+            .map(|w| (w["statement"].as_u64().unwrap_or(0), w["level"].as_str().unwrap_or("").to_string(), w["code"].as_u64().unwrap_or(0))).collect()
+    }
+    const NON_STRICT: &str = "SET SESSION sql_mode = ''";
+
+    // Only a warning from a statement that writes means a value was not stored as given: a Note is
+    // information, and the row guards Apply sends are SELECTs that find no row by design (1329).
+    #[test]
+    fn only_a_writing_statement_s_warning_changes_data() {
+        let stmts: Vec<String> = vec!["SELECT 1 FROM t INTO @g".into(), "UPDATE t SET v='x'".into()];
+        let w = |n: u64, level: &str| vec![json!({"statement":n,"level":level,"code":1})];
+        assert!(!warnings_change_data(&w(1, "Warning"), &stmts), "a guard's warning");
+        assert!(!warnings_change_data(&w(2, "Note"), &stmts), "a note");
+        assert!(warnings_change_data(&w(2, "Warning"), &stmts));
+        assert!(warnings_change_data(&w(2, "Error"), &stmts));
+        assert!(!warnings_change_data(&[], &stmts));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_value_cut_short_is_reported_with_its_statement() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = script(json!({"sql":format!("DROP TABLE IF EXISTS nobs_test.warn_t; CREATE TABLE nobs_test.warn_t (id INT PRIMARY KEY, v VARCHAR(3)); {NON_STRICT}; INSERT INTO nobs_test.warn_t VALUES (1, 'abcdef')"),"conn":conn,"db":"nobs_test"})).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        let c = codes(&r);
+        assert!(c.iter().any(|(s, l, code)| *s == 4 && l == "Warning" && *code == 1265), "the INSERT's truncation: {c:?}");
+        assert!(c.iter().any(|(s, l, code)| *s == 1 && l == "Note" && *code == 1051), "DROP TABLE IF EXISTS of a missing table is a Note: {c:?}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn grid_edits_the_server_would_change_are_not_kept() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        script(json!({"sql":"DROP TABLE IF EXISTS nobs_test.warn_g; CREATE TABLE nobs_test.warn_g (id INT PRIMARY KEY, v VARCHAR(3)); INSERT INTO nobs_test.warn_g VALUES (1, 'abc')","conn":conn,"db":"nobs_test"})).await.unwrap();
+        let batch = format!("{NON_STRICT};\nUPDATE nobs_test.warn_g SET v='toolong' WHERE id=1 LIMIT 1;");
+        let r = script(json!({"sql":batch,"conn":conn,"db":"nobs_test","transaction":true,"failOnWarnings":true})).await.unwrap();
+        assert_eq!((r["ok"].clone(), r["warned"].clone()), (json!(false), json!(true)), "{r}");
+        let v = query(json!({"sql":"SELECT v FROM nobs_test.warn_g WHERE id=1","conn":conn})).await.unwrap();
+        assert_eq!(v["rows"][0][0], "abc", "nothing was kept");
+        let anyway = script(json!({"sql":batch,"conn":conn,"db":"nobs_test","transaction":true})).await.unwrap();
+        assert_eq!(anyway["ok"], true, "without the check it saves, as the server takes it: {anyway}");
+        let v = query(json!({"sql":"SELECT v FROM nobs_test.warn_g WHERE id=1","conn":conn})).await.unwrap();
+        assert_eq!(v["rows"][0][0], "too");
+        script(json!({"sql":"DROP TABLE nobs_test.warn_g","conn":conn})).await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_select_s_warnings_come_with_its_rows() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = query(json!({"sql":"SELECT CAST('abc' AS SIGNED) AS n","conn":conn})).await.unwrap();
+        assert!(codes(&r).iter().any(|(_, l, code)| l == "Warning" && *code == 1292), "{r}");
+        let clean = query(json!({"sql":"SELECT 1","conn":conn})).await.unwrap();
+        assert_eq!(clean["warnings"], json!([]), "a statement without any costs no SHOW WARNINGS");
+    }
+
+    // A result read in pages has its warnings with the last page: the server counts them once every
+    // row is sent.
+    #[tokio::test]
+    #[ignore]
+    async fn a_paged_result_s_warnings_come_with_its_last_page() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let sql = "SELECT CAST(x AS SIGNED) AS n FROM (SELECT 'a' AS x UNION ALL SELECT 'b' UNION ALL SELECT 'c') d";
+        let first = query(json!({"sql":sql,"conn":conn,"pageSize":1})).await.unwrap();
+        assert_eq!(first["hasMore"], true, "{first}");
+        let mut last = json!(null);
+        for _ in 0..5 {
+            last = fetch_cursor_batch(json!({"cursorId":first["cursorId"],"pageSize":1})).await.unwrap();
+            if last["hasMore"] != true { break; }
+        }
+        assert!(codes(&last).iter().any(|(_, l, code)| l == "Warning" && *code == 1292), "{last}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn every_result_of_a_script_has_its_statement_s_warnings() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let r = script_results(json!({"sql":"SELECT 1; SELECT CAST('abc' AS SIGNED)","conn":conn})).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        assert!(codes(&r).iter().any(|(s, _, code)| *s == 2 && *code == 1292), "{r}");
     }
 }
 
@@ -9502,6 +9801,37 @@ mod review_tests {
     }
 
     #[test]
+    fn a_sql_file_opened_in_a_tab_is_saved_again_as_it_came() {
+        let dir = std::env::temp_dir().join(format!("nobs-sqlfile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("q.sql").to_string_lossy().to_string();
+        let r = save_sql_file(json!({"path": p, "content": "x"})).unwrap();
+        assert_eq!(r["ok"], false, "a path nobody picked is refused: {r}");
+        // the BOM is taken off the text and reported; a CRLF stays in it
+        std::fs::write(&p, b"\xEF\xBB\xBFSELECT 'caf\xC3\xA9';\r\n").unwrap();
+        let r = read_sql_file(&p, "q.sql");
+        assert_eq!((r["ok"].clone(), r["bom"].clone(), r["content"].clone()), (json!(true), json!(true), json!("SELECT 'café';\r\n")));
+        // opened, it may be saved as often as wanted
+        for n in 0..2 {
+            let r = save_sql_file(json!({"path": p, "content": format!("SELECT {n};")})).unwrap();
+            assert_eq!(r["ok"], true, "{r}");
+        }
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "SELECT 1;");
+        // a file that is not UTF-8 is not opened
+        let latin = dir.join("latin.sql").to_string_lossy().to_string();
+        std::fs::write(&latin, b"SELECT 'caf\xE9';").unwrap();
+        let r = read_sql_file(&latin, "latin.sql");
+        assert_eq!(r["ok"], false, "{r}");
+        assert!(!sql_file_grants().lock().unwrap().contains(&latin), "and not granted");
+        // Save As: the dialog's one-time grant becomes a lasting one
+        let other = dir.join("new.sql").to_string_lossy().to_string();
+        save_grants().lock().unwrap().insert(other.clone());
+        assert_eq!(save_sql_file(json!({"path": other, "content": "a"})).unwrap()["ok"], true);
+        assert_eq!(save_sql_file(json!({"path": other, "content": "b"})).unwrap()["ok"], true);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_tool_is_checked_before_it_is_run() {
         let r = check_tool(json!({"path": r"C:\Windows\System32\cmd.exe", "kind": "mysql"})).unwrap();
         assert!(r["error"].as_str().unwrap_or("").contains("not mysql.exe"), "{r}");
@@ -9534,6 +9864,22 @@ mod review_tests {
         sweep_secret_files_in(dir.path(), std::time::Duration::from_secs(1));
         let left: Vec<String> = std::fs::read_dir(dir.path()).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
         assert_eq!(left, ["other.txt"], "an old one goes, and nothing else");
+    }
+}
+
+#[cfg(test)]
+mod stmt_report_tests {
+    use super::*;
+
+    #[test]
+    fn a_statement_is_reported_on_one_line_with_its_rows() {
+        let r = stmt_report(2, "UPDATE t\n   SET v = 1\n WHERE id < 10", 12, "Rows matched: 15  Changed: 12  Warnings: 0", std::time::Instant::now());
+        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone(), r["matched"].clone()), (json!(3), json!("UPDATE t SET v = 1 WHERE id < 10"), json!(12), json!(15)));
+        let long = format!("INSERT INTO t VALUES {}", "(1),".repeat(40));
+        let r = stmt_report(0, &long, 40, "Records: 40  Duplicates: 0  Warnings: 0", std::time::Instant::now());
+        let sql = r["sql"].as_str().unwrap();
+        assert!(sql.ends_with("...") && sql.chars().count() == 83, "{sql}");
+        assert!(r["matched"].is_null(), "only an UPDATE says how many rows it matched: {r}");
     }
 }
 

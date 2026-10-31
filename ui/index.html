@@ -210,7 +210,13 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
 .vpasc{border-left:1px solid var(--bd2)}
 .vptext{flex:1;min-width:0;border:0;outline:none;resize:none;background:var(--bg);color:var(--fg);white-space:pre;overflow:auto}
 .vptext.wrap{white-space:pre-wrap;overflow-wrap:anywhere} .vptext[readonly]{background:var(--even)}
- .hl,.editor{position:absolute;inset:0;margin:0;padding:8px;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
+ .hl,.editor{position:absolute;inset:0 0 0 var(--gutw,0px);margin:0;padding:8px;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;overflow:auto;border:0;tab-size:4}
+ /* Line numbers, in a gutter left of the text: the same font and line height, scrolled with it. The
+    padding below lets it scroll as far as the editor does when a horizontal scrollbar takes room. The
+    line the caret is on has a band (gutcur), placed in lines (1.4em each) from the top. */
+ .gutter{position:absolute;left:0;top:0;bottom:0;width:var(--gutw,0px);font-family:var(--mono);font-size:var(--edfs,13px);overflow:hidden;box-sizing:border-box;background:var(--panel);border-right:1px solid var(--bd2);user-select:none;-webkit-user-select:none;cursor:default;z-index:1}
+ .gutnums{margin:0;padding:8px 8px 48px 0;text-align:right;font-family:var(--mono);font-size:var(--edfs,13px);line-height:1.4;white-space:pre;color:var(--muted)}
+ .gutcur{position:absolute;left:0;right:0;height:1.4em;font-size:var(--edfs,13px);background:color-mix(in srgb,var(--accent) 14%,transparent);pointer-events:none}
  .hl{pointer-events:none;z-index:1;color:var(--fg)} .editor{z-index:2;color:transparent;background:transparent;caret-color:var(--fg);resize:none;outline:none}
  .hl.fm{z-index:0;color:transparent} .fm mark{background:var(--hit);color:transparent;border-radius:var(--r-s)} .fm mark.on{background:var(--accent);opacity:.45}
  .findbar{position:absolute;top:4px;right:20px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px 6px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:12px} .findbar .frow{display:flex;gap:4px;align-items:center} .findbar input:not([type]){width:190px} .findbar label{display:inline-flex;align-items:center;gap:2px;color:var(--muted);cursor:pointer} .findbar .frn{min-width:64px;text-align:right}
@@ -222,6 +228,8 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .fitmax [data-reserve]{display:inline-flex!important}
  .applyn{min-width:6.6em;font-variant-numeric:tabular-nums} .txn{min-width:2.8em;font-variant-numeric:tabular-nums}
  .statusbar{display:flex;min-width:0} .statusbar>.status:first-child{flex:1;min-width:0} .pagerinfo{white-space:nowrap} .pagerinfo:empty{display:none}
+ /* The server's warnings for the last run, beside its status (setRunWarnings): warnings stand out, Notes do not. */
+ .warnspan{white-space:nowrap;flex:none} .warnspan:empty{display:none} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
  .stk{display:inline-grid} .stk>span{grid-area:1/1} .stk>.off{visibility:hidden}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -238,6 +246,11 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.grid th:first-child,table.grid td:first-child{text-align:center;padding-left:2px;padding-right:2px} table.grid input[type=checkbox]{margin:0;vertical-align:middle}
  table.grid td.editable{cursor:cell} table.grid tr:nth-child(even) td{background:var(--even)} /* While a block is being dragged the browser must not also be selecting the text under it. */
  .dragsel,body.gridpicking{user-select:none;-webkit-user-select:none}
+ /* The focused cell's row and column, quieter than its ring: a faint tint across the row with a bar at
+    its left end, which stays in view when the grid is scrolled sideways, and a line under the column's name.
+    A row whose checkbox is ticked is marked the same way. */
+ table.grid tr:is(.kbrow,.rowpick) td{background:color-mix(in srgb,var(--accent) 7%,var(--bg))} table.grid tr:is(.kbrow,.rowpick) td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+ table.grid th.kbcol{background:color-mix(in srgb,var(--accent) 10%,var(--gridh));box-shadow:inset 0 -2px 0 var(--accent)}
  /* A picked cell: enough to see which ones are in, without hiding what is written in them. */
  /* A picked block: a solid tint (mixed into the page background, as a cell's background does not
     reach under its lines), the lines inside it in the tint, and its outline on a layer over each
@@ -348,6 +361,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .status{padding:3px 8px;font-size:12px;color:var(--fg);border-top:1px solid var(--bd2);background:var(--panel)} .status.err{color:#e06}
  #loghdr{background:#333;color:#ddd;padding:2px 8px;font-size:11px;display:flex;justify-content:space-between}
  #log{height:104px;overflow:auto;background:var(--log);color:var(--logfg);font-family:var(--mono);font-size:12px;padding:6px 8px;white-space:pre-wrap}
+ #log .ln{border-left:3px solid transparent;padding-left:6px;margin-left:-6px} #log .ln.ok{border-left-color:var(--erd-pk)}
+ #log .ln.warn{border-left-color:var(--log-warn)} #log .ln.err{border-left-color:var(--err-line);color:#f2b8b0}
+ #log .ln.jump{cursor:pointer} #log .ln.jump:hover{background:rgba(255,255,255,.07)}
  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9000}
 .modal.floating{background:transparent;pointer-events:none}
 .modal.minimized{display:none !important}
@@ -675,7 +691,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
 	<span id="connPick"><select id="connlist" onchange="pickConnGuarded();connTitle()" title="Saved connections" style="width:210px;max-width:210px"><option value="" disabled hidden selected>Connections</option></select><span id="connTags"><span id="envChip" class="chip bad" style="display:none"></span><span id="primChip" title="Primary connection - the one that opens at startup" style="display:none"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></svg></span><span id="pwChip" style="display:none"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></span></span><button id="connGo" class="primary" title="Connect to the connection picked in the list" onclick="connect()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span id="connStatus" class="chip off dotonly" title="Not connected" role="button" onclick="connStatusClick()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();connStatusClick()}"></span>
   <button class="sm" title="Start a new connection (clear the form)" onclick="newConn()" data-ic="file" data-fit="3">New</button><button class="sm" title="Save these connection details" onclick="saveConn()" data-ic="save" data-fit="3">Save</button><button id="mgrBtn" class="sm" title="Edit, clone, delete or set primary for the selected connection" onclick="connMenu(event)" data-ic="sliders" data-fit="3">Manage &#9662;</button>
   <span id="connStatusGroup" style="display:inline-flex;gap:6px;align-items:center;min-width:0"><span class="cspill needsconn"><span id="csIcon" class="csic needsconn" title="The character set the text in results is read as"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></span><select id="browseCs" class="needsconn" onchange="setBrowseCharset(this.value)" style="max-width:150px;font-size:12px" title="Read text in another character set. A value that looks mis-encoded reads correctly in the character set its bytes really are, which tells a storage problem from a display one; binary shows the bytes themselves. The connection is read-only while this is not the server default."></select></span></span>
-  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 0"></span><button class="sm icopin" id="coffeeBtn" aria-label="Buy me a coffee" title="Buy me a coffee, if NOBS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button class="sm" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" data-ic="power">Quit</button></span></span>
+  <span id="barRight"><span id="topActions" class="needsconn"><span class="tbchunk"><button class="primary" onclick="newTab()" title="Open a new query tab" data-ic="plus" data-fit="4">New Query</button><button class="sm" onclick="openSqlFile()" title="Open a .sql file in a tab of its own (Ctrl+O)" data-ic="file" data-fit="3">Open</button><button class="sm" onclick="if(activeTab)saveSqlFile(activeTab)" title="Save the tab's query to its .sql file (Ctrl+S in the editor). Right-click the tab for Save as." data-ic="save" data-fit="3">Save</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="The server and the databases on it - sizes, row counts, charsets" onclick="openOverview()" data-ic="gauge" data-fit="2">Overview</button><button class="sm" title="View users and privileges" onclick="openUsers()" data-ic="users" data-fit="2">Users</button><button class="sm" title="View and kill server processes/queries (SHOW FULL PROCESSLIST)" onclick="openProcessList()" data-ic="activity" data-fit="2">Processes</button><button class="sm" title="Browse and reopen previous queries" onclick="openHistory()" data-ic="history" data-fit="2">History</button><button class="sm" title="Save and browse reusable queries" onclick="openLibrary()" data-ic="book" data-fit="2">Library</button></span><span class="tbchunk"><span class="tbsep"></span><button class="sm" title="Export databases with mysqldump" onclick="openExport()" data-ic="export">Export</button><button class="sm" title="Import SQL files or a whole folder" onclick="openImport()" data-ic="import">Import</button><button class="sm" title="Compare table structure between two databases" onclick="openCompare()" data-ic="compare">Compare DB</button></span></span><span class="tbchunk tbfixed"><span class="tbsep"></span><button class="sm" title="Configure or download the mysql / mysqldump client tools" onclick="openSettings()" data-ic="gear">Settings</button><span class="tbsep fixedsep" style="margin:2px 0"></span><button class="sm icopin" id="coffeeBtn" aria-label="Buy me a coffee" title="Buy me a coffee, if NOBS SQL Editor saved you some time" onclick="openSupportLink()" data-ic="coffee">Buy me a coffee</button><button class="sm" title="Stop the local server and exit (the clean way to close the app)" onclick="quit()" data-ic="power">Quit</button></span></span>
  </div>
  <div class="barrow" id="connFormRow">
   <span class="fld">Host <input id="host" class="h" value="127.0.0.1" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Port <input id="port" class="s" value="3306" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">User <input id="user" class="s" style="width:80px" value="root" autocomplete="off" name="mwt_user" data-lpignore="true" onkeydown="if(event.key==='Enter')connect()"></span><span class="fld">Pass <input id="pass" class="p" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="mwt_secret" data-lpignore="true" data-form-type="other" onkeydown="if(event.key==='Enter')connect()"></span>
@@ -720,7 +736,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="sideResize" title="Drag to resize the sidebar (double-click to fit the names)"><span id="sideFold" class="edfold vert toedge left" title="Hide the sidebar" onmousedown="event.stopPropagation()" onclick="toggleSide()">&#9666;</span></div>
  <div id="content"><div id="tabsbar"></div><div id="panes" style="flex:1;display:flex;flex-direction:column;min-height:0"><div id="overview" style="display:none;flex:1;overflow:auto;padding:14px"></div></div></div>
 </div>
-<div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''">clear</span></div><div id="log"></div>
+<div id="loghdr"><span style="cursor:pointer;user-select:none" onclick="toggleLog()" title="Show or hide the output"><span id="logCaret">&#9662;</span> Action Output</span><span style="display:inline-flex;gap:12px"><span style="cursor:pointer" onclick="event.stopPropagation();logCopy()" title="Copy the whole output">copy</span><span style="cursor:pointer" onclick="event.stopPropagation();document.getElementById('log').textContent=''" title="Empty the output">clear</span></span></div><div id="log"></div>
 <div id="ctx"></div>
 <div id="minimizedTray" style="display:none;position:fixed;bottom:10px;right:10px;gap:8px;z-index:9500;max-width:70vw;flex-wrap:wrap;justify-content:flex-end"></div>
 <div id="colPicker"></div>
@@ -891,6 +907,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div id="txLogSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
  <div id="txLogList" class="clist" style="flex:1;min-height:0"></div>
  <div class="row" style="flex:none;margin-top:10px"><span class="muted" style="font-size:12px">Nothing here is permanent until Commit; Rollback undoes all of it.</span><span style="flex:1"></span><button class="warn" id="txLogRollback" onclick="txLogEnd('rollback')" title="Undo everything in this transaction">Rollback</button><button class="go" id="txLogCommit" onclick="txLogEnd('commit')" title="Make everything in this transaction permanent">Commit</button><button onclick="hide('mTxLog')">Close</button></div></div></div>
+<div class="modal floating" id="mWarn"><div class="box" style="width:900px;max-width:95vw;height:60vh;max-height:700px;display:flex;flex-direction:column;overflow:hidden;top:80px;left:180px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mWarn')" title="Drag to move"><h3 style="margin:0 0 10px" id="warnTitle">Server warnings</h3></div>
+ <div id="warnSub" class="muted" style="flex:none;font-size:12px;margin:-4px 0 10px"></div>
+ <div id="warnList" style="flex:1;min-height:0;overflow:auto"></div>
+ <div class="row" style="flex:none;margin-top:10px"><span style="flex:1"></span><button class="warn write" id="warnApply" style="display:none" onclick="warnApplyAnyway()" title="Save the edits with the values as the server takes them">Apply anyway</button><button id="warnClose" onclick="hide('mWarn')">Close</button></div></div></div>
 <div class="modal floating" id="mUserTransfer"><div class="box" style="width:820px;max-width:94vw;height:640px;display:flex;flex-direction:column;overflow:hidden;top:60px;left:130px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mUserTransfer')" title="Drag to move"><h3 style="margin:0 0 10px">Transfer script</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mUserTransfer')" title="Maximize" id="maxBtn_mUserTransfer" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mUserTransfer')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
  <div class="muted" style="margin-bottom:8px;flex:none">A script that recreates this server's accounts and roles on another one: each account as the server itself describes it (SHOW CREATE USER), then its grants (SHOW GRANTS) - sign-in method, password hash and grant options included. Copy or save it, and run it on the target server.</div>
  <div class="row" style="flex:none"><span class="muted" style="flex:none">Leave out these accounts</span> <input id="utExclude" style="flex:1" value="mysql.sys,mysql.session,mysql.infoschema,root,debian-sys-maint,mariadb.sys,healthcheck,mariabackup,galera,replica,PUBLIC"></div>
@@ -971,6 +991,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
   <div class="setgroup">Running queries</div>
   <div class="setcard">
    <div class="setrow"><div class="setrl"><div class="setrt">Ask before UPDATE or DELETE without WHERE</div><div class="setnote">Asks for confirmation before running an UPDATE or DELETE that has no WHERE clause of its own, since it would change or remove every row of the table. A WHERE inside a subquery does not count.</div></div><div class="setrc"><input type="checkbox" id="cfgNoWhereAsk" onchange="setNoWhereAsk(this.checked)" title="Ask before running an UPDATE or DELETE that has no WHERE"></div></div>
+   <div class="setrow"><div class="setrl"><div class="setrt">Keep each tab's connection between runs</div><div class="setnote">Each query tab runs on a connection of its own and keeps it, so what one run leaves - @variables, temporary tables, SET SESSION - is there for the next, as in the mysql client. Off, every run opens a new connection with nothing carried over. With Auto-commit off a tab always keeps its connection, for its transaction. The server counts one connection per tab that has run something.</div></div><div class="setrc"><input type="checkbox" id="cfgKeepConn" onchange="setKeepConn(this.checked)" title="Keep each query tab's connection between its runs"></div></div>
    <div class="setrow"><div class="setrl"><div class="setrt">Query history</div><div class="setnote">Keeps each query you run - with its time, connection, database, outcome, duration and rows - in a file beside the library, for the History window. The oldest go once there are more than this many. A statement with a password is never kept.</div></div><div class="setrc" style="display:flex;gap:8px;align-items:center"><input type="number" id="cfgHistLimit" min="100" max="100000" step="100" style="width:90px" onchange="setHistLimit(this.value)" title="How many runs the history keeps"><input type="checkbox" id="cfgHistOn" onchange="setHistOn(this.checked)" title="Keep a query history"></div></div>
   </div>
   <div class="setgroup">Notifications</div>
@@ -1046,7 +1067,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  </div>
  <div class="row setfoot"><button class="go" onclick="saveSettings()">Save</button><button onclick="hide('mSettings')">Close</button></div></div></div>
 <div class="modal floating" id="mShortcuts"><div class="box" style="width:1320px;max-width:96vw;top:40px;left:40px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none" onmousedown="floatDragStart(event,'mShortcuts')" title="Drag to move"><h3 style="margin:0 0 10px">Keyboard shortcuts and tips</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mShortcuts')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
- <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table class="sct"><tr><td class="sck"><kbd>F5</kbd> or <kbd>F9</kbd></td><td class="scd">Run the whole query</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">Run the selected text (or all, if nothing is selected)</td></tr><tr><td class="sck"><kbd>Ctrl + Space</kbd></td><td class="scd">Autocomplete</td></tr><tr><td class="sck"><kbd>alias. / database.</kbd></td><td class="scd">Lists that table's columns, or that database's tables, as you type</td></tr><tr><td class="sck"><kbd>Tab</kbd></td><td class="scd">Indent (in the editor)</td></tr><tr><td class="sck"><kbd>Ctrl + D</kbd></td><td class="scd">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td class="sck"><kbd>Ctrl + /</kbd></td><td class="scd">Toggle "-- " comment on the current line or selection</td></tr><tr><td class="sck"><kbd>Alt + &uarr; / &darr;</kbd></td><td class="scd">Move the current line (or selection) up or down</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + K</kbd></td><td class="scd">Delete the current line (or every line touched by the selection)</td></tr><tr><td class="sck"><kbd>Ctrl + L</kbd></td><td class="scd">Focus the editor and select all</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Find in the editor</td></tr><tr><td class="sck"><kbd>Ctrl + H</kbd></td><td class="scd">Find and replace in the editor</td></tr><tr><td class="sck"><kbd>F3 / Shift + F3</kbd></td><td class="scd">Next / previous match</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + F</kbd></td><td class="scd">Format the query</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + Click</kbd></td><td class="scd">On a cell: pick it, or drop it. On a row's checkbox: the same for the row</td></tr><tr><td class="sck"><kbd>Shift + Click</kbd></td><td class="scd">On a cell: the block back to the last one picked. On a checkbox: the run of rows</td></tr><tr><td class="sck"><kbd>Ctrl + A</kbd></td><td class="scd">In the results: pick every row shown, or clear the selection</td></tr><tr><td class="sck"><kbd>Ctrl + C</kbd></td><td class="scd">Copy what is picked - the cells, or the rows if no cell is</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the results: let the picked cells go - and pressed again, the ticked rows</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Search the results (from the grid)</td></tr><tr><td class="sck"><kbd>Enter / Shift + Enter</kbd></td><td class="scd">In the search box: the next / previous matching cell</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the search box: clear it</td></tr><tr><td class="sck"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td class="scd">Move from cell to cell in an editable grid</td></tr><tr><td class="sck"><kbd>Tab / Shift + Tab</kbd></td><td class="scd">The next / previous cell, wrapping at the row ends</td></tr><tr><td class="sck"><kbd>Enter or F2</kbd></td><td class="scd">Edit the cell the keyboard is on</td></tr><tr><td class="sck"><kbd>Type</kbd></td><td class="scd">With cells picked: writes what you type into every one of them (Enter keeps it)</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">In a cell holding several lines: keep the edit</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td class="sck"><kbd>Ctrl + S</kbd></td><td class="scd">Apply pending grid edits (save changes)</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + S</kbd></td><td class="scd">Show the SQL that Apply would run</td></tr><tr><td class="sck"><kbd>Double-click a cell</kbd></td><td class="scd">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td class="sck"><kbd>Drag column edge</kbd></td><td class="scd">Resize a results column</td></tr><tr><td class="sck"><kbd>Double-click column edge</kbd></td><td class="scd">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + T</kbd></td><td class="scd">New query tab</td></tr><tr><td class="sck"><kbd>Ctrl + W</kbd></td><td class="scd">Close current tab</td></tr><tr><td class="sck"><kbd>Middle-click a tab</kbd></td><td class="scd">Close it</td></tr><tr><td class="sck"><kbd>Drag a tab</kbd></td><td class="scd">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table class="sct"><tr><td class="sck"><kbd>Enter</kbd></td><td class="scd">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td class="sck"><kbd>Alt + &darr;, F4, Space</kbd></td><td class="scd">Open the connections list (when it has the focus)</td></tr><tr><td class="sck"><kbd>Type a name</kbd></td><td class="scd">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td class="sck"><kbd>&darr;</kbd></td><td class="scd">From a filter box: step into the list below it</td></tr><tr><td class="sck"><kbd>Shift + click a group</kbd></td><td class="scd">In the objects list: fold or unfold every group</td></tr><tr><td class="sck"><kbd>Drag sidebar divider</kbd></td><td class="scd">Resize the databases/objects sidebar</td></tr><tr><td class="sck"><kbd>Double-click sidebar divider</kbd></td><td class="scd">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table class="sct"><tr><td class="sck"><kbd>F1</kbd></td><td class="scd">This list of shortcuts</td></tr><tr><td class="sck"><kbd>F6</kbd></td><td class="scd">Between the editor and its results</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">Close the dialog in front</td></tr><tr><td class="sck"><kbd>Double-click</kbd></td><td class="scd">In the ER diagram: zoom in</td></tr><tr><td class="sck"><kbd>Shift + double-click</kbd></td><td class="scd">In the ER diagram: zoom out</td></tr><tr><td class="sck"><kbd>Drag</kbd></td><td class="scd">In the ER diagram: pan it, or move one table</td></tr><tr><td class="sck"><kbd>Right-click a table</kbd></td><td class="scd">In the ER diagram: show only it and its relations</td></tr></table></div></div>
+ <div class="sccols"><div class="scsec"><div class="sch">EDITOR</div><table class="sct"><tr><td class="sck"><kbd>F5</kbd> or <kbd>F9</kbd></td><td class="scd">Run the whole query</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">Run the selected text (or all, if nothing is selected)</td></tr><tr><td class="sck"><kbd>Ctrl + Space</kbd></td><td class="scd">Autocomplete</td></tr><tr><td class="sck"><kbd>alias. / database.</kbd></td><td class="scd">Lists that table's columns, or that database's tables, as you type</td></tr><tr><td class="sck"><kbd>Tab</kbd></td><td class="scd">Indent (in the editor)</td></tr><tr><td class="sck"><kbd>Ctrl + D</kbd></td><td class="scd">Duplicate the current line (or every line touched by the selection) below</td></tr><tr><td class="sck"><kbd>Ctrl + /</kbd></td><td class="scd">Toggle "-- " comment on the current line or selection</td></tr><tr><td class="sck"><kbd>Alt + &uarr; / &darr;</kbd></td><td class="scd">Move the current line (or selection) up or down</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + K</kbd></td><td class="scd">Delete the current line (or every line touched by the selection)</td></tr><tr><td class="sck"><kbd>Ctrl + L</kbd></td><td class="scd">Focus the editor and select all</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Find in the editor</td></tr><tr><td class="sck"><kbd>Ctrl + H</kbd></td><td class="scd">Find and replace in the editor</td></tr><tr><td class="sck"><kbd>F3 / Shift + F3</kbd></td><td class="scd">Next / previous match</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + F</kbd></td><td class="scd">Format the query</td></tr></table></div><div class="scsec"><div class="sch">RESULTS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + Click</kbd></td><td class="scd">On a cell: pick it, or drop it. On a row's checkbox: the same for the row</td></tr><tr><td class="sck"><kbd>Shift + Click</kbd></td><td class="scd">On a cell: the block back to the last one picked. On a checkbox: the run of rows</td></tr><tr><td class="sck"><kbd>Ctrl + A</kbd></td><td class="scd">In the results: pick every row shown, or clear the selection</td></tr><tr><td class="sck"><kbd>Ctrl + C</kbd></td><td class="scd">Copy what is picked - the cells, or the rows if no cell is</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the results: let the picked cells go - and pressed again, the ticked rows</td></tr><tr><td class="sck"><kbd>Ctrl + F</kbd></td><td class="scd">Search the results (from the grid)</td></tr><tr><td class="sck"><kbd>Enter / Shift + Enter</kbd></td><td class="scd">In the search box: the next / previous matching cell</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">In the search box: clear it</td></tr><tr><td class="sck"><kbd>&larr; &uarr; &darr; &rarr;</kbd></td><td class="scd">Move from cell to cell in an editable grid</td></tr><tr><td class="sck"><kbd>Tab / Shift + Tab</kbd></td><td class="scd">The next / previous cell, wrapping at the row ends</td></tr><tr><td class="sck"><kbd>Enter or F2</kbd></td><td class="scd">Edit the cell the keyboard is on</td></tr><tr><td class="sck"><kbd>Type</kbd></td><td class="scd">With cells picked: writes what you type into every one of them (Enter keeps it)</td></tr><tr><td class="sck"><kbd>Ctrl + Enter</kbd></td><td class="scd">In a cell holding several lines: keep the edit</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">While editing a cell: discard it. Otherwise: leave the cell</td></tr><tr><td class="sck"><kbd>Ctrl + S</kbd></td><td class="scd">Apply pending grid edits (save changes)</td></tr><tr><td class="sck"><kbd>Ctrl + Shift + S</kbd></td><td class="scd">Show the SQL that Apply would run</td></tr><tr><td class="sck"><kbd>Double-click a cell</kbd></td><td class="scd">Open the value in the cell editor (a read-only result: the viewer)</td></tr><tr><td class="sck"><kbd>Drag column edge</kbd></td><td class="scd">Resize a results column</td></tr><tr><td class="sck"><kbd>Double-click column edge</kbd></td><td class="scd">Auto-fit a results column</td></tr></table></div><div class="scsec"><div class="sch">TABS</div><table class="sct"><tr><td class="sck"><kbd>Ctrl + T</kbd></td><td class="scd">New query tab</td></tr><tr><td class="sck"><kbd>Ctrl + W</kbd></td><td class="scd">Close current tab</td></tr><tr><td class="sck"><kbd>Ctrl + O</kbd></td><td class="scd">Open a .sql file in a new tab</td></tr><tr><td class="sck"><kbd>Ctrl + S</kbd></td><td class="scd">In the editor: save the query to its .sql file (Save as for a new one)</td></tr><tr><td class="sck"><kbd>Middle-click a tab</kbd></td><td class="scd">Close it</td></tr><tr><td class="sck"><kbd>Drag a tab</kbd></td><td class="scd">Reorder the tabs</td></tr></table></div><div class="scsec"><div class="sch">CONNECTION AND SIDEBAR</div><table class="sct"><tr><td class="sck"><kbd>Enter</kbd></td><td class="scd">Connect (when focused in Host / Port / User / Pass)</td></tr><tr><td class="sck"><kbd>Alt + &darr;, F4, Space</kbd></td><td class="scd">Open the connections list (when it has the focus)</td></tr><tr><td class="sck"><kbd>Type a name</kbd></td><td class="scd">In the open connections list: narrow it. Backspace undoes, Esc clears</td></tr><tr><td class="sck"><kbd>&darr;</kbd></td><td class="scd">From a filter box: step into the list below it</td></tr><tr><td class="sck"><kbd>Shift + click a group</kbd></td><td class="scd">In the objects list: fold or unfold every group</td></tr><tr><td class="sck"><kbd>Drag sidebar divider</kbd></td><td class="scd">Resize the databases/objects sidebar</td></tr><tr><td class="sck"><kbd>Double-click sidebar divider</kbd></td><td class="scd">Reset the sidebar width</td></tr></table></div><div class="scsec"><div class="sch">WINDOWS AND DIAGRAMS</div><table class="sct"><tr><td class="sck"><kbd>F1</kbd></td><td class="scd">This list of shortcuts</td></tr><tr><td class="sck"><kbd>F6</kbd></td><td class="scd">Between the editor and its results</td></tr><tr><td class="sck"><kbd>Esc</kbd></td><td class="scd">Close the dialog in front</td></tr><tr><td class="sck"><kbd>Double-click</kbd></td><td class="scd">In the ER diagram: zoom in</td></tr><tr><td class="sck"><kbd>Shift + double-click</kbd></td><td class="scd">In the ER diagram: zoom out</td></tr><tr><td class="sck"><kbd>Drag</kbd></td><td class="scd">In the ER diagram: pan it, or move one table</td></tr><tr><td class="sck"><kbd>Right-click a table</kbd></td><td class="scd">In the ER diagram: show only it and its relations</td></tr></table></div></div>
  <div class="row" style="justify-content:flex-end;margin-top:14px"><button onclick="hide('mShortcuts')">Close</button></div></div></div>
 <div class="modal floating" id="mInput"><div class="box" style="width:460px;max-width:92vw;display:flex;flex-direction:column;overflow:hidden;top:90px;left:200px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mInput')" title="Drag to move"><h3 id="inpTitle" style="margin:0 0 10px">Input</h3><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mInput')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></div>
  <div id="inpFields" style="flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column"></div>
@@ -1239,7 +1260,25 @@ function sslCaToggle(){const w=$('sslcaWrap');if(w)w.style.display=(/^verify(-ca
 // SET PASSWORD ... = '...'. A quoted value ends at a quote that is not doubled, which is how the app
 // writes one under either sql_mode (strLit doubles quotes; only backslashes differ).
 function sqlNoSecrets(s){return String(s).replace(/(\bidentified\b(?:\s+(?:with|via)\s+[\w$]+)?\s+(?:by|as|using)\s+(?:password\s*)?\(?\s*|\b\w*password\s*(?:=\s*|\(\s*)?|\bset\s+password\b(?:\s+for\s+(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=@]+)(?:\s*@\s*(?:'(?:[^']|'')*'|"(?:[^"]|"")*"|`[^`]*`|[^\s=]+))?)?\s*=\s*(?:password\s*\(\s*)?)(['"])(?:\\[\s\S]|(?!\2)[\s\S]|\2\2)*\2/gi,"$1'***'");}
-function log(s){const l=$('log');l.textContent+=sqlNoSecrets(s)+"\n";l.scrollTop=l.scrollHeight;}
+// Each entry is a line of its own, marked by what it says: green for what went through, red for an
+// error, amber for a warning or a cancel. A caller that knows says which (meta.kind); the rest is read
+// from the text. An error from a run carries where its statement is (meta.jump), and a click on it
+// selects that statement in the tab's editor.
+function log(s,meta){const l=$('log');const d=document.createElement('div');const k=meta&&meta.kind!=null?meta.kind:logKind(s);d.className='ln'+(k?' '+k:'');d.textContent=sqlNoSecrets(s);
+ if(meta&&meta.jump){d.classList.add('jump');d.title='Click to show this statement in the editor';d.onclick=()=>logJump(meta.jump);}
+ l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function logKind(s){s=String(s);if(/\bERROR\b|^APPLY error|\nFailed:\n/.test(s))return 'err';if(/\bwarnings?\b|\bcancel/i.test(s))return 'warn';if(/\bOK\b|^Applied\b|^Saved\b/.test(s))return 'ok';return '';}
+function logCopy(){const t=$('log').innerText;if(!t.trim()){toast('The output is empty.');return;}copyText(t,'Copied the output.');}
+// The statement number an error names ("Statement 3 of 5 failed"), or 0.
+function errStmtNo(e){const m=String(e||'').match(/\bStatement (\d+) of \d+/);return m?+m[1]:0;}
+// Finds the text that ran in the editor, as it is now, and selects the statement in it; n counts from 1,
+// and 0 is the last. The text may have been changed since, and then it is said.
+function logJump(j){const t=T(j.id),ta=$('ed_'+j.id);if(!t||!ta){toast('That tab has been closed.',true);return;}
+ const ran=String(j.sql||'').replace(/\r\n/g,'\n'),base=ran.trim()?ta.value.indexOf(ran):-1,parts=splitStmts(ran,true);
+ const p=parts.length?parts[(j.n>0&&j.n<=parts.length?j.n:parts.length)-1]:null;
+ if(base<0||!p){toast('The editor has changed since that run, so the statement is not where it was.',true);return;}
+ const raw=ran.slice(p.start,p.end),a=base+p.start+(raw.length-raw.trimStart().length),b=base+p.start+raw.trimEnd().length;
+ activate(j.id);ta.focus();ta.setSelectionRange(a,b);findScrollTo(ta,a);syncHl(j.id);}
 // The output panel's 104px are worth having back when nothing has gone wrong - folded, its header
 // stays, so the log is one click away and new lines still collect behind it. Kept like the
 // sidebar's width, per browser.
@@ -1273,9 +1312,14 @@ function hideDead(){const d=$('deadOverlay');if(d)d.style.display='none';}
 // lists such as a schema's tables or its column names for autocomplete stopped at 1000 in both.
 // Only the grid passes pageSize; for everyone else the remaining rows are read here.
 async function api(path,p,signal){
+ // Whether a run on the tab's kept connection is in its transaction (see runSessOf).
+ if(p&&p.session&&p.sessionTx===undefined){const tb=tabs.find(x=>x.sessId===p.session);if(tb)p.sessionTx=!!tb.txOn;}
  const txe=(p&&p.session)?txWatch(path,p):null;
  const r=await apiCall(path,p,signal);
- if(txe){txe.ok=!!(r&&r.ok);if(r&&!r.ok)txe.error=r.error||(r.aborted?'Cancelled.':'Failed.');if(r&&r.affected!=null)txe.affected=+r.affected;}
+ if(p&&p.session&&r&&r.sessionReset)sessReset(p.session);
+ if(txe){txe.ok=!!(r&&r.ok);if(r&&!r.ok)txe.error=r.error||(r.aborted?'Cancelled.':'Failed.');if(r&&r.affected!=null)txe.affected=+r.affected;
+  // What the server warned about, from the statements that write (not the row guards of an Apply).
+  const ws=r&&r.warnings?warnFromWrites(r.warnings,splitStmts(String(p.sql||''))):[];if(ws.length)txe.warn=warnText(ws);}
  if(p&&p.session&&r&&r.ok===false&&TX_LOST.test(r.error||''))txLost(p.session);
  if(path!=='/api/query'||!p||p.pageSize!=null||!r||!r.ok||!r.hasMore||!r.cursorId)return r;
  // The desktop backend does not repeat cursorId in a fetch answer; the id stays the same.
@@ -1284,6 +1328,7 @@ async function api(path,p,signal){
   cur=await apiCall('/api/fetch-cursor-batch',{cursorId:cid,requestId:p.requestId,pageSize:5000},signal);
   if(!cur||!cur.ok){apiCall('/api/close-cursor',{cursorId:cid});return cur||{ok:false,error:'Reading the rest of the result failed.'};}
   for(const x of cur.rows)rows.push(x);
+  if(cur.warnings&&cur.warnings.length)r.warnings=(r.warnings||[]).concat(cur.warnings);
  }
  r.rows=rows;r.hasMore=false;delete r.cursorId;
  return r;
@@ -1765,7 +1810,7 @@ function setPage(p){const sv=document.querySelector('#mSettings .setfoot .go');i
 // The About page: its buttons get their icons when it is shown, and its heading the version this is.
 async function aboutPage(){const pg=document.querySelector('#mSettings .setpage[data-p="about"]');if(pg)decorateIcons(pg);if(window._aboutVersion)return;
  try{const r=await api('/api/app-info');if(r&&r.ok&&r.version){window._aboutVersion=r.version;$('aboutTitle').textContent='NOBS SQL Editor '+r.version;}}catch(e){}}
-async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgHistOn'))$('cfgHistOn').checked=histOn();if($('cfgHistLimit'))$('cfgHistLimit').value=histLimit();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
+async function openSettings(){$('cfgLog').textContent='';uiSizesApply();try{const r=await api('/api/get-config');const c=(r&&r.config)||{};uiZoomShow(c);$('cfgMysql').value=c.mysql_bin||'';$('cfgDump').value=c.mysqldump_bin||'';$('cfgMysqlMy').value=c.mysql_bin_mysql||'';$('cfgDumpMy').value=c.mysqldump_bin_mysql||'';window._mariadbDownloadUrlDefault=(r&&r.mariadbDownloadUrlDefault)||'';$('cfgDownloadUrl').value=c.mariadb_download_url_template||window._mariadbDownloadUrlDefault;}catch(e){}if($('cfgUpdateCheck'))$('cfgUpdateCheck').checked=updateCheckOn();if($('cfgNoWhereAsk'))$('cfgNoWhereAsk').checked=noWhereAskOn();if($('cfgHistOn'))$('cfgHistOn').checked=histOn();if($('cfgHistLimit'))$('cfgHistLimit').value=histLimit();if($('cfgKeepConn'))$('cfgKeepConn').checked=keepConnOn();if($('cfgToastMs'))$('cfgToastMs').value=String(toastMs());show('mSettings');
  // The first call answers from what is remembered about each binary; the second re-reads them and
  // updates the cards if a tool was replaced behind the app's back.
  await refreshToolsStatus();setTimeout(()=>refreshToolsStatus(false,true),50);}
@@ -1997,8 +2042,18 @@ const KW=RESERVED;
 function hl(code){let re=/(\/\*[\s\S]*?\*\/|--[^\n]*)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`]|``)*`)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)|([\s\S])/g;let out='',m;
  while((m=re.exec(code))){if(m[1])out+='<span class="c-com">'+esc(m[1])+'</span>';else if(m[2])out+='<span class="c-str">'+esc(m[2])+'</span>';else if(m[3])out+='<span class="c-num">'+esc(m[3])+'</span>';else if(m[4])out+=(KW.has(m[4].toLowerCase())?'<span class="c-kw">'+esc(m[4])+'</span>':esc(m[4]));else out+=esc(m[5]);}
  return out;}
-function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;
+function syncHl(id){const ta=$('ed_'+id),pre=$('hl_'+id);if(!ta||!pre)return;pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;pre.scrollLeft=ta.scrollLeft;gutSync(id);
  const fm=$('fm_'+id);if(fm&&fm.style.display!=='none'){if(fm._v!==ta.value)findPaint(id);fm.scrollTop=ta.scrollTop;fm.scrollLeft=ta.scrollLeft;}}
+// The gutter's numbers are written again only when the number of lines changes, and its width only
+// when that number gets another digit; the band follows the caret, and the scroll follows the editor's.
+function gutSync(id){const ta=$('ed_'+id),g=$('gut_'+id);if(!ta||!g)return;const v=ta.value;
+ let n=1;for(let i=v.indexOf('\n');i>=0;i=v.indexOf('\n',i+1))n++;
+ if(g._n!==n){g._n=n;const a=new Array(n);for(let i=0;i<n;i++)a[i]=i+1;g.firstChild.textContent=a.join('\n');
+  const d=Math.max(2,String(n).length);if(g._d!==d){g._d=d;g.parentNode.style.setProperty('--gutw','calc('+d+'ch + 16px)');}}
+ gutCaret(id);g.scrollTop=ta.scrollTop;}
+function gutCaret(id){const ta=$('ed_'+id),g=$('gut_'+id);if(!ta||!g)return;const v=ta.value,end=ta.selectionEnd;
+ let line=0;for(let i=v.indexOf('\n');i>=0&&i<end;i=v.indexOf('\n',i+1))line++;
+ if(g._line!==line){g._line=line;g.lastChild.style.top='calc(8px + '+line+' * 1.4em)';}}
 // ---- find and replace in the editor ----
 // The matches are drawn in a layer of their own under the highlighted text, so the editor keeps its
 // caret and its undo while the find box has the keyboard. Replacing goes through insertText for the
@@ -2527,6 +2582,9 @@ async function connect() {window._connFormTouched=true;window._newConnPrev=null;
   window._activeConnName = $('connlist').value || '';
   paintConnGo();
   window._activeReadOnly = window.readOnly;
+  // A tab keeps the connection it opened, to the server it was opened to. Connecting again - to the
+  // same saved connection with a changed host, say - must not leave its runs going there.
+  tabs.forEach(t=>{if(!t.txOn)tabSessClose(t);});
   // Whether a backslash inside a string is an escape on this server. With NO_BACKSLASH_ESCAPES in
   // its sql_mode it is an ordinary character, and every literal the app wrote - grid edits,
   // comments, passwords - stored C:\temp as C:\\temp, one more pair on every save. strLit()
@@ -2562,7 +2620,7 @@ async function disconnectAsk(){const running=tabs.filter(t=>t.runningReqId),dirt
   if(!(await ask('Disconnect with '+what.join(' and ')+'? The edits stay in their tabs; the running queries are stopped'+(open.length?'; what was not committed is rolled back':'')+'.')))return;
   await Promise.all(running.map(t=>cancelQuery(t.id)));}
  disconnect();}
-function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeConnName='';window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';_cs.tabIndex=-1;}window.curAccent='';window.readOnly=false;window.curEnv='';
+function disconnect(){tabs.forEach(t=>{if(t.txOn||t.txSession||t.sessId){txClose(t);t.txOn=false;txPaint(t.id);}});window.mariadb=false;window.serverVersion='';document.body.classList.add('disconnected');window._activeConn=null;window._activeConnName='';window._activeReadOnly=false;$('schemas').innerHTML='';clearObjectsPanel();applyAccent('');const _cs=$('connStatus');if(_cs){_cs.textContent='';_cs.className='chip off dotonly';_cs.title='Not connected';_cs.tabIndex=-1;}window.curAccent='';window.readOnly=false;window.curEnv='';
  // Re-preview the still-selected connection's env chip rather than hard-hiding it, same as the
  // password icon (never touched here) already does - "Not connected" shouldn't also erase what
  // you were just looking at in the dropdown.
@@ -2663,6 +2721,23 @@ function togglePin(db,name){const p=pinnedTables(db);const i=p.indexOf(name);if(
 
 function fmtCount(n){n=Math.round(+n||0);return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");}
 function fmtMs(ms){ms=+ms||0;if(ms>=10000)return Math.round(ms/1000)+'s';if(ms>=1000)return (ms/1000).toFixed(1)+'s';return Math.round(ms)+'ms';}
+// --- What a run says in the output window ---------------------------------------------------
+// Every run from a tab gets a line that starts with the time and the tab's name, then what ran - the
+// statement's start on one line - and what came of it: the rows a write changed, the rows a query
+// returned, the error, and how long it took. A script lists each statement under its first line.
+function runClock(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
+function sqlOneLine(sql,max){const x=String(sql==null?'':sql).replace(/\s+/g,' ').trim();max=max||80;return x.length>max?x.slice(0,max)+'...':x;}
+function runLog(id,msg,kind,jump){const t=T(id);log('['+runClock()+'] '+(t?t.title:'Query')+': '+msg,{kind:kind==='-'?'':(kind||'ok'),jump:jump?{id,sql:jump.sql,n:jump.n||0}:null});}
+// Rows changed means something only for a statement that writes rows; a CREATE or a SET is just OK.
+function stmtWrites(sql){return /^(insert|update|delete|replace|load\s+data)\b/i.test(sqlHead(String(sql||'')));}
+function rowsAffected(n){n=+n||0;return fmtCount(n)+' row'+(n===1?'':'s')+' affected';}
+function stmtOutcome(st){const a=+st.affected||0,m=st.matched;
+ const rows=!stmtWrites(st.sql)?'OK':(m!=null&&+m!==a)?fmtCount(a)+' row'+(a===1?'':'s')+' changed, '+fmtCount(m)+' matched':rowsAffected(a);
+ return rows+', '+fmtMs(st.ms);}
+// The rows the writes of a script changed, or null when none of its statements writes rows.
+function scriptAffected(sts){const w=(sts||[]).filter(x=>stmtWrites(x.sql));return w.length?w.reduce((a,x)=>a+(+x.affected||0),0):null;}
+// One statement: one line. Several: a line for the script, and one under it for each statement.
+function stmtLines(sts,total){return (sts||[]).map(x=>'  '+x.index+(total?'/'+total:'')+'. '+x.sql+' -> '+stmtOutcome(x));}
 // The statement behind the grid: the result picked from a script's results, else the last
 // statement run.
 function gridSql(t){const rs=t.resultSets&&t.resultSets[t.resultIdx||0];if(rs)return rs.sql;const s=splitStmts(String(t.curRun||'')).filter(x=>!isCommentOnly(x));return s.length?s[s.length-1]:'';}
@@ -2686,8 +2761,7 @@ async function allResultRows(id){const t=T(id);
  const rs=t.resultSets&&t.resultSets[t.resultIdx||0];
  // The same request the grid's rows came from (in the PowerShell edition that can be the exact-text
  // form of the query), in the same session.
- await sessFree(t);
- const q=await api('/api/query',Object.assign({},(!rs&&t.lastRunQ)||{sql,db:dbOf(t)},{session:sessOf(t)}));
+ const q=await tabQuery(t,Object.assign({},(!rs&&t.lastRunQ)||{sql,db:dbOf(t)}));
  if(!q.ok){toast(q.error,true);return null;}
  return {cols:q.columns,rows:q.rows};}
 // How many rows the LIMIT at the very end of a statement allows - LIMIT n, LIMIT offset,n and
@@ -2724,7 +2798,40 @@ function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st
 // stays open until Commit or Rollback. The tab keeps track of whether it has sent anything that
 // changes data, so closing it or disconnecting can say so before the changes are rolled back.
 const TX_LOST=/holding this tab's transaction was lost/;
+// The tab's transaction, for what has to go into it: grid edits applied, Commit and Rollback.
 function sessOf(t){return t&&t.txOn?t.txSession:undefined;}
+// ---- the connection a tab keeps ----
+// A tab's runs share a connection of its own (main.rs, sess_checkout), so what one run leaves -
+// @variables, temporary tables, SET SESSION - is there for the next, as in the mysql client. Before,
+// every run opened a new connection with Auto-commit on, and `SET @x=1;` then `SELECT @x;` gave NULL.
+// With Auto-commit off the same connection is the tab's transaction: one id for both (t.sessId), and
+// each run says which it wants (sessionTx, added in api()), so switching keeps what the session holds.
+// It can be switched off in Settings; reading in another character set never uses it, since that
+// reading is a connection setting the kept connection was not opened with.
+function keepConnOn(){try{return localStorage.getItem('keepConn')!=='off';}catch(e){return true;}}
+function setKeepConn(on){try{localStorage.setItem('keepConn',on?'on':'off');}catch(e){}
+ // Off: the connections kept for Auto-commit runs are let go; a tab's transaction keeps its own.
+ if(!on)tabs.forEach(t=>{if(!t.txOn)tabSessClose(t);});}
+function tabSess(t){return t.sessId||(t.sessId='tab_'+t.id+'_'+Date.now().toString(36));}
+// The session a run from the editor goes to: the transaction with Auto-commit off, else the kept
+// connection - or none, and a new connection, when keeping is off or another charset is being read.
+function runSessOf(t){if(!t)return undefined;if(t.txOn)return t.txSession;return keepConnOn()&&!window.browseCharset?tabSess(t):undefined;}
+// Lets the tab's connection go, whichever it was kept for. The server rolls back what was not committed.
+function tabSessClose(t){if(t&&t.sessId){api('/api/session-end',{session:t.sessId,action:'close'});t.sessId=null;}if(t)t.txSession=null;}
+// A query the tab asks besides its runs - reading every row of a result, a plan - that may need
+// what the runs left in the connection, but must not stop a result still being read from it. In a
+// transaction it goes into the transaction, as always. Otherwise it runs on a connection of its own,
+// and only when that cannot find a table, column or database (a temporary table, most likely) on
+// the tab's connection, after closing the result there.
+async function tabQuery(t,p){const tx=sessOf(t);
+ if(tx){await sessFree(t);return api('/api/query',Object.assign({},p,{session:tx}));}
+ const r=await api('/api/query',p),s=runSessOf(t);
+ if(r.ok||!s||!/\b(1146|1054|1049)\b|doesn't exist|Unknown (table|column|database)/i.test(r.error||''))return r;
+ await sessFree(t,true);return api('/api/query',Object.assign({},p,{session:s}));}
+// The kept connection had died (the server's wait_timeout, a dropped network) and a new one was opened.
+function sessReset(session){const t=tabs.find(x=>x.sessId===session);if(!t)return;
+ const m='This tab\'s connection had been closed, so a new one was opened. What earlier runs left in it - @variables, temporary tables, SET SESSION - is gone.';
+ log(m+' ('+t.title+')');toast(m,true);}
 // Whether SQL only reads. Only for telling the user there is something to commit; the server is
 // what decides.
 // Whether a run only reads, so needs no Commit. Read as the server reads it: strings and quoted names
@@ -2758,13 +2865,57 @@ function txLogRender(){const id=window._txLogTab,t=T(id),box=$('txLogList');if(!
  else box.innerHTML=log.map(e=>{
   const kind=e.grid?'<span class="utag urole">grid edits</span>':'<span class="utag">query</span>';
   const res=e.ok===undefined?'<span class="muted">running...</span>':e.ok?(e.affected!=null?'<span class="'+(+e.affected?'uok':'muted')+'">'+fmtCount(+e.affected)+' row'+(+e.affected===1?'':'s')+' changed</span>':'<span class="uok">done</span>'):'<span class="uwarn">failed: '+esc(String(e.error||'').split('\n')[0])+'</span>';
-  return '<div class="citem"><div class="citem-h"><span class="muted" style="font-family:var(--mono);font-size:12px">'+hm(e.at)+'</span>'+kind+'<span class="citem-t">'+res+'</span></div><pre class="ugrants" style="margin:0;max-height:180px">'+esc(e.sql.trim())+'</pre></div>';}).join('');
+  return '<div class="citem"><div class="citem-h"><span class="muted" style="font-family:var(--mono);font-size:12px">'+hm(e.at)+'</span>'+kind+'<span class="citem-t">'+res+(e.warn?' <span class="uwarn">'+esc(e.warn)+'</span>':'')+'</span></div><pre class="ugrants" style="margin:0;max-height:180px">'+esc(e.sql.trim())+'</pre></div>';}).join('');
  const on=!!(t&&t.txOn),dirty=!!(t&&t.txDirty);
  $('txLogCommit').disabled=!on||!dirty;$('txLogRollback').disabled=!on||!dirty;}
 async function txLogEnd(action){const id=window._txLogTab;hide('mTxLog');if(id!=null)await txEnd(id,action);}
+// ---- the server's warnings ----
+// A statement can succeed while the server changes what it was given - under a sql_mode without
+// STRICT_TRANS_TABLES a string too long is cut short, a number clipped, a bad date turned into
+// 0000-00-00 - and a SELECT can warn too (division by zero). The answers carry them (main.rs,
+// take_warnings), each with the number of the statement it came from. Warnings and errors are
+// counted beside the run's status, as a link to the list; Notes - information, such as DROP TABLE IF
+// EXISTS of a table that is not there - are in the list and the log but do not light it up.
+function warnIsNote(x){return /^note$/i.test(String(x&&x.level||''));}
+function warnText(ws){let w=0,n=0;(ws||[]).forEach(x=>{if(warnIsNote(x))n++;else w++;});const p=[];
+ if(w)p.push(w+' warning'+(w===1?'':'s'));if(n)p.push(n+' note'+(n===1?'':'s'));return p.join(', ');}
+function warnLine(x,stmts){return (x.level||'Warning')+' '+x.code+': '+x.message+(stmts&&stmts.length>1?' (statement '+x.statement+')':'');}
+// What came from the statements that write. The row guards Apply sends are SELECT ... INTO that find
+// no row by design, which the server reports as warning 1329 every time.
+function warnFromWrites(ws,stmts){return (ws||[]).filter(x=>!/^\s*select\b/i.test(sqlHead((stmts||[])[x.statement-1]||'')));}
+// A run's warnings, beside its status and in the log; none clears them. stmts: the statements run.
+function setRunWarnings(id,ws,stmts){const t=T(id);if(!t)return;t.warnings=null;t.warnStmts=stmts||null;warnPaint(id);addRunWarnings(id,ws,true);}
+// More of them: the final query's own (numbered as the run's last statement, after any the steps
+// before it had), or a paged result's, which come with its last page. kept: the numbers as given.
+function addRunWarnings(id,ws,kept){const t=T(id);if(!t||!ws||!ws.length)return;
+ const add=kept?ws:ws.map(x=>Object.assign({},x,{statement:t.warnFinalNo||1}));
+ t.warnings=(t.warnings||[]).concat(add);warnPaint(id);
+ log(warnText(add)+' ('+t.title+'):\n'+add.map(x=>'  '+warnLine(x,t.warnStmts)).join('\n'));}
+function warnPaint(id){const t=T(id),el=$('stw_'+id);if(!t||!el)return;
+ el.innerHTML=t.warnings?'<a href="#" class="'+(t.warnings.some(x=>!warnIsNote(x))?'warnlink':'notelink')+'" title="What the server said about this run" onclick="event.preventDefault();warnShow(\''+id+'\')">'+esc(warnText(t.warnings))+'</a>':'';}
+function warnShow(id){const t=T(id);if(t&&t.warnings)warnOpen(t.title,t.warnings,t.warnStmts);}
+// The list, as a window. apply: the grid edits it stopped, to apply them anyway.
+let _warnApply=null;
+function warnOpen(title,ws,stmts,apply){_warnApply=apply||null;const many=!!(stmts&&stmts.length>1);
+ $('warnTitle').textContent=apply?'Not saved: the server would change values':'Server warnings';
+ $('warnSub').textContent=title+' - '+warnText(ws)+(apply?'. Nothing was saved. Apply anyway stores the values as the server takes them.':'');
+ $('warnList').innerHTML='<table class="utab"><thead><tr>'+(many?'<th>Statement</th>':'')+'<th>Level</th><th>Code</th><th>Message</th></tr></thead><tbody>'+
+  ws.map(x=>'<tr>'+(many?'<td style="font-family:var(--mono);font-size:12px">'+x.statement+': '+esc(clip(String(stmts[x.statement-1]||'').trim(),80))+'</td>':'')+
+   '<td class="'+(warnIsNote(x)?'muted':'uwarn')+'">'+esc(x.level)+'</td><td>'+esc(x.code)+'</td><td>'+esc(x.message)+'</td></tr>').join('')+'</tbody></table>';
+ $('warnApply').style.display=apply?'':'none';$('warnClose').textContent=apply?'Cancel':'Close';show('mWarn');}
+async function warnApplyAnyway(){const a=_warnApply;_warnApply=null;hide('mWarn');if(a)await a();}
+// Auto-commit off: the tab's kept connection becomes its transaction, with what it already holds.
+// On again: the transaction ends and the connection is kept for the runs that follow - or let go,
+// when keeping is off.
 function txToggle(id,manual){const t=T(id);if(!t)return;
- if(manual){t.txOn=true;t.txSession=t.txSession||('tx_'+id+'_'+Date.now().toString(36));}
- else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}t.txOn=false;txClose(t);}
+ if(manual){t.txOn=true;t.txSession=tabSess(t);}
+ else{if(t.txDirty){toast('Commit or roll back the open transaction first.',true);txPaint(id);return;}
+  if(!t.txOn){txPaint(id);return;}
+  t.txOn=false;t.txSession=null;t.txDirty=false;t.txLog=[];
+  // The result on screen holds the connection while it is still being read; it is closed so the
+  // release does not wait for it.
+  if(keepConnOn()&&t.sessId){if(t.cursorId){t.hasMore=false;closeCursorFor(t);updateStatusLine(id);}api('/api/session-end',{session:t.sessId,action:'release'});}
+  else tabSessClose(t);}
  txPaint(id);}
 // Commit saves the grid's pending edits first - Apply and then Commit in one click - and commits
 // nothing if they cannot be saved: the transaction stays open, with the reason on screen. Rollback
@@ -2780,8 +2931,8 @@ async function txEnd(id,action){const t=T(id);if(!t||!t.txOn)return;
  t.txDirty=false;t.txLog=[];txPaint(id);log(m+' ('+t.title+')');toast(m);
  if(t.table)await openRun(id);else if(t.curRun&&t.cols&&t.cols.length&&txReadsOnly(t.curRun))await runSql(id,t.curRun);
  const st=$('st_'+id);if(st){st.className='status';st.textContent=m;}}
-// Lets the tab's connection go. The server rolls back whatever was not committed.
-function txClose(t){if(t&&t.txSession){api('/api/session-end',{session:t.txSession,action:'close'});t.txSession=null;}if(t){t.txDirty=false;t.txLog=[];}}
+// Lets the tab's connection go, with its transaction. The server rolls back whatever was not committed.
+function txClose(t){tabSessClose(t);if(t){t.txDirty=false;t.txLog=[];}}
 // A toggle button: pressed or not, kept in .checked like the checkbox it stands in for.
 function togPress(b,on){b.checked=on===undefined?!b.checked:!!on;b.classList.toggle('ison',b.checked);b.setAttribute('aria-pressed',String(b.checked));}
 function txPaint(id){const t=T(id),cb=$('txac_'+id),bar=$('txbar_'+id),cm=$('txcommit_'+id);const on=!!(t&&t.txOn),dirty=!!(t&&(t.txDirty||(t.txOn&&pendingCount(t)>0)));
@@ -2794,7 +2945,8 @@ function txPaint(id){const t=T(id),cb=$('txac_'+id),bar=$('txbar_'+id),cm=$('txc
 // an export - waited for it, and after 15 seconds failed as "still busy with the statement before".
 // So the cursor is closed first, and the close waited for: the rows already read stay, and what was
 // not read yet comes with the next run.
-async function sessFree(t){if(!t||!sessOf(t)||!t.cursorId)return;const c=t.cursorId;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;
+// run: the result came from a run, on the tab's kept connection, rather than in its transaction.
+async function sessFree(t,run){if(!t||!(run?runSessOf(t):sessOf(t))||!t.cursorId)return;const c=t.cursorId;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;
  try{await api('/api/close-cursor',{cursorId:c});}catch(e){}if(typeof updateStatusLine==='function')updateStatusLine(t.id);}
 function closeCursorFor(t){if(t&&t.cursorId){api('/api/close-cursor',{cursorId:t.cursorId});t.cursorId=null;t.cursorReqId=null;}}
 // Pulls the next PAGE_BATCH rows from the tab's open cursor and APPENDS them to t.rows in place,
@@ -2828,6 +2980,7 @@ async function fetchNextBatch(id){
   if(!r.ok){toast(timeLimitNote(r.error,true),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
   t.rows=(t.rows||[]).concat(r.rows);
   t.hasMore=!!r.hasMore;
+  addRunWarnings(id,r.warnings);
   if(!t.hasMore){t.cursorId=null;t.cursorReqId=null;} // server already closed it once exhausted
   // renderBody (not renderGrid) deliberately: it only rewrites tbody's own innerHTML, not the
   // scrollable wrap element's - renderGrid replacing wrap's innerHTML resets scrollTop to 0,
@@ -3627,7 +3780,10 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  // middle button after the browser has had its say; mousedown only stops the paste-on-click that
  // X11-style middle-click would otherwise start.
  tb.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();closeTabAsk(id);}});
- tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();menu(e.clientX,e.clientY,[['Close',()=>closeTabAsk(id)],tabs.length>1&&['Close others',()=>closeOthers(id)],tabs.length>1&&['Close all',()=>closeAll()]]);};
+ tb.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault();});tb.oncontextmenu=e=>{e.preventDefault();const tf=T(id)&&T(id).file;menu(e.clientX,e.clientY,[['Save'+(tf?' '+tf.name:' as file...'),()=>saveSqlFile(id)],tf&&['Save as...',()=>saveSqlFile(id,true)],'-',
+  // A fresh start for the tab's session: its @variables, temporary tables and settings let go.
+  tab.sessId&&!tab.txOn&&!tab.runningReqId&&['New connection for this tab',()=>{if(tab.cursorId){tab.hasMore=false;closeCursorFor(tab);updateStatusLine(id);}tabSessClose(tab);toast('The next run in this tab opens a new connection.');}],
+  ['Close',()=>closeTabAsk(id)],tabs.length>1&&['Close others',()=>closeOthers(id)],tabs.length>1&&['Close all',()=>closeAll()]]);};
  tb.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);tb.classList.add('dragging');});
  tb.addEventListener('dragend',()=>{tb.classList.remove('dragging');});
  tb.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';tb.classList.add('dragover');});
@@ -3637,7 +3793,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
  const pane=document.createElement('div');pane.className='tabpane';pane.id='pane_'+id;
  const applyBtn=tab.ddl?'<button class="go write" onclick="applyDdl(\''+id+'\')">Apply (recreate)</button>':'';const lastBtn=tab.ddl?'':'<button title="Toggle between the current query and the last one you ran" onclick="toggleLast(\''+id+'\')" data-ic="lastq" data-fit="2">Last query</button>';const selBtn='<span id="selbtn_'+id+'">'+selBtnHtml(id,tab.table)+'</span>';
  const pager='<span id="pager_'+id+'" class="status pagerinfo"></span>';
- pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
+ pane.innerHTML='<div class="edwrap" id="ew_'+id+'"><div class="gutter" id="gut_'+id+'" aria-hidden="true"><pre class="gutnums"></pre><div class="gutcur"></div></div><pre class="hl" id="hl_'+id+'"></pre><textarea class="editor" id="ed_'+id+'" spellcheck="false"></textarea></div>'+
   '<div class="edsplit" id="es_'+id+'" title="Drag to resize the editor - double-click to reset" ondblclick="edSplitReset(\''+id+'\')">'+
   '<span class="edfold toedge up" title="Give the whole pane to the results" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'editor\')">&#9652;</span>'+
   '<span class="edfold toedge down" title="Give the whole pane to the editor" onmousedown="event.stopPropagation()" onclick="edFold(\''+id+'\',\'results\')">&#9662;</span>'+
@@ -3659,10 +3815,10 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   // and whatever else is showing. Commit and Rollback stay put with auto-commit on, just unavailable.
   '<span class="tbsep"></span><span class="tbgroup runopts" style="display:inline-flex;align-items:center;gap:6px">'+
   '<button class="tog" id="coe_'+id+'" aria-pressed="false" onclick="togPress(this)" data-ic="skiperr" data-fit="1" title="Continue on error: if a statement fails, keep running the rest of the script instead of stopping at the first error - useful for bulk, mostly-independent statements like seed data or batch table creation. Every failure is reported, not just the first. Only applies to a script that does NOT end in a SELECT.">Continue on error</button>'+
-  '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on a connection of its own, until you Commit or Roll back.">Auto-commit</button>'+
+  '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on the tab\'s own connection, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
-  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div>'+pager+'</div>';
+  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div><span class="status warnspan" id="stw_'+id+'"></span>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);vpWire(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
@@ -3685,7 +3841,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
    if(!fold)ew.style.height=Math.max(44,Math.min(raw,maxH))+'px';syncHl(id);};
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
- ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);});ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
+ ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);if(T(id)&&T(id).file)refreshTabDirty(id);});['keyup','mouseup','select','focus'].forEach(ev=>ta.addEventListener(ev,()=>gutCaret(id)));ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
  ta.addEventListener('blur',()=>{setTimeout(acHide,150);saveSession();});
  ta.addEventListener('keydown',e=>{
   if(acVisible()){
@@ -3816,9 +3972,12 @@ function uniqueTabTitle(base){
   return title;
 }
 function refreshTabDirty(id){const t=T(id);const tb=$('tabbtn_'+id);if(!tb)return;const lbl=tb.querySelector('.tablabel');if(!lbl)return;
- const n=pendingCount(t);lbl.textContent=(n>0?'\u25CF ':'')+(t?t.title:'');lbl.title=n>0?(n+' unsaved change'+(n===1?'':'s')):'';}
+ // A * after the name: the editor holds text its .sql file does not.
+ const n=pendingCount(t),fd=sqlFileDirty(t);lbl.textContent=(n>0?'\u25CF ':'')+(t?t.title:'')+(fd?' *':'');
+ lbl.title=[n>0?(n+' unsaved change'+(n===1?'':'s')):'',fd?'Not saved to '+t.file.name:''].filter(Boolean).join(' - ');}
 async function closeTabAsk(id){const t=T(id);const n=pendingCount(t);if(n>0){if(!(await ask('This tab has '+n+' unsaved change'+(n===1?'':'s')+'. Close and discard?')))return;}
  if(vpDirty(id)&&!(await ask('The value panel has an edit that is not saved. Close the tab and discard it?')))return;
+ if(sqlFileDirty(t)&&!(await ask(t.file.name+' has changes that are not saved to the file. Close the tab and lose them?')))return;
  if(t&&t.txDirty){if(!(await ask('This tab has a transaction that is not committed. Close it and roll the changes back?')))return;}
  // A routine, trigger or view being edited is only in this tab until it is applied.
  if(t&&t.ddl){const ed=$('ed_'+id),cur=ed?ed.value:'';if(cur!==(t.ddlApplied!=null?t.ddlApplied:t.genSql)&&!(await ask('This tab has changes to '+t.ddl.type+' '+t.ddl.name+' that were not applied. Close it and lose them?')))return;}
@@ -3840,7 +3999,12 @@ document.addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey;if(!mod)r
  if(k==='t'){e.preventDefault();if(!document.body.classList.contains('disconnected'))newTab();}
  else if(k==='w'){e.preventDefault();if(activeTab)closeTabAsk(activeTab);}
  else if(k==='l'){e.preventDefault();const ta=activeTab&&$('ed_'+activeTab);if(ta){ta.focus();ta.select&&ta.select();}}
- else if(k==='s'){e.preventDefault();if(activeTab&&e.target&&e.target.id==='vpx_'+activeTab){vpSave(activeTab);return;}if(activeTab){const t=T(activeTab);if(pendingCount(t)>0)applyChanges(activeTab,e.shiftKey);}}});
+ else if(k==='o'&&!e.shiftKey){e.preventDefault();openSqlFile();}
+ // Ctrl+S puts the value panel's edit in its cell, applies the grid's edits, and in the editor saves
+ // the query to its file - a table's tab with edits waiting applies them, as it always did.
+ else if(k==='s'){e.preventDefault();if(activeTab&&e.target&&e.target.id==='vpx_'+activeTab){vpSave(activeTab);return;}if(activeTab){const t=T(activeTab);
+  if(!e.shiftKey&&e.target&&e.target.id==='ed_'+activeTab&&(t.file||pendingCount(t)===0)){saveSqlFile(activeTab);return;}
+  if(pendingCount(t)>0)applyChanges(activeTab,e.shiftKey);else if(!e.shiftKey&&t.file)saveSqlFile(activeTab);}}});
 // Skip minimized floating modals when picking which one Escape should close - a minimized modal
 // isn't visually present, so silently closing it (with no visible change on screen) would be
 // confusing. Going through hide() here, rather than manipulating the class directly, also
@@ -3880,6 +4044,9 @@ function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.string
   // dropped the routine with nothing to restore it from.
   ddl:t.ddl?{type:t.ddl.type,db:t.ddl.db,name:t.ddl.name,orig:t.ddl.orig,sqlMode:t.ddl.sqlMode}:undefined,
   gen:t.ddl?(t.ddlApplied!=null?t.ddlApplied:t.genSql):undefined,
+  // A tab opened from a file, or saved to one, stays its file's tab. After a restart the app may not
+  // write the file without asking again, so Save then shows Save As, starting at it.
+  file:t.file?{name:t.file.name,path:t.file.path,bom:t.file.bom,eol:t.file.eol,dirty:sqlFileDirty(t)}:undefined,
   // A table tab's quick filters, which its saved text already holds as a WHERE: without them the
   // restored tab showed no blocks, and the next quick filter built a WHERE without the old ones.
   filters:t.table&&!t.sqlEdited&&t.filterClauses&&t.filterClauses.length?t.filterClauses.slice():undefined})));}catch(e){return;}
@@ -3895,12 +4062,13 @@ function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=l
   // Plain query tabs could be arbitrary/heavy, so those restore WITHOUT auto-running; a clear
   // status message replaces what would otherwise look like a blank, broken result.
   const id=openTab(t.title,t.sql,t.db,!!t.table,t.table,t.ddl||null);if(t.ddl&&t.gen!=null)T(id).genSql=t.gen;
+  if(t.file&&typeof t.file.name==='string'){const f=t.file;T(id).file={name:f.name,path:f.path||null,handle:null,bom:!!f.bom,eol:f.eol==='\r\n'?'\r\n':'\n',saved:f.dirty?null:$('ed_'+id).value};const tb=$('tabbtn_'+id);if(tb)tb.title=f.path||'';refreshTabDirty(id);}
   if(t.table&&Array.isArray(t.filters)&&t.filters.length){T(id).filterClauses=t.filters.filter(x=>typeof x==='string');updateFilterBar(id);}
   if(!t.table){const st=$('st_'+id);if(st)st.textContent='Restored - not yet run. Click Run Query.';}
 });}}
 // Closes every tab without the "unsaved changes" prompt - only called right after the user has
 // already confirmed switching connections (connect() asks that separately, once, up front).
-function clearAllTabsSilently(){[...tabs].forEach(t=>{const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
+function clearAllTabsSilently(){[...tabs].forEach(t=>{tabSessClose(t);const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
 // Deliberately does NOT prepend "USE <schema>;" to the new tab's text - that's redundant
 // (Api-Query/Api-Script already receive the schema via a SEPARATE db parameter, passed to
 // mysql.exe as --database=..., independent of whatever text is in the query itself), and it was
@@ -3910,6 +4078,70 @@ function clearAllTabsSilently(){[...tabs].forEach(t=>{const b=$('tabbtn_'+t.id);
 // path (runs it, reports OK) instead of the query path that actually displays a result grid.
 // The active schema is still shown via the "Schema: <db>" badge, so nothing is lost here.
 function newTab(){openTab('Query','',curSchema,false,null);}
+// --- .sql files ------------------------------------------------------------------------------
+// A file opens in a tab of its own, named after it. The tab remembers the file (t.file: path, name,
+// its line ends and byte order mark, and the text as last saved), so Save writes it back as it came:
+// the editor holds only \n, and a file written with \r\n or a BOM gets them again. In the desktop
+// app the backend reads and writes the file (open_sql_file, save_sql_file); in a browser it is the
+// File System Access API where there is one, else a file input and a download.
+// What is written for the editor's text, with the file's own line ends and BOM.
+function sqlFileText(text,f){let s=String(text).replace(/\r\n?/g,'\n');if(f&&f.eol==='\r\n')s=s.replace(/\n/g,'\r\n');return (f&&f.bom?'\uFEFF':'')+s;}
+// What the editor is given from a file: its text without the BOM, with the line ends it had noted.
+function sqlFileOpened(name,raw,bom,path,handle){const text=String(raw);
+ return {name,path:path||null,handle:handle||null,bom:!!bom,eol:/\r\n/.test(text)?'\r\n':'\n',text:text.replace(/\r\n?/g,'\n')};}
+// Whether the editor holds anything the file does not.
+function sqlFileDirty(t){const ed=t&&t.file&&$('ed_'+t.id);return !!ed&&ed.value!==t.file.saved;}
+function sqlFileTitle(name){return String(name||'query.sql').replace(/[\\/:*?"<>|]+/g,'_');}
+async function openSqlFile(){if(document.body.classList.contains('disconnected')){toast('Connect to a server first: a file opens in a query tab.',true);return;}
+ let f=null;
+ try{
+  if(window.__TAURI__&&window.__TAURI__.core){const r=await window.__TAURI__.core.invoke('open_sql_file');if(!r)return;
+   if(r.ok===false){toast('Could not open the file: '+r.error,true);return;}f=sqlFileOpened(r.name,r.content,r.bom,r.path);}
+  else if(window.showOpenFilePicker){let h;try{[h]=await window.showOpenFilePicker({types:[{description:'SQL file',accept:{'text/plain':['.sql']}}]});}catch(e){return;}
+   f=await sqlFileRead(await h.getFile(),h);if(!f)return;}
+  else{f=await new Promise(res=>{const inp=document.createElement('input');inp.type='file';inp.accept='.sql,text/plain';inp.onchange=async()=>{const x=inp.files&&inp.files[0];res(x?await sqlFileRead(x,null):null);};inp.click();});if(!f)return;}
+ }catch(e){toast('Could not open the file: '+e,true);return;}
+ // The same file twice is the same tab.
+ const open=f.path&&tabs.find(t=>t.file&&t.file.path===f.path);
+ if(open){activate(open.id);toast(f.name+' is open in this tab already.');return;}
+ const id=openTab(sqlFileTitle(f.name),f.text,curSchema,false,null);const t=T(id);
+ t.file={name:f.name,path:f.path,handle:f.handle,bom:f.bom,eol:f.eol,saved:$('ed_'+id).value};
+ sqlFileRename(id,f.name);refreshTabDirty(id);saveSession();log('Opened '+(f.path||f.name)+'.');}
+// A browser's File: UTF-8 only, as in the desktop app, so that saving it again gives the same bytes.
+async function sqlFileRead(file,handle){const b=new Uint8Array(await file.arrayBuffer());const bom=b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF;
+ let text;try{text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bom?b.subarray(3):b);}
+ catch(e){toast(file.name+' is not UTF-8 text, so it is not opened: saved again, it would not be the same file.',true);return null;}
+ return sqlFileOpened(file.name,text,bom,null,handle);}
+// Save: the tab's file, written again; a tab with no file yet, or one the app may no longer write
+// (opened before a restart), asks where with Save As.
+async function saveSqlFile(id,as){const t=T(id),ed=$('ed_'+id);if(!t||!ed)return false;const text=ed.value,f=t.file;
+ if(!f||as||(!f.path&&!f.handle))return saveSqlFileAs(id);
+ const out=sqlFileText(text,f);
+ try{
+  if(f.path&&window.__TAURI__&&window.__TAURI__.core){const r=await window.__TAURI__.core.invoke('save_sql_file',{req:{path:f.path,content:out}});
+   if(r&&r.ok===false){if(/not a file opened here/.test(r.error||''))return saveSqlFileAs(id);toast('Could not save '+f.name+': '+r.error,true);return false;}}
+  else if(f.handle){const w=await f.handle.createWritable();await w.write(out);await w.close();}
+  else return saveSqlFileAs(id);
+ }catch(e){toast('Could not save '+f.name+': '+e,true);return false;}
+ f.saved=text;refreshTabDirty(id);saveSession();log('Saved '+(f.path||f.name)+'.');return true;}
+async function saveSqlFileAs(id){const t=T(id),ed=$('ed_'+id);if(!t||!ed)return false;const text=ed.value,old=t.file;
+ const name=old?old.name:sqlFileTitle(/\.sql$/i.test(t.title)?t.title:t.title.replace(/\s*\(\d+\)$/,'')+'.sql');
+ // A new file is written with the line ends Windows uses, and no BOM; one saved under another name
+ // keeps those of the file it was.
+ const f={name,path:null,handle:null,bom:old?old.bom:false,eol:old?old.eol:(/Win/.test(navigator.platform||'')?'\r\n':'\n')};
+ const out=()=>sqlFileText(text,f);
+ try{
+  if(window.__TAURI__&&window.__TAURI__.core){const p=await window.__TAURI__.core.invoke('pick_save_path',{req:{defaultPath:(old&&old.path)||name,filters:[{name:'SQL file',extensions:['sql']}]}});if(!p)return false;
+   f.path=p;f.name=String(p).split(/[\\/]/).pop()||name;const r=await window.__TAURI__.core.invoke('save_sql_file',{req:{path:p,content:out()}});
+   if(r&&r.ok===false){toast('Could not save '+f.name+': '+r.error,true);return false;}}
+  else if(window.showSaveFilePicker){let h;try{h=await window.showSaveFilePicker({suggestedName:name,types:[{description:'SQL file',accept:{'text/plain':['.sql']}}]});}catch(e){return false;}
+   f.handle=h;f.name=h.name||name;const w=await h.createWritable();await w.write(out());await w.close();}
+  else{await dl(out(),name);toast('Downloaded as '+name+'. This browser cannot write the file again, so Save asks each time.');return true;}
+ }catch(e){toast('Could not save '+f.name+': '+e,true);return false;}
+ f.saved=text;t.file=f;sqlFileRename(id,f.name);refreshTabDirty(id);saveSession();log('Saved '+(f.path||f.name)+'.');return true;}
+// The tab is called after its file.
+function sqlFileRename(id,name){const t=T(id);if(!t)return;const others=tabs.filter(x=>x!==t);let title=sqlFileTitle(name),n=2;const base=title;
+ while(others.some(x=>x.title===title)){title=base+' ('+n+')';n++;}t.title=title;const tb=$('tabbtn_'+id);if(tb)tb.title=t.file&&t.file.path||'';}
 const T=id=>tabs.find(t=>t.id===id);
 
 // withPos (optional): when truthy, each entry is {text,start,end} (offsets into the ORIGINAL
@@ -4042,8 +4274,7 @@ function planHtml(json){let plan;try{plan=typeof json==='string'?JSON.parse(json
  return head+'<ul class="plan">'+Object.keys(plan).map(k=>planNode(k,plan[k])).join('')+'</ul><details class="pjson"><summary>The plan as the server gave it (JSON)</summary><pre>'+esc(JSON.stringify(plan,null,2))+'</pre></details>';}
 let _planCtx=null;
 async function planShow(id,stmt){const t=T(id);if(!t)return;
- await sessFree(t);
- const r=await api('/api/query',{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t),session:sessOf(t)});
+ const r=await tabQuery(t,{sql:'EXPLAIN FORMAT=JSON '+stmt,db:dbOf(t)});
  _planCtx={id,stmt};
  $('planTitle').textContent='Query plan - '+t.title;
  $('planBody').innerHTML=r.ok&&r.rows&&r.rows.length?planHtml(r.rows[0][0]):'<div class="unone">'+esc(r.error||'The server gave no plan for this statement.')+'</div>';
@@ -4064,8 +4295,8 @@ function planMs(ms){ms=+ms||0;return ms>=1000?(ms/1000).toFixed(ms>=10000?1:2)+'
 // each with what it expected and what it did.
 async function planMeasure(){const c=_planCtx,t=c&&T(c.id);if(!t||!planReadsOnly(c.stmt))return;
  const b=$('planMeasureBtn');b.disabled=true;b.textContent='Measuring…';$('planNote').textContent='Running the query…';
- try{await sessFree(t);
-  const r=await api('/api/query',{sql:(window.mariadb?'ANALYZE FORMAT=JSON ':'EXPLAIN ANALYZE ')+c.stmt,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()});
+ try{
+  const r=await tabQuery(t,{sql:(window.mariadb?'ANALYZE FORMAT=JSON ':'EXPLAIN ANALYZE ')+c.stmt,db:dbOf(t),timeLimit:timeLimitSec()});
   if(_planCtx!==c)return;
   if(!r.ok){const old=!window.mariadb&&/syntax|1064/i.test(r.error||'');
    $('planNote').textContent='';
@@ -4310,12 +4541,12 @@ function scriptShowsResults(stmts){
 }
 // Runs such a script on one connection and shows each result in a tab of its own. These grids
 // are read-only: a result of a script is not tied to one table's rows.
-async function runScriptResults(id,sql,reqId,seq){
+async function runScriptResults(id,sql,reqId,seq){const t0=performance.now();
  const t=T(id);const st=$('st_'+id);const stale=()=>!T(id)||T(id).runSeq!==seq;
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const writes=stmts.some(s=>!/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));
  if(writes&&roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
- const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+ const r=await api('/api/script-results',{sql,db:dbOf(t),requestId:reqId,maxRows:PAGE_BATCH,session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
  if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
  if(stale())return;
  t.table=null;t.pk=null;t.pending=null;t.cursorId=null;t.cursorReqId=null;t.hasMore=false;t.exact=false;
@@ -4325,8 +4556,9 @@ async function runScriptResults(id,sql,reqId,seq){
  if(t.resultSets.length){showResultSet(id,0);}
  else{t.cols=[];t.rows=[];$('res_'+id).innerHTML='';renderResultSetTabs(id);updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';}
  const n=t.resultSets.length;
- if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';log('SCRIPT OK ('+stmts.length+' statements, '+n+' results)');}
- else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');log(logErr(r.error||'Failed.'));}
+ if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';runLog(id,'SCRIPT OK ('+stmts.length+' statements, '+n+' results, '+fmtMs(performance.now()-t0)+')'+(stmts.length===1?': '+sqlOneLine(stmts[0]):''));}
+ else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');runLog(id,logErr(r.error||'Failed.'),'err',{sql,n:errStmtNo(r.error)});}
+ setRunWarnings(id,r.warnings,stmts);
  if(writes&&t.db)loadObjects(t.db);
 }
 function showResultSet(id,i){
@@ -4404,12 +4636,11 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
  //    mysql's batch mode, so the existing single-result-set parser sees exactly the same output
  //    it would for the SELECT alone. Cheapest path, one round trip, used whenever it applies.
  //  - otherwise (a leading statement is something OTHER than USE - another SELECT, an UPDATE,
- //    etc): those leading statements run first as a SCRIPT (a SEPARATE connection from the one
- //    that runs the displayed final query) purely for their side effects, then the final
- //    statement runs alone as the actual displayed query. Committed data changes and schema
- //    switches ARE correctly visible to the final query this way, but genuinely session-scoped
- //    state (user-defined @variables, temp tables, an uncommitted transaction spanning both
- //    steps) will NOT carry over, since that state belongs to a connection that's now closed.
+ //    etc): those leading statements run first as a SCRIPT purely for their side effects, then
+ //    the final statement runs alone as the actual displayed query. Both go to the tab's kept
+ //    connection (runSessOf), so session state - @variables, temporary tables - carries from the
+ //    first step to the second. With keeping switched off in Settings each step opens its own
+ //    connection, and only committed changes and schema switches reach the final query.
  const isSelectLast=/^(select|show|describe|desc|explain|with|table|values)\b/i.test(sqlHead(lastStmt));
  const leadingAreAllUse=stmts.length>1&&stmts.slice(0,-1).every(s=>/^use\s+\S/i.test(sqlHead(s)));
  const needsScriptStep=stmts.length>1&&isSelectLast&&!leadingAreAllUse;
@@ -4417,13 +4648,14 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
  // A CALL, or more than one SELECT: every result is shown, each in its own tab.
  const multiResult=scriptShowsResults(stmts);
  if(t.resultSets){t.resultSets=null;renderResultSetTabs(id);}
+ setRunWarnings(id,null,stmts);
  const reqId=(crypto.randomUUID?crypto.randomUUID():('r'+Date.now()+Math.random()));
  // Starting a fresh run in this tab (including "run again"/toggling the last query, which all
  // funnel through runSql) replaces whatever result set is currently loaded, so any cursor left
  // open from the PREVIOUS run must be closed first - otherwise re-running in the same tab leaks
  // the old cursor's thread/connection indefinitely. Fire-and-forget, doesn't block the new run -
  // except in a transaction, whose one connection that cursor holds: there the close is waited for.
- if(sessOf(t))await sessFree(t);
+ if(runSessOf(t))await sessFree(t,true);
  closeCursorFor(t);
  t.abortCtrl=new AbortController();t.runningReqId=reqId;setRunning(id,true);
  // Which run this is. A second run can start on this tab while this one is still in flight - the
@@ -4454,10 +4686,11 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
       // statement - but extending the CLI's own "$$" convention this far tested cleanly, while
       // still being implausible to ever collide with real SQL content.
       const leadingSql=stmts.slice(0,-1).map(s=>'DELIMITER $$$$$$$$\n'+s+'\n$$$$$$$$\nDELIMITER ;').join('\n');
-      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+      const scriptR=await api('/api/script',{sql:leadingSql,db:dbOf(t),session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
       if(scriptR.aborted){if(T(id)){st.className='status';st.textContent='Query cancelled.';}return;}
       if(stale())return;
-      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';log('ERROR: '+scriptR.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+      setRunWarnings(id,scriptR.warnings,stmts);
+      if(!scriptR.ok){st.className='status err';st.textContent=timeLimitNote(scriptR.error);$('res_'+id).innerHTML='';runLog(id,'ERROR: '+scriptR.error,'err',{sql,n:errStmtNo(scriptR.error)});if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     }
     const _q=(leadingAreAllUse&&stmts.length>1?sql:lastStmt).trim().replace(/;+\s*$/,'');
     // pageSize is always sent for the main Run path: the backend opens a server-side cursor for
@@ -4467,10 +4700,10 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     // the same call, or else the one the query is sent with.
     const runDb=dbOf(t);
     const tableDb=(leadingAreAllUse&&useTarget(stmts))||runDb;
-    t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:sessOf(t)},t.abortCtrl.signal);
+    t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:runSessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
-    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';log(logErr(r.error));await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
@@ -4481,7 +4714,11 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     // rebuilt at all, even though this new table has a PK and should show +Row/Apply/etc.
     {const eb=$('edit_'+id);eb.style.display='none';}
     t.cursorId=r.cursorId||null;t.hasMore=!!r.hasMore;t.cursorReqId=t.cursorId?reqId:null;
-    if(!r.columns.length){st.textContent=r.message||'Query OK.';$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
+    // The query is the last statement of the run, whichever steps ran before it. A result read in
+    // pages has its warnings with its last page (fetchNextBatch).
+    t.warnFinalNo=stmts.length||1;
+    addRunWarnings(id,r.warnings);
+    if(!r.columns.length){st.textContent=r.message||'Query OK.';runLog(id,sqlOneLine(_q)+' -> OK, '+fmtMs(r.elapsedMs));$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
     const ra=$('resultActions_'+id);if(ra)ra.style.display='inline-flex';
     refreshRunTableBinding(id,lastStmt,tableDb);
     // Column types and NULL-ability are read again for every result: the tab may now show another
@@ -4503,7 +4740,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     } else { t.estRows=null; }
     if(stale())return;
     t.lastElapsedMs=r.elapsedMs;
-    if(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300){log(fmtCount(t.rows.length)+' row(s) fetched in '+fmtMs(r.elapsedMs)+' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+').');}
+    runLog(id,sqlOneLine(_q)+' -> '+fmtCount(t.rows.length)+' row'+(t.rows.length===1?'':'s')+(t.hasMore?' (more as you scroll)':'')+', '+fmtMs(r.elapsedMs)+(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300?' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+')':''));
     renderGrid(id);updatePager(id);
     updateStatusLine(id);
     updateSchemaBadge(id);
@@ -4511,7 +4748,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
   } else {
     if(roBlock()){st.className='status';st.textContent='Read-only mode: statement blocked.';return;}
     const continueOnError=!!($('coe_'+id)&&$('coe_'+id).checked);
-    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:sessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
+    const r=await api('/api/script',{sql,db:dbOf(t),requestId:reqId,continueOnError,session:runSessOf(t),timeLimit:timeLimitSec()},t.abortCtrl.signal);
     if(r.aborted){if(T(id)){st.className='status';st.textContent='Cancelled.';}return;}
     if(stale())return;
     if(r.failures){
@@ -4519,8 +4756,9 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
       // clean or partially failed - this is the whole point of turning the option on, seeing
       // every problem in one pass rather than fixing and re-running one failure at a time.
       if(!r.failures.length){
-        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed.';
-        log('SCRIPT OK ('+r.succeeded+'/'+r.total+' statements)');
+        const ra=scriptAffected(r.statements);
+        st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+        runLog(id,'SCRIPT OK ('+r.succeeded+'/'+r.total+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(r.statements?'\n'+stmtLines(r.statements,r.total).join('\n'):''));
       } else {
         st.className='status err';
         st.textContent=r.succeeded+' of '+r.total+' succeeded, '+r.failures.length+' failed (see log for details).';
@@ -4532,11 +4770,19 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
         const succeededIdx=[];for(let i=1;i<=r.total;i++){if(!failedIdx.has(i))succeededIdx.push(i);}
         const succNote=succeededIdx.length?' (statement(s) '+succeededIdx.join(', ')+')':'';
         const detail=r.failures.map(f=>'Statement '+f.index+' of '+r.total+': '+f.error+'\n  '+f.preview).join('\n\n');
-        log('SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+'.\n\nFailed:\n'+detail);
+        const ra=scriptAffected(r.statements);
+        runLog(id,'SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+(ra!=null?', '+rowsAffected(ra):'')+'.'+(r.statements&&r.statements.length?'\n'+stmtLines(r.statements,r.total).join('\n'):'')+'\n\nFailed:\n'+detail,'err',{sql,n:r.failures[0].index});
       }
       if(t.db)loadObjects(t.db);
-    } else if(r.ok){if(hr&&r.affected!=null)hr.affected=+r.affected;st.textContent='OK. '+stmts.length+' statement(s) executed.';log('SCRIPT OK ('+stmts.length+' statements)');if(t.db)loadObjects(t.db);}
-    else{st.className='status err';st.textContent=timeLimitNote(r.error);log('SCRIPT ERROR: '+r.error);await schemaGoneNote(id,r.error);}
+    } else if(r.ok){if(hr&&r.affected!=null)hr.affected=+r.affected;const sts=r.statements,ra=scriptAffected(sts);
+      st.textContent='OK. '+stmts.length+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
+      // One statement says it all on one line; a script gets a line, and one per statement under it.
+      if(sts&&sts.length===1)runLog(id,sts[0].sql+' -> '+stmtOutcome(sts[0]));
+      else runLog(id,'SCRIPT OK ('+stmts.length+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(sts?'\n'+stmtLines(sts,sts.length).join('\n'):''));
+      if(t.db)loadObjects(t.db);}
+    else{st.className='status err';st.textContent=timeLimitNote(r.error);const sts=r.statements;
+      runLog(id,'SCRIPT ERROR: '+r.error+(sts&&sts.length?'\nRan before it:\n'+stmtLines(sts).join('\n'):''),'err',{sql,n:errStmtNo(r.error)});await schemaGoneNote(id,r.error);}
+    setRunWarnings(id,r.warnings,stmts);
   }
  } finally {
   if(!stale()){t.runningReqId=null;t.abortCtrl=null;setRunning(id,false);}
@@ -4951,7 +5197,7 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
    // into every picked cell at once when some are picked.
    if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.isComposing){const tg=e.target;
     if(!(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'||tg.tagName==='SELECT'))&&typeIntoCells(id,e.key)){e.preventDefault();return;}}
-   gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('td.editable');if(td){const tr=td.closest('tr[data-r]');if(tr){const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0)gridSetFocus(id,ri,ci,false);}}});
+   gridKeyNav(id,e);});wrap.addEventListener('mousedown',e=>{const td=e.target.closest('tbody tr[data-r] > td');if(td){const tr=td.parentNode;const ri=+tr.getAttribute('data-r');const t2=T(id);const off=(!!t2.pk)?2:1;const ci=[...tr.children].indexOf(td)-off;if(ci>=0&&ci<t2.cols.length)gridSetFocus(id,ri,ci,false);}});
   let _vraf=null;wrap.addEventListener('scroll',()=>{if(_vraf)return;_vraf=requestAnimationFrame(()=>{_vraf=null;renderBody(id);maybePrefetchNextBatch(id,wrap);});});
   wrap.dataset.kbWired='1';}}
 // Silently tops up a tab's loaded rows once the user scrolls near the bottom of the grid's own
@@ -5018,7 +5264,7 @@ function syncFilterRowTop(id){
 // all of it left. Hung on the next cell instead, the overhang goes the other way, over a
 // neighbour that paints earlier - the whole band is there, centred on the line, at 100%, 125% and
 // 150% display scaling alike. The last column's handle goes on the filler cell at the end.
-function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');h+='<th style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
+function sortHeader(id,ed){const t=T(id);const H=28;let h='<th style="width:22px;height:'+H+'px;padding:0"><span style="display:flex;align-items:center;justify-content:center;height:'+H+'px"><input type="checkbox" title="Select/clear all shown rows" onclick="selAll(\''+id+'\',this.checked)"></span></th>'+(ed?'<th></th>':'');t.cols.forEach((c,ci)=>{const ar=t.sortCol===ci?(t.sortDir>0?' \u25B2':' \u25BC'):'';const isPk=t.pk&&t.pk.indexOf(c)>=0;const isFk=t.fk&&t.fk.indexOf(c)>=0;const kb=(isPk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-pk,#5dcaa5)" title="Primary key">PK</span>':'')+(isFk?' <span class="muted" style="font-size:10px;font-weight:700;line-height:1;vertical-align:middle;color:var(--erd-line,#7aa8d8)" title="Foreign key">FK</span>':'');const gf=gridFocusOf(id);h+='<th'+(gf&&gf.ci===ci?' class="kbcol"':'')+' style="cursor:pointer;height:'+H+'px;padding:0 8px" title="'+esc(c)+' - click to sort (drag edge to resize, double-click edge to auto-fit)" onclick="sortBy(\''+id+'\','+ci+')">'+(ci?'<span class="rz" data-ci="'+(ci-1)+'"></span>':'')+'<span style="display:flex;align-items:center;gap:4px;height:'+H+'px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(c)+'</span>'+kb+ar+'</span></th>';});return h+'<th>'+(t.cols.length?'<span class="rz" data-ci="'+(t.cols.length-1)+'"></span>':'')+'</th>';}
 // Typed into a column filter or the search box: a result of thousands of rows is filtered again once
 // the typing pauses, not at every key, which made each key wait for a pass over all of it. A small
 // result follows the typing at once.
@@ -5098,15 +5344,15 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
   if(endIdx<startIdx)endIdx=startIdx;
   topH=startIdx*rowH;botH=(view.length-endIdx)*rowH;
  }
- const slice=view.slice(startIdx,endIdx);
+ const slice=view.slice(startIdx,endIdx),gf=gridFocusOf(id);
  const nCols=1+(ed?1:0)+t.cols.length;
  let h='';
  if(topH>0)h+='<tr class="vpad" style="height:'+topH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
- slice.forEach((ri,k)=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);const vi=startIdx+k,up=vi>0?view[vi-1]:null,dn=vi<view.length-1?view[vi+1]:null;h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+'">';
+ slice.forEach((ri,k)=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);const vi=startIdx+k,up=vi>0?view[vi-1]:null,dn=vi<view.length-1?view[vi+1]:null;const fr=gf&&gf.ri===ri;h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+(fr?' kbrow':'')+(t.selected.has(ri)?' rowpick':'')+'">';
   h+='<td style="text-align:center;width:22px"><input type="checkbox" class="rowsel" '+(t.selected.has(ri)?'checked':'')+' onclick="rowSelClick(event,\''+id+'\','+ri+',this)"></td>';
   if(ed)h+='<td class="delcell" onclick="toggleDel(\''+id+'\','+ri+')">'+(del?'\u21A9':'\u00D7')+'</td>';
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
-   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn);
+   const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn)+(fr&&gf.ci===ci?' kbfocus':'');
    const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ':'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
@@ -5718,12 +5964,20 @@ function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t
   if(pos>=0){const rowH=t._rowH||23;wrap.scrollTop=Math.max(0,pos*rowH-rowH*4);renderBody(id);tr=wrap.querySelector('tr[data-r="'+ri+'"]');}
  }
  if(!tr)return null;return tr.children[ci+off]||null;}
+// The focus belongs to the rows it was set on: after a new run or a reload the grid has other rows, and
+// nothing is marked until a cell is picked again.
+function gridFocusOf(id){const f=gridFocus[id],t=T(id);return f&&t&&f.rows===t.rows?f:null;}
+// The focused cell's row and column name are marked too (kbrow, kbcol), more quietly than the cell.
+function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
+ const t=T(id),hdr=$('sortrow_'+id),th=hdr&&t&&hdr.children[1+(t.pk?1:0)+f.ci];if(th)th.classList.toggle('kbcol',on);}
 function gridSetFocus(id,ri,ci,scroll){const t=T(id);if(!t)return;const view=viewIndices(id);if(view.indexOf(ri)<0)return;
- const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}
- gridFocus[id]={ri,ci};const el=gridCellEl(id,ri,ci);if(el){el.classList.add('kbfocus');if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}
+ const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);
+ gridFocus[id]={ri,ci,rows:t.rows};gridMarkFocus(id,gridFocus[id],true);const el=gridCellEl(id,ri,ci);if(el){if(scroll!==false)el.scrollIntoView({block:'nearest',inline:'nearest'});el.focus({preventScroll:true});}
  vpShow(id,{ri,ci});}
-function gridClearFocus(id){const old=gridFocus[id];if(old){const oe=gridCellEl(id,old.ri,old.ci);if(oe)oe.classList.remove('kbfocus');}delete gridFocus[id];}
-function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id];
+function gridClearFocus(id){const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);delete gridFocus[id];}
+// A read-only result (no key, e.g. from a join) is moved about in the same way; only Enter and F2, which
+// open the editor, need a key.
+function gridKeyNav(id,e){const t=T(id);if(!t||!t.cols)return;const f=gridFocus[id];
  const view=viewIndices(id);
  if(!f){ if(['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Tab'].includes(e.key) && view.length){e.preventDefault();gridSetFocus(id,view[0],0);} return; }
  let {ri,ci}=f; const rowPos=view.indexOf(ri); if(rowPos<0)return;
@@ -5734,7 +5988,7 @@ function gridKeyNav(id,e){const t=T(id);if(!t||!t.pk)return;const f=gridFocus[id
  else if(e.key==='ArrowRight'){e.preventDefault();if(ci<nCols-1)gridSetFocus(id,ri,ci+1);}
  else if(e.key==='Tab'){e.preventDefault();if(e.shiftKey){if(ci>0)gridSetFocus(id,ri,ci-1);else if(rowPos>0)gridSetFocus(id,view[rowPos-1],nCols-1);}
    else{if(ci<nCols-1)gridSetFocus(id,ri,ci+1);else if(rowPos<view.length-1)gridSetFocus(id,view[rowPos+1],0);}}
- else if(e.key==='Enter'||e.key==='F2'){e.preventDefault();const el=gridCellEl(id,ri,ci);if(el)inlineEdit(el,id,ri,ci);}
+ else if((e.key==='Enter'||e.key==='F2')&&t.pk){e.preventDefault();const el=gridCellEl(id,ri,ci);if(el)inlineEdit(el,id,ri,ci);}
  else if(e.key==='Escape'){gridClearFocus(id);}
 }
 // No delay/timer here to disambiguate a single click from the first click of a double-click - the
@@ -6402,6 +6656,11 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
  const multi=(npick>1&&pickKeys.includes(key))||(nsel>1&&!!t.selected&&t.selected.has(ri));
  // How many, in words the menu can say: "row" for one of them, "3 rows" for more.
  const rows=n=>n===1?'row':n+' rows';
+ // The rows a row copy takes: those of the picked cells when the click is inside several of them (in
+ // the order shown), else this one. Read-only results pick cells too.
+ const pickAll=t.cellSel?[...t.cellSel].filter(k=>pickView.has(+k.split(':')[0])):[],inPick=pickAll.length>1&&pickAll.includes(key);
+ const copyIdx=inPick?(r=>viewIndices(id).filter(x=>r.has(x)))(new Set(pickAll.map(k=>+k.split(':')[0]))):[ri];
+ const tickMulti=!inPick&&nsel>1&&!!t.selected&&t.selected.has(ri);
  // A copied row belongs to the table it came from: one with a different number of columns cannot
  // be pasted here, so it is not offered here.
  const fits=v=>!!(v&&v.length===t.cols.length),clip1=singleRowClipboard(),clipN=rowsClipboard();const cur=(t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];
@@ -6425,7 +6684,10 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   !multi&&asHex&&['Copy value as hex',()=>{clipWrite(cur===null?'':String(cur));log('Copied cell value as hex.');}],
   (t.cellSel&&t.cellSel.size)?['Copy '+t.cellSel.size+' picked cell'+(t.cellSel.size===1?'':'s'),()=>{const n=t.cellSel.size;window._cellClipboard=pickedCellsGrid(id);copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');}]:null,
   !multi&&['Copy column: '+t.cols[ci],()=>copyColumn(id,ci)],
-  !multi&&['Copy row',()=>copyRow(id,ri)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],
+  // The row, or the rows of the picked cells when right-clicked inside them; each with or without the
+  // column names as a first line. Several ticked rows have their own copies just below.
+  ...(tickMulti?[]:[['Copy '+rows(copyIdx.length),()=>copyRowsOf(id,copyIdx)],['Copy '+rows(copyIdx.length)+' (with header)',()=>copyRowsOf(id,copyIdx,true)]]),
+  sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows'),()=>copySelRows(id)],sel&&['Copy '+(nsel===1?'the selected row':nsel+' selected rows')+' (with header)',()=>copySelRows(id,true)],
   // paste
   ...pasteCells,
   !multi&&editable&&fits(clip1)&&['Paste row here (overwrite)',()=>pasteRowInto(id,ri)],
@@ -6545,8 +6807,11 @@ function clipWrite(text,alsoTry){
 function copyText(text,okMsg,alsoTry){
  return clipWrite(text,alsoTry).then(st=>{ if(st==='ok')log(okMsg); return st; });
 }
-function copyRow(id,ri){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(vals.map(v=>v===null?'':v).join('\t'),'Copied 1 row (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
-function copySelRows(id){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;const lines=rowsData.map(vals=>vals.map(v=>v===null?'':v).join('\t'));copyText(lines.join('\n'),'Copied '+idxs.length+' row(s) (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+// head: the column names go first, as a line of their own.
+function rowsTsv(t,rowsData,head){return (head?[t.cols]:[]).concat(rowsData).map(vals=>vals.map(v=>v===null?'':v).join('\t')).join('\n');}
+function copyRowsOf(id,idxs,head){if(idxs.length===1)return copyRow(id,idxs[0],head);const t=T(id);const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=null;copyText(rowsTsv(t,rowsData,head),'Copied '+idxs.length+' rows'+(head?' with their header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
+function copyRow(id,ri,head){const t=T(id);const vals=t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];});window._rowClipboard=vals;window._rowsClipboard=null;copyText(rowsTsv(t,[vals],head),'Copied 1 row'+(head?' with its header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting it back into this app is unaffected - the row is kept as it is.').then(st=>{if(st!=='failed')tsvShapeHint([vals],'an empty field');});}
+function copySelRows(id,head){const t=T(id);const idxs=viewIndices(id).filter(ri=>t.selected&&t.selected.has(ri));if(!idxs.length){toast('No rows selected. Select rows with their checkboxes first.',true);return;}const rowsData=idxs.map(ri=>t.cols.map((c,ci)=>{const key=ri+':'+ci;return (t.pending&&(key in t.pending.upd))?t.pending.upd[key]:t.rows[ri][ci];}));window._rowsClipboard=rowsData;window._rowClipboard=rowsData.length===1?rowsData[0]:null;copyText(rowsTsv(t,rowsData,head),'Copied '+idxs.length+' row(s)'+(head?' with their header':'')+' (TSV, '+t.cols.length+' column(s)).','Pasting them back into this app is unaffected - the rows are kept as they are.').then(st=>{if(st!=='failed')tsvShapeHint(rowsData,'an empty field');});}
 // "Copy row" and the selection copy keep a single row and a list apart, since pasting several
 // rows only makes sense as new rows, never as an overwrite of one target row - but a single-row
 // paste shouldn't care which command put that one row there, and whichever copy came last is the
@@ -6680,10 +6945,11 @@ function revertChanges(id){const t=T(id);t.pending={upd:{},del:new Set(),ins:[]}
 // changed it since - and a literal written for the wrong mode can end in the wrong place: under
 // backslash escapes, the value \ written as '\' swallows the quote and the SQL after it. So that
 // session is asked first, and the literals follow what it says.
-async function applyChanges(id,preview){if(roBlock())return;const t=T(id);const W=typeof window!=='undefined'?window:{};const nbe0=W.noBackslashEscapes;
+// anyway: save even where the server warns it would change a value (see warnOpen).
+async function applyChanges(id,preview,anyway){if(roBlock())return;const t=T(id);const W=typeof window!=='undefined'?window:{};const nbe0=W.noBackslashEscapes;
  if(t&&sessOf(t)){await sessFree(t);try{const m=await api('/api/query',{sql:'SELECT @@SESSION.sql_mode',session:sessOf(t)});if(m&&m.ok&&m.rows&&m.rows.length)W.noBackslashEscapes=/NO_BACKSLASH_ESCAPES/i.test(String(m.rows[0][0]||''));}catch(e){}}
- try{return await applyChangesRun(id,preview);}finally{W.noBackslashEscapes=nbe0;}}
-async function applyChangesRun(id,preview){const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
+ try{return await applyChangesRun(id,preview,anyway);}finally{W.noBackslashEscapes=nbe0;}}
+async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const tbl=qid(t.db)+'.'+qid(t.table);
  const bc=await gridBinCols(id);
  const isHex=v=>/^0x[0-9A-Fa-f]*$/.test(String(v));
  const isPlainInt=v=>/^-?\d+$/.test(String(v));
@@ -6765,16 +7031,24 @@ async function applyChangesRun(id,preview){const t=T(id);const S=[];const tbl=qi
  // Rows, not statements: several deletes go in one statement.
  const changes=S.filter(s=>!s.startsWith('SELECT 1 FROM (SELECT 1 AS x')&&!s.startsWith('DELETE FROM')).length+delWh.length;
  if(preview){viewText('SQL that Apply would run - '+changes+' change'+(changes===1?'':'s'),S.join('\n'),{readonly:true});return false;}
- log('APPLY:\n'+S.join('\n'));
+ runLog(id,'APPLY:\n'+S.join('\n'),'-');
  // Runs as one transaction, so a failure part-way leaves the table exactly as it was.
  // Foreign keys are NOT disabled here: they were, which let an edit point a row at a
  // parent that does not exist and silently break referential integrity the schema was
  // written to guarantee.
  await sessFree(t);
- const r=await api('/api/script',{sql:S.join('\n'),transaction:true,session:sessOf(t)});
+ // A value the server would store otherwise than typed - cut short, clipped, a zero date - stops
+ // the save (failOnWarnings): nothing is kept, the warnings are shown, and Apply anyway saves them
+ // as the server takes them.
+ const r=await api('/api/script',{sql:S.join('\n'),transaction:true,session:sessOf(t),failOnWarnings:!anyway});
+ const stmts=splitStmts(S.join('\n')),ws=warnFromWrites(r.warnings,stmts);
+ if(!r.ok&&r.warned){log('APPLY stopped: '+warnText(ws)+'\n'+ws.map(x=>'  '+warnLine(x,stmts)).join('\n'));
+  warnOpen(t.title+' - Apply',ws,stmts,()=>applyChanges(id,false,true));return false;}
  // true once saved, so Commit (txEnd) can tell whether to go on; it waits for the grid to show what
  // was saved, since until then the reload is still reading on the tab's connection.
- if(r.ok){log('Applied '+changes+' change(s).');toast('Applied '+changes+' change(s).','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);return true;}else{log('APPLY error: '+r.error);toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
+ // What was done, by kind: rows updated (however many of their cells), inserted and deleted.
+ const nIns=S.filter(x=>x.startsWith('INSERT INTO')).length,what=[[updWh.length,'updated'],[nIns,'inserted'],[delWh.length,'deleted']].filter(x=>x[0]).map(x=>fmtCount(x[0])+' row'+(x[0]===1?'':'s')+' '+x[1]).join(', ');
+ if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+r.error,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+r.error,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");
