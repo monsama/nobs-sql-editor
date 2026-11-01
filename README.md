@@ -148,7 +148,7 @@ Export files are kept wherever you saved them.
 
 **Databases**
 - Browse databases, tables, views, procedures, functions, triggers and events, with quick filtering.
-- Table designer and DDL view and edit; routines and triggers edited and recreated in place.
+- Table designer: columns (moved up and down, UNSIGNED, collation), indexes, foreign keys and table options (engine, collation, comment, rename), shown as SQL you can read before it runs. DDL view and edit; routines and triggers edited and recreated in place.
 - Inspect a table: its details and sizes, its indexes with their columns in order, its foreign
   keys, and the tables that point at it.
 - ER diagrams: each table to the right of the tables it refers to, its columns with their types
