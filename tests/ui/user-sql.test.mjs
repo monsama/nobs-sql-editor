@@ -601,10 +601,8 @@ test('SHOW GRANTS is read into one row for each place, with its privileges', () 
 
 // The query history keeps no statement that carries a password, however the password is quoted.
 test('a statement with a password is not kept in the history', () => {
-  const store = {};
-  const localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
-  const hist = () => JSON.parse(store.history || '[]');
-  const addHistory = new Function('localStorage', 'hist', extractFunction(html, 'addHistory') + '\nreturn addHistory;')(localStorage, hist);
+  const histSecret = new Function(extractFunction(html, 'histSecret') + '\nreturn histSecret;')();
+  assert.match(extractFunction(html, 'histStart'), /histSecret\(sql\)\)return null/, 'histStart asks it before keeping a run');
   for (const secret of [
     "CREATE USER 'u'@'%' IDENTIFIED BY 'pw'",
     'CREATE USER "u"@"%" IDENTIFIED BY "pw"',
@@ -613,9 +611,9 @@ test('a statement with a password is not kept in the history', () => {
     'CHANGE MASTER TO MASTER_PASSWORD="pw"',
     "CHANGE REPLICATION SOURCE TO SOURCE_PASSWORD='pw'",
     "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u', PASSWORD 'pw')",
-  ]) { addHistory(secret); assert.deepEqual(hist(), [], 'kept: ' + secret); }
-  addHistory('SELECT 1');
-  assert.deepEqual(hist(), ['SELECT 1'], 'an ordinary statement is kept');
+  ]) { assert.equal(histSecret(secret), true, 'kept: ' + secret); }
+  assert.equal(histSecret('SELECT 1'), false, 'an ordinary statement is kept');
+  assert.equal(histSecret("SELECT * FROM users WHERE password_changed > NOW() - INTERVAL 1 DAY"), false, 'a column named password... is not a password');
 });
 
 // A password in SQL text the app shows or keeps - the log, a message, the tabs saved for next time -
