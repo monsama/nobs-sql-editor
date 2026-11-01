@@ -31,11 +31,11 @@ function extract(src, name) {
   }
   throw new Error('unbalanced braces in ' + name);
 }
-const consts = html.split(/\r?\n/).filter(l => /^const D_(TEXTY|NUMERIC|TEMPORAL)=/.test(l)).join('\n');
+const consts = html.split(/\r?\n/).filter(l => /^const D_(TEXTY|NUMERIC|TEMPORAL|IDXKW)=/.test(l)).join('\n');
 const D = new Function(
   'const RESERVED=new Set(["key","order","select"]);\n' + consts + '\n' +
-  ['qid', 'strLit', 'lit', 'dColFromInfo', 'colDef', 'dAlterSql', 'sqlBlankStringsAndComments', 'dColumnLines', 'dKeepFromCreate', 'dTsNotes'].map(n => extract(html, n)).join('\n') +
-  '\nreturn {dColFromInfo,colDef,dAlterSql,dColumnLines,dKeepFromCreate,dTsNotes};')();
+  ['qid', 'strLit', 'lit', 'dColFromInfo', 'dCsOf', 'colDef', 'dIdList', 'dIdName', 'dIdText', 'dIdSql', 'dRefTbl', 'dRefText', 'dIdxFromStats', 'dFksFromInfo', 'dIdxDef', 'dFkDef', 'dOptSql', 'dStay', 'dAlterSql', 'dCreateSql', 'sqlBlankStringsAndComments', 'dColumnLines', 'dKeepFromCreate', 'dTsNotes'].map(n => extract(html, n)).join('\n') +
+  '\nreturn {dColFromInfo,colDef,dAlterSql,dCreateSql,dColumnLines,dKeepFromCreate,dTsNotes,dIdList,dIdText,dRefTbl,dIdxFromStats,dFksFromInfo,dIdxDef,dFkDef,dOptSql};')();
 
 const FIXTURES = [
   {version:"8.0.46", mariadb:false, tableColl:"utf8mb4_0900_ai_ci", rows:[
@@ -248,4 +248,171 @@ test('a TIMESTAMP NOT NULL without a default is called out when the server would
 
 test('the fixtures cover both servers', () => {
   assert.deepEqual(FIXTURES.map(f => f.mariadb).sort(), [false, true]);
+});
+
+// ---- Column order, UNSIGNED, collations, indexes, foreign keys, table options ----
+
+const mkc = (name, extra = {}) => ({ name, type: 'INT', len: '', nn: false, ai: false, pk: false, def: null, comment: '', un: false, coll: '', keep: { origName: name, origType: 'INT' }, ...extra });
+
+// How the server builds the new column list from one ALTER (mysql_prepare_alter_table, the same on
+// MySQL and MariaDB): the columns that stay put keep their order, renamed in place; then each ADD
+// and each column given FIRST / AFTER is put in, in the order of the clauses.
+function applyOrder(names, sql) {
+  const clauses = sql.replace(/^ALTER TABLE \S+\n\s*/, '').replace(/;$/, '').split(/,\n\s*/);
+  const place = [], drop = new Set(), ren = new Map();
+  for (const c of clauses) {
+    let m;
+    if ((m = /^DROP COLUMN (\S+)/.exec(c))) { drop.add(m[1]); continue; }
+    if ((m = /^ADD COLUMN (\S+)/.exec(c))) { place.push({ from: null, name: m[1], pos: /( FIRST| AFTER (\S+))$/.exec(c) }); continue; }
+    if ((m = /^(?:MODIFY COLUMN (\S+)|CHANGE COLUMN (\S+) (\S+))/.exec(c))) {
+      const from = m[1] || m[2], to = m[1] || m[3], pos = /( FIRST| AFTER (\S+))$/.exec(c);
+      if (pos) place.push({ from, name: to, pos }); else ren.set(from, to);
+    }
+  }
+  const moved = new Set(place.map(p => p.from).filter(Boolean));
+  const list = names.filter(n => !drop.has(n) && !moved.has(n)).map(n => ren.get(n) || n);
+  for (const p of place) {
+    if (!p.pos) list.push(p.name);
+    else if (p.pos[1] === ' FIRST') list.unshift(p.name);
+    else { const at = list.indexOf(p.pos[2]); assert.ok(at >= 0, `AFTER ${p.pos[2]} names a column not there yet:\n${sql}`); list.splice(at + 1, 0, p.name); }
+  }
+  return list;
+}
+const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
+
+test('every reordering of five columns comes out in the order asked for, moving as few as can be', () => {
+  const names = ['a', 'b', 'c', 'd', 'e'], orig = names.map(n => mkc(n));
+  for (const p of perms(names)) {
+    const sql = D.dAlterSql(orig, p.map(n => mkc(n)), 't');
+    if (p.join() === names.join()) { assert.match(sql, /no changes/); continue; }
+    assert.deepEqual(applyOrder(names, sql), p, sql);
+    // as few as can be: all but the longest run already in order
+    let best = 0; const lis = Array(p.length).fill(1);
+    for (let j = 0; j < p.length; j++) { for (let k = 0; k < j; k++) if (p[k] < p[j]) lis[j] = Math.max(lis[j], lis[k] + 1); best = Math.max(best, lis[j]); }
+    assert.equal((sql.match(/MODIFY COLUMN/g) || []).length, p.length - best, sql);
+  }
+});
+
+test('moving, renaming, adding and dropping at once still lands in the order asked for', () => {
+  const names = ['a', 'b', 'c', 'd'], orig = names.map(n => mkc(n));
+  const want = [mkc('x', { keep: null }), { ...mkc('d'), name: 'dd' }, mkc('a'), mkc('y', { keep: null }), { ...mkc('c'), name: 'cc' }, mkc('z', { keep: null })];
+  const sql = D.dAlterSql(orig, want, 't');
+  assert.match(sql, /DROP COLUMN b/);
+  assert.deepEqual(applyOrder(names, sql), ['x', 'dd', 'a', 'y', 'cc', 'z'], sql);
+  // new columns at the end are simply added, without a position
+  const tail = D.dAlterSql(orig, [...orig, mkc('n', { keep: null })], 't');
+  assert.match(tail, /ADD COLUMN n INT;$/);
+});
+
+test('UNSIGNED can be ticked and unticked; ZEROFILL goes with it', () => {
+  const f = FIXTURES[0], cols = read(f);
+  const zf = byName(cols, 'zf'), id = byName(cols, 'id');
+  assert.equal(zf.un, true);
+  assert.match(D.colDef({ ...zf, un: false }), /^zf SMALLINT\(5\)( DEFAULT NULL)?$/);
+  assert.match(D.colDef({ ...id, un: true }), /^id INT UNSIGNED NOT NULL AUTO_INCREMENT$/);
+  assert.match(D.dAlterSql(cols, clone(cols).map(c => c.name === 'id' ? { ...c, un: true } : c), TBL), /MODIFY COLUMN id INT UNSIGNED/);
+});
+
+test('a column\'s collation can be changed, and one that inherits keeps inheriting', () => {
+  for (const f of FIXTURES) {
+    const cols = read(f);
+    const kind = byName(cols, 'kind');
+    assert.equal(kind.coll, f.tableColl, 'the form shows the collation a column has, inherited or not');
+    assert.match(D.colDef({ ...kind, coll: 'latin1_swedish_ci' }), / CHARACTER SET latin1 COLLATE latin1_swedish_ci/);
+    const name = byName(cols, 'name');
+    assert.match(D.colDef({ ...name, coll: f.tableColl }), /^name VARCHAR\(20\) DEFAULT/, 'set to the table\'s own, it inherits again');
+    const sql = D.dAlterSql(cols, clone(cols).map(c => c.name === 'tt' ? { ...c, coll: 'utf8mb4_bin' } : c), TBL);
+    assert.match(sql, /MODIFY COLUMN tt TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin/);
+    assert.equal((sql.match(/COLUMN/g) || []).length, 1, sql);
+  }
+});
+
+test('a new table collation is written, and a column that had the old one keeps it when it is changed', () => {
+  const f = FIXTURES[1], cols = read(f), optOrig = { coll: f.tableColl, engine: 'InnoDB', comment: '' };
+  const x = { opt: { ...optOrig, coll: 'utf8mb4_unicode_ci' }, optOrig };
+  const sql = D.dAlterSql(cols, clone(cols).map(c => c.name === 'kind' ? { ...c, comment: 'k' } : c), TBL, x);
+  assert.match(sql, /DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci/);
+  assert.match(sql, new RegExp('MODIFY COLUMN kind ENUM.* COLLATE ' + f.tableColl));
+  assert.equal(D.dAlterSql(cols, clone(cols), TBL, { opt: { ...optOrig }, optOrig }), '-- no changes detected');
+});
+
+test('key part lists are read and written with prefixes, DESC and quoted names', () => {
+  assert.deepEqual(D.dIdList(' a , `b c`(10) DESC,`x``y` asc'), [{ name: 'a', len: '', desc: false }, { name: 'b c', len: '10', desc: true }, { name: 'x`y', len: '', desc: false }]);
+  assert.equal(D.dIdText(D.dIdList('a,`b c`(10) desc')), 'a, `b c`(10) DESC');
+  assert.deepEqual(D.dRefTbl('`my db`.`t.1`', 'x'), { db: 'my db', name: 't.1' });
+  assert.deepEqual(D.dRefTbl('parent', 'x'), { db: 'x', name: 'parent' });
+});
+
+// STATISTICS as SELECT * gives it; the columns differ by server, so they are looked up by name.
+const STAT_COLS = ['TABLE_SCHEMA', 'TABLE_NAME', 'NON_UNIQUE', 'INDEX_NAME', 'SEQ_IN_INDEX', 'COLUMN_NAME', 'COLLATION', 'SUB_PART', 'INDEX_TYPE', 'INDEX_COMMENT', 'IS_VISIBLE', 'EXPRESSION'];
+const STATS = [
+  ['d', 't', '0', 'PRIMARY', 1, 'id', 'A', null, 'BTREE', '', 'YES', null],
+  ['d', 't', '1', 'ix_ab', 1, 'a', 'A', null, 'BTREE', 'by a', 'YES', null],
+  ['d', 't', '1', 'ix_ab', 2, 'b', 'D', '10', 'BTREE', 'by a', 'YES', null],
+  ['d', 't', '0', 'uq_c', 1, 'c', 'A', null, 'BTREE', '', 'NO', null],
+  ['d', 't', '1', 'ft', 1, 'b', null, null, 'FULLTEXT', '', 'YES', null],
+  ['d', 't', '1', 'fx', 1, null, 'A', null, 'BTREE', '', 'YES', 'lower(`b`)'],
+];
+
+test('indexes are read from STATISTICS, primary key left out, and an untouched list changes nothing', () => {
+  const idx = D.dIdxFromStats(STAT_COLS, STATS);
+  assert.deepEqual(idx.map(i => [i.name, i.kind, i.cols]), [['ix_ab', 'INDEX', 'a, b(10) DESC'], ['uq_c', 'UNIQUE', 'c'], ['ft', 'FULLTEXT', 'b'], ['fx', 'INDEX', '(lower(`b`))']]);
+  assert.equal(D.dIdxDef(idx[1]), 'UNIQUE INDEX uq_c (c) INVISIBLE', 'an invisible index stays invisible');
+  assert.equal(D.dIdxDef(idx[0]), "INDEX ix_ab (a,b(10) DESC) COMMENT 'by a'");
+  const cols = ['id', 'a', 'b', 'c'].map(n => mkc(n));
+  assert.match(D.dAlterSql(cols, cols.map(c => ({ ...c })), 't', { idx: idx.map(i => ({ ...i })), idxOrig: idx }), /no changes/);
+});
+
+test('an index changed, renamed, removed or added is dropped and added as needed', () => {
+  const idx = D.dIdxFromStats(STAT_COLS, STATS), cols = ['id', 'a', 'b', 'c'].map(n => mkc(n));
+  const run = cur => D.dAlterSql(cols, cols.map(c => ({ ...c })), 't', { idx: cur, idxOrig: idx });
+  const edited = idx.map(i => i.name === 'ix_ab' ? { ...i, cols: 'a, c' } : { ...i });
+  assert.match(run(edited), /DROP INDEX ix_ab,\n\s*ADD INDEX ix_ab \(a,c\) COMMENT 'by a';/);
+  assert.match(run(idx.map(i => i.name === 'uq_c' ? { ...i, name: 'uq_c2' } : { ...i })), /DROP INDEX uq_c,\n\s*ADD UNIQUE INDEX uq_c2 \(c\) INVISIBLE/);
+  const sql = run([...idx.filter(i => i.name !== 'fx').map(i => ({ ...i })), { name: '', kind: 'UNIQUE', cols: 'a, b(5)', comment: '' }]);
+  assert.match(sql, /DROP INDEX fx/);
+  assert.match(sql, /ADD UNIQUE INDEX \(a,b\(5\)\)/);
+  assert.doesNotMatch(sql, /ix_ab|uq_c|ft/);
+});
+
+test('a column renamed on the Columns tab leaves its indexes and keys alone', () => {
+  const idx = D.dIdxFromStats(STAT_COLS, STATS), cols = ['id', 'a', 'b', 'c'].map(n => mkc(n));
+  const fk = [{ name: 'fk_c', cols: 'c', ref: 'p', refCols: 'id', onDel: 'CASCADE', onUpd: 'RESTRICT', keep: { origName: 'fk_c' } }];
+  // the form renames c to cc in the lists too (dRenameRefs); the server does the same by itself
+  const sql = D.dAlterSql(cols, cols.map(c => c.name === 'c' ? { ...c, name: 'cc' } : { ...c }), 't', {
+    db: 'd', idx: idx.map(i => i.name === 'uq_c' ? { ...i, cols: 'cc' } : { ...i }), idxOrig: idx,
+    fk: fk.map(f => ({ ...f, cols: 'cc' })), fkOrig: fk });
+  assert.equal(sql, 'ALTER TABLE t\n  CHANGE COLUMN c cc INT;');
+});
+
+test('foreign keys: a changed one is dropped in an ALTER of its own first, then added', () => {
+  const rows = [['fk_p', 'a', 'd', 'parent', 'x', 'CASCADE', 'RESTRICT'], ['fk_p', 'b', 'd', 'parent', 'y', 'CASCADE', 'RESTRICT'], ['fk_o', 'c', 'other', 'q', 'id', 'NO ACTION', 'SET NULL']];
+  const fk = D.dFksFromInfo(rows, 'd');
+  assert.deepEqual(fk.map(f => [f.name, f.cols, f.ref, f.refCols, f.onDel, f.onUpd]), [['fk_p', 'a, b', 'parent', 'x, y', 'RESTRICT', 'CASCADE'], ['fk_o', 'c', 'other.q', 'id', 'SET NULL', 'NO ACTION']]);
+  assert.equal(D.dFkDef(fk[1], 'd'), 'CONSTRAINT fk_o FOREIGN KEY (c) REFERENCES other.q (id) ON DELETE SET NULL ON UPDATE NO ACTION');
+  const cols = ['a', 'b', 'c'].map(n => mkc(n));
+  const run = cur => D.dAlterSql(cols, cols.map(c => ({ ...c })), 't', { db: 'd', fk: cur, fkOrig: fk });
+  assert.match(run(fk.map(f => ({ ...f }))), /no changes/);
+  assert.equal(run(fk.map(f => f.name === 'fk_p' ? { ...f, onDel: 'CASCADE' } : { ...f })),
+    'ALTER TABLE t\n  DROP FOREIGN KEY fk_p;\nALTER TABLE t\n  ADD CONSTRAINT fk_p FOREIGN KEY (a,b) REFERENCES parent (x,y) ON DELETE CASCADE ON UPDATE CASCADE;');
+  assert.equal(run([fk[1]]), 'ALTER TABLE t\n  DROP FOREIGN KEY fk_p;');
+  assert.match(run([...fk, { name: '', cols: 'c', ref: 'parent', refCols: 'x', onDel: '', onUpd: '' }]), /^ALTER TABLE t\n  ADD FOREIGN KEY \(c\) REFERENCES parent \(x\);$/);
+});
+
+test('table options and a new name are written only when they change', () => {
+  const cols = [mkc('a')], optOrig = { engine: 'InnoDB', coll: 'utf8mb4_general_ci', comment: '' };
+  const run = (opt, newTbl) => D.dAlterSql(cols, cols.map(c => ({ ...c })), 'd.t', { opt, optOrig, newTbl });
+  assert.match(run({ ...optOrig }, 'd.t'), /no changes/);
+  assert.equal(run({ ...optOrig, engine: 'MyISAM', comment: "it's" }, 'd.t2'), "ALTER TABLE d.t\n  ENGINE=MyISAM,\n  COMMENT='it''s',\n  RENAME TO d.t2;");
+  assert.match(run({ ...optOrig, coll: 'latin1_swedish_ci' }), /DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci/);
+  assert.match(D.dAlterSql(cols, cols, 'd.t', { opt: { ...optOrig, comment: 'x' }, optOrig: { ...optOrig, comment: 'x' } }), /no changes/);
+  assert.match(D.dAlterSql(cols, cols, 'd.t', { opt: { ...optOrig, comment: '' }, optOrig: { ...optOrig, comment: 'x' } }), /COMMENT=''/, 'a comment taken out is cleared');
+});
+
+test('CREATE TABLE carries the indexes, keys and options', () => {
+  const sql = D.dCreateSql([mkc('id', { pk: true, nn: true, ai: true, keep: null }), mkc('p', { keep: null }), mkc('s', { type: 'VARCHAR', len: '10', coll: 'latin1_bin', keep: null })], 'd.t', {
+    db: 'd', idx: [{ name: 'ix', kind: 'INDEX', cols: 'p', comment: '' }, { name: '', kind: 'INDEX', cols: ' ', comment: '' }],
+    fk: [{ name: 'fk', cols: 'p', ref: 'parent', refCols: 'id', onDel: 'CASCADE', onUpd: '' }],
+    opt: { engine: 'InnoDB', coll: 'utf8mb4_bin', comment: 'c' } });
+  assert.equal(sql, "CREATE TABLE d.t (\n  id INT NOT NULL AUTO_INCREMENT,\n  p INT,\n  s VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_bin,\n  PRIMARY KEY (id),\n  INDEX ix (p),\n  CONSTRAINT fk FOREIGN KEY (p) REFERENCES parent (id) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='c';");
 });

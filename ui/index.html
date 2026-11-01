@@ -400,7 +400,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .item.kbsel{background:var(--hover);outline:1px solid var(--accent);outline-offset:-1px}
  #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:var(--mono);font-size:12px}
  #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff} #allSchemasBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
- table.dz{border-collapse:collapse;width:100%;margin:8px 0} table.dz th{border:none;border-bottom:2px solid var(--bd);padding:6px 6px;text-align:left;color:var(--muted);font-weight:600;font-size:12px} table.dz td{border:none;border-bottom:1px solid var(--bd2);padding:6px 4px} table.dz tr:last-child td{border-bottom:none} table.dz input,table.dz select{width:100%} table.dz{table-layout:fixed} table.dz th:nth-child(2){width:150px} table.dz th:nth-child(3){width:72px} table.dz th:nth-child(4),table.dz th:nth-child(5),table.dz th:nth-child(6){width:34px} table.dz th:nth-child(7){width:190px} table.dz th:nth-child(9){width:36px}
+ table.dz{border-collapse:collapse;width:100%;margin:8px 0} table.dz th{border:none;border-bottom:2px solid var(--bd);padding:6px 6px;text-align:left;color:var(--muted);font-weight:600;font-size:12px} table.dz td{border:none;border-bottom:1px solid var(--bd2);padding:6px 4px} table.dz tr:last-child td{border-bottom:none} table.dz input,table.dz select{width:100%} table.dz{table-layout:fixed} table.dz th:nth-child(2){width:150px} table.dz th:nth-child(3){width:72px} table.dz th:nth-child(4),table.dz th:nth-child(5),table.dz th:nth-child(6),table.dz th:nth-child(7){width:34px} table.dz th:nth-child(8){width:150px} table.dz th:nth-child(9){width:170px} table.dz th:nth-child(11){width:96px} table.dz.dzx th:nth-child(n){width:auto} .dpanel{flex-direction:column;flex:1;min-height:60px} .dtab.on{font-weight:700;box-shadow:inset 0 -2px 0 var(--accent)}
 /* Nothing pending is the normal state, and an accent-coloured badge for it drew the eye to
    a zero all day; it only speaks up once there is something to apply. */
  .pill.quiet{background:var(--panel2);color:var(--muted)}
@@ -1103,9 +1103,25 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end;flex:none"><button class="warn" onclick="libClearAll()" title="Delete all saved queries">Clear all</button><button onclick="libExport()" title="Download the whole library as a JSON file">Export library</button><button onclick="$('libFile').click()" title="Load a query-library.json from another machine (merges)">Import library</button><input type="file" id="libFile" accept="application/json,.json" style="display:none" onchange="libImportFile(event)"><span style="flex:1"></span><button onclick="hide('mLib')">Close</button></div></div></div>
 
 <div class="modal floating" id="mDesign"><div class="box" style="width:960px;max-width:95vw;height:680px;display:flex;flex-direction:column;overflow:hidden;top:40px;left:100px"><div style="display:flex;align-items:center;justify-content:space-between;cursor:move;user-select:none;flex:none" onmousedown="floatDragStart(event,'mDesign')" title="Drag to move"><h3 id="dTitle" style="margin:0 0 10px">Table designer</h3><span style="display:flex;gap:2px"><span onmousedown="event.stopPropagation()" onclick="floatToggleMaximize('mDesign')" title="Maximize" id="maxBtn_mDesign" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:14px;line-height:1">&#9974;</span><span onmousedown="event.stopPropagation()" onclick="floatMinimize('mDesign')" title="Minimize" style="cursor:pointer;padding:2px 10px;font-weight:700;font-size:16px;line-height:1">&#8722;</span></span></div>
- <div class="row" style="flex:none"><span class="muted">Database</span> <input id="dSchema" style="width:280px"> <span class="muted">Table</span> <input id="dName" style="width:320px"> <span id="dMode" class="muted"></span></div>
- <div id="dColsWrap" style="overflow:auto;flex:1;min-height:60px"><table class="dz"><thead><tr><th>Column</th><th>Type</th><th>Length</th><th title="NOT NULL">NN</th><th title="AUTO_INCREMENT">AI</th><th title="PRIMARY KEY">PK</th><th>Default</th><th>Comment</th><th></th></tr></thead><tbody id="dCols"></tbody></table></div>
- <div class="row" style="flex:none"><button onclick="dAddCol()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Column</button></div>
+ <div class="row" style="flex:none"><span class="muted">Database</span> <input id="dSchema" style="width:280px" onchange="dGen()"> <span class="muted">Table</span> <input id="dName" style="width:320px" onchange="dGen()"> <span id="dMode" class="muted"></span></div>
+ <div class="row" id="dTabs" style="flex:none;gap:4px"><button class="sm dtab on" data-p="dColsP" onclick="dTab(this)">Columns</button><button class="sm dtab" data-p="dIdxP" onclick="dTab(this)">Indexes</button><button class="sm dtab" data-p="dFkP" onclick="dTab(this)">Foreign keys</button><button class="sm dtab" data-p="dOptP" onclick="dTab(this)">Options</button></div>
+ <datalist id="dCollList"></datalist><datalist id="dEngList"></datalist>
+ <div id="dColsP" class="dpanel" style="display:flex">
+ <div id="dColsWrap" style="overflow:auto;flex:1;min-height:60px"><table class="dz"><thead><tr><th>Column</th><th>Type</th><th>Length</th><th title="NOT NULL">NN</th><th title="AUTO_INCREMENT">AI</th><th title="PRIMARY KEY">PK</th><th title="UNSIGNED">UN</th><th>Default</th><th title="Empty: the table's own">Collation</th><th>Comment</th><th></th></tr></thead><tbody id="dCols"></tbody></table></div>
+ <div class="row" style="flex:none"><button onclick="dAddCol()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Column</button></div></div>
+ <div id="dIdxP" class="dpanel" style="display:none">
+ <div style="overflow:auto;flex:1;min-height:60px"><table class="dz dzx"><thead><tr><th>Name</th><th style="width:130px">Kind</th><th>Columns</th><th>Comment</th><th style="width:36px"></th></tr></thead><tbody id="dIdx"></tbody></table></div>
+ <div class="row" style="flex:none"><button onclick="dAddIdx();dGen()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Index</button><span class="muted">The primary key is the PK ticks on the Columns tab. Columns are written a, b(10) DESC.</span></div></div>
+ <div id="dFkP" class="dpanel" style="display:none">
+ <div style="overflow:auto;flex:1;min-height:60px"><table class="dz dzx"><thead><tr><th>Name</th><th>Columns</th><th>References table</th><th>Its columns</th><th style="width:130px">On delete</th><th style="width:130px">On update</th><th style="width:36px"></th></tr></thead><tbody id="dFks"></tbody></table></div>
+ <div class="row" style="flex:none"><button onclick="dAddFk();dGen()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="margin-right:4px;flex:none"><path d="M12 5v14M5 12h14"/></svg>Foreign key</button></div></div>
+ <div id="dOptP" class="dpanel" style="display:none">
+ <div style="display:grid;grid-template-columns:max-content minmax(0,420px);gap:8px 10px;align-items:center;padding:8px 0">
+  <span class="muted">Engine</span><input id="dEngine" list="dEngList" placeholder="(server default)" onchange="dGen()">
+  <span class="muted">Collation</span><input id="dColl" list="dCollList" placeholder="(database default)" title="The table's default for new text columns. The columns that have the old one keep it." onchange="dGen()">
+  <span class="muted">Comment</span><input id="dTblComment" onchange="dGen()">
+  <span></span><span class="muted">To rename the table, or move it to another database, change the names at the top.</span>
+ </div></div>
  <div class="row" style="flex:none;margin-top:6px"><span class="dsec">Generated SQL</span> <span id="dEditNote" class="muted" style="color:#b26a00"></span></div><textarea id="dSql" oninput="dMark()" style="width:100%;height:120px;font-family:var(--mono);flex:none"></textarea>
  <div class="row" style="justify-content:flex-end;flex:none"><button title="Rebuild the SQL from the column grid (discards manual edits in the box)" onclick="dGen(true)">Regenerate from columns</button><button class="go write" title="Run the SQL shown above against the database - creates the table if it's new, or alters it if it already exists" onclick="dApply()">Apply</button><button onclick="hide('mDesign')">Close</button></div>
  <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
@@ -8452,9 +8468,10 @@ function dColFromInfo(row,isMaria,tableColl){
  }
  const onUp=/on update\s+(\S+)/i.exec(extra);
  const generated=/GENERATED/i.test(extra.replace(/DEFAULT_GENERATED/ig,''));
- const col={name,type,len,nn:nullable==='NO',def:defShown,ai:/auto_increment/i.test(extra),pk:key==='PRI',comment:comment||''};
+ // un and coll are shown and can be edited; coll is the column's actual collation, inherited or not.
+ const col={name,type,len,nn:nullable==='NO',def:defShown,ai:/auto_increment/i.test(extra),pk:key==='PRI',comment:comment||'',un:/UNSIGNED/.test(mods),coll:coll||''};
  const inherits=!!coll&&coll===tableColl;
- col.keep={origName:name,origType:type,origLen:len,mods,cs:inherits?'':(cs||''),coll:inherits?'':(coll||''),onUpdate:onUp?onUp[1]:'',
+ col.keep={origName:name,origType:type,origLen:len,mods,cs:inherits?'':(cs||''),coll:inherits?'':(coll||''),origCs:cs||'',origColl:coll||'',tableColl:tableColl||null,onUpdate:onUp?onUp[1]:'',
    invisible:/\bINVISIBLE\b/i.test(extra),defShown,defSql,generated,genExpr:genExpr||''};
  return col;
 }
@@ -8470,11 +8487,20 @@ function dKeepFromCreate(col,line){if(!line||!col.keep)return;
  if(at>=0){let d=0,ok=true;const open=bare.indexOf('(',at);for(let i=open;i<bare.length;i++){if(bare[i]==='(')d++;else if(bare[i]===')'){d--;if(d===0){ok=!bare.slice(i+1).trim();break;}}}
   if(ok&&d===0)col.keep.check=line.slice(at).trim();}
  const sr=/\/\*!80003 SRID (\d+) \*\//.exec(line);if(sr)col.keep.srid=sr[1];}
-function colDef(c){
+// The character set a collation belongs to: from the server's own list when the designer has read
+// it, otherwise the part before the first _ (latin1_german2_ci, utf8mb4_uca1400_ai_ci, binary).
+function dCsOf(coll){coll=String(coll||'');const m=typeof window!=='undefined'&&window._dCollCs;if(m&&m[coll.toLowerCase()])return m[coll.toLowerCase()];const i=coll.indexOf('_');return i<0?coll:coll.slice(0,i);}
+// tableColl: the collation the table will have. A text column whose collation is that one gets no
+// clause - it inherits it - and any other collation is written out, so a column that inherited the
+// old one keeps it when the table's default changes. Left out, the one the column was read with.
+function colDef(c,tableColl){
  const k=c.keep||{};
  let s=qid(c.name)+' '+c.type;if(c.len)s+='('+c.len+')';
- if(k.mods&&D_NUMERIC.test(c.type))s+=' '+k.mods;
- if(k.cs&&D_TEXTY.test(c.type))s+=' CHARACTER SET '+k.cs+(k.coll?' COLLATE '+k.coll:'');
+ // UNSIGNED as ticked; ZEROFILL, which the form does not show, stays while the column is unsigned.
+ const un=c.un!==undefined?!!c.un:/UNSIGNED/.test(k.mods||'');
+ if(un&&D_NUMERIC.test(c.type))s+=' UNSIGNED'+(/ZEROFILL/.test(k.mods||'')?' ZEROFILL':'');
+ const coll=c.coll!==undefined?c.coll:(k.coll||''),tc=tableColl!==undefined?tableColl:k.tableColl;
+ if(coll&&coll!==tc&&D_TEXTY.test(c.type))s+=' CHARACTER SET '+(coll===k.origColl&&k.origCs?k.origCs:(k.cs&&coll===k.coll?k.cs:dCsOf(coll)))+' COLLATE '+coll;
  if(c.nn)s+=' NOT NULL';if(c.ai)s+=' AUTO_INCREMENT';
  // An untouched default is written back exactly as it was read - including an empty-string
  // default, which the form cannot tell apart from "no default" by looking at the box.
@@ -8496,24 +8522,92 @@ function colDef(c){
  if(c.comment)s+=' COMMENT '+strLit(c.comment);
  if(k.check&&sameType)s+=' '+k.check;
  return s;}
+// A list of key parts as typed in the Indexes and Foreign keys tabs: "a, `b c`(10) DESC". Each is
+// {name, len, desc}; a name may be in backticks, and a backtick inside is doubled.
+function dIdList(s){s=String(s||'');const out=[];let i=0;const sp=()=>{while(i<s.length&&/\s/.test(s[i]))i++;};
+ while(i<s.length){sp();if(i>=s.length)break;let name='';
+  if(s[i]==='`'){i++;for(;i<s.length;i++){if(s[i]==='`'){if(s[i+1]==='`'){name+='`';i++;continue;}i++;break;}name+=s[i];}}
+  else while(i<s.length&&!/[\s,(]/.test(s[i]))name+=s[i++];
+  sp();let len='';if(s[i]==='('){const j=s.indexOf(')',i);len=s.slice(i+1,j<0?s.length:j).trim();i=j<0?s.length:j+1;sp();}
+  let desc=false;const m=/^(ASC|DESC)\b/i.exec(s.slice(i));if(m){desc=m[1].toUpperCase()==='DESC';i+=m[0].length;}
+  while(i<s.length&&s[i]!==',')i++;i++;
+  if(name)out.push({name,len,desc});}
+ return out;}
+function dIdName(n){return /^[A-Za-z0-9_$]+$/.test(n)?n:'`'+String(n).replace(/`/g,'``')+'`';}
+function dIdText(parts){return parts.map(p=>dIdName(p.name)+(p.len?'('+p.len+')':'')+(p.desc?' DESC':'')).join(', ');}
+function dIdSql(parts){return parts.map(p=>qid(p.name)+(p.len?'('+p.len+')':'')+(p.desc?' DESC':'')).join(',');}
+// The referenced table as typed: "t", "db.t" or "`my db`.`t`". Without a database, the table's own.
+function dRefTbl(s,db){s=String(s||'').trim();const one=()=>{let n='';if(s[0]==='`'){let i=1;for(;i<s.length;i++){if(s[i]==='`'){if(s[i+1]==='`'){n+='`';i++;continue;}i++;break;}n+=s[i];}s=s.slice(i);}else{const m=/^[^.]*/.exec(s)[0];n=m.trim();s=s.slice(m.length);}return n;};
+ const a=one();if(s[0]==='.'){s=s.slice(1).trim();return {db:a,name:one()};}return {db:db||'',name:a};}
+function dRefText(r,db){return (r.db&&r.db!==db?dIdName(r.db)+'.':'')+dIdName(r.name);}
+// Indexes from information_schema.STATISTICS (SELECT *, so a column one server has and another has
+// not - IS_VISIBLE and EXPRESSION on MySQL 8, IGNORED on MariaDB - is read where it is there). The
+// primary key is left out: it is the PK ticks on the Columns tab.
+function dIdxFromStats(columns,rows){const at={};(columns||[]).forEach((c,i)=>{at[String(c&&c.name!=null?c.name:c).toUpperCase()]=i;});
+ const g=(r,n)=>at[n]==null?null:r[at[n]];const by=new Map();
+ (rows||[]).forEach(r=>{const name=String(g(r,'INDEX_NAME'));if(name==='PRIMARY')return;
+  let ix=by.get(name);
+  if(!ix){const t=String(g(r,'INDEX_TYPE')||'').toUpperCase();
+   const kind=t==='FULLTEXT'?'FULLTEXT':t==='SPATIAL'?'SPATIAL':String(g(r,'NON_UNIQUE'))==='0'?'UNIQUE':'INDEX';
+   ix={name,kind,parts:[],comment:String(g(r,'INDEX_COMMENT')||''),keep:{origName:name,using:t==='HASH'?'HASH':'',invisible:String(g(r,'IS_VISIBLE')||'').toUpperCase()==='NO',ignored:String(g(r,'IGNORED')||'').toUpperCase()==='YES',expr:[]}};by.set(name,ix);}
+  const ex=g(r,'EXPRESSION');
+  if(ex!=null&&ex!==''){ix.keep.expr.push('('+String(ex)+')'+(String(g(r,'COLLATION'))==='D'?' DESC':''));return;}
+  ix.parts.push({name:String(g(r,'COLUMN_NAME')),len:g(r,'SUB_PART')==null?'':String(g(r,'SUB_PART')),desc:String(g(r,'COLLATION'))==='D'});});
+ return [...by.values()].map(ix=>{const e=ix.keep.expr.length;ix.cols=e?ix.keep.expr.join(', '):dIdText(ix.parts);if(!e)delete ix.keep.expr;delete ix.parts;return ix;});}
+// Foreign keys from KEY_COLUMN_USAGE joined to REFERENTIAL_CONSTRAINTS, one row per column:
+// name, column, referenced database, table, column, ON UPDATE, ON DELETE.
+function dFksFromInfo(rows,db){const by=new Map();
+ (rows||[]).forEach(([name,col,rdb,rtbl,rcol,upd,del])=>{let f=by.get(name);
+  if(!f){f={name:String(name),cols:[],ref:dRefText({db:String(rdb||''),name:String(rtbl)},db),refCols:[],onDel:String(del||'').toUpperCase(),onUpd:String(upd||'').toUpperCase(),keep:{origName:String(name)}};by.set(name,f);}
+  f.cols.push({name:String(col)});f.refCols.push({name:String(rcol)});});
+ return [...by.values()].map(f=>({...f,cols:dIdText(f.cols),refCols:dIdText(f.refCols)}));}
+const D_IDXKW={INDEX:'INDEX',UNIQUE:'UNIQUE INDEX',FULLTEXT:'FULLTEXT INDEX',SPATIAL:'SPATIAL INDEX'};
+function dIdxDef(ix){const k=ix.keep||{};
+ return (D_IDXKW[ix.kind]||'INDEX')+(ix.name?' '+qid(ix.name):'')+' ('+(k.expr&&k.expr.length?k.expr.join(','):dIdSql(dIdList(ix.cols)))+')'+(k.using?' USING '+k.using:'')+(ix.comment?' COMMENT '+strLit(ix.comment):'')+(k.invisible?' INVISIBLE':'')+(k.ignored?' IGNORED':'');}
+function dFkDef(f,db){const r=dRefTbl(f.ref,db);
+ return (f.name?'CONSTRAINT '+qid(f.name)+' ':'')+'FOREIGN KEY ('+dIdSql(dIdList(f.cols))+') REFERENCES '+(r.db&&r.db!==db?qid(r.db)+'.':'')+qid(r.name)+' ('+dIdSql(dIdList(f.refCols))+')'+(f.onDel?' ON DELETE '+f.onDel:'')+(f.onUpd?' ON UPDATE '+f.onUpd:'');}
+// Table options: {engine, coll, comment}. Only what differs from what was read is written.
+function dOptSql(o,was){was=was||{};const out=[];
+ if(o.engine&&o.engine!==(was.engine||''))out.push('ENGINE='+o.engine);
+ if(o.coll&&o.coll!==(was.coll||''))out.push('DEFAULT CHARACTER SET '+dCsOf(o.coll)+' COLLATE '+o.coll);
+ if((o.comment||'')!==(was.comment||'')&&(o.comment||was.comment))out.push('COMMENT='+strLit(o.comment||''));
+ return out;}
+// The longest run of columns that are already in their new order, as positions in cols: those stay,
+// and only the rest are moved, each to just after the column before it.
+function dStay(oi){const idx=[];oi.forEach((v,i)=>{if(v>=0)idx.push(i);});
+ const n=idx.length,len=Array(n).fill(1),prev=Array(n).fill(-1);
+ for(let j=0;j<n;j++)for(let k=0;k<j;k++)if(oi[idx[k]]<oi[idx[j]]&&len[k]+1>len[j]){len[j]=len[k]+1;prev[j]=k;}
+ let best=-1;for(let j=0;j<n;j++)if(best<0||len[j]>len[best])best=j;
+ const s=new Set();for(let j=best;j>=0;j=prev[j])s.add(idx[j]);return s;}
 // The ALTER for a set of edited columns against what was read. A row keeps the name it was read
 // with, so renaming one is a CHANGE COLUMN; it used to be DROP COLUMN old + ADD COLUMN new, which
 // throws away every value in it.
-function dAlterSql(orig,cols,tbl){
- const alt=[],notes=[];
+// x (optional) holds the other tabs: idx/idxOrig, fk/fkOrig, opt/optOrig, the table's database
+// (db) and its new name (newTbl). A foreign key that changes is dropped in an ALTER of its own
+// first: dropping and re-adding one name in a single ALTER is refused.
+function dAlterSql(orig,cols,tbl,x){
+ x=x||{};
+ const alt=[],notes=[],pre=[];
  const seen=new Set();
- const same=(o,c)=>JSON.stringify({t:o.type,l:''+o.len,nn:o.nn,ai:o.ai,d:o.def,cm:o.comment})===JSON.stringify({t:c.type,l:''+c.len,nn:c.nn,ai:c.ai,d:c.def,cm:c.comment});
- cols.forEach(c=>{
-  const on=c.keep&&c.keep.origName;
-  const o=on!=null?orig.find(x=>x.name===on):null;
-  if(!o){alt.push('ADD COLUMN '+colDef(c));return;}
+ const tc=x.opt&&x.opt.coll?x.opt.coll:(x.optOrig&&x.optOrig.coll?x.optOrig.coll:undefined);
+ const def=c=>colDef(c,tc);
+ const same=(o,c)=>JSON.stringify({t:o.type,l:''+o.len,nn:o.nn,ai:o.ai,d:o.def,cm:o.comment,un:o.un,co:o.coll})===JSON.stringify({t:c.type,l:''+c.len,nn:c.nn,ai:c.ai,d:c.def,cm:c.comment,un:c.un,co:c.coll});
+ // Where each row was, and which stay put. A new column at the end is just added; one anywhere
+ // else, and a column moved, says where it goes - after the one before it, which by then is in place.
+ const oi=cols.map(c=>{const on=c.keep&&c.keep.origName;return on!=null?orig.findIndex(o=>o.name===on):-1;});
+ const stay=dStay(oi);
+ cols.forEach((c,i)=>{
+  const o=oi[i]>=0?orig[oi[i]]:null;
+  const moved=o?!stay.has(i):oi.slice(i).some(v=>v>=0);
+  const pos=moved?(i===0?' FIRST':' AFTER '+qid(cols[i-1].name)):'';
+  if(!o){alt.push('ADD COLUMN '+def(c)+pos);return;}
   seen.add(o.name);
   const renamed=c.name!==o.name;
-  if(!renamed&&same(o,c))return;
+  if(!renamed&&!pos&&same(o,c))return;
   // A generated column's expression comes back from information_schema with its quoting
   // mangled on some versions, so rewriting it is not safe. Leave it, and say so.
-  if(o.keep&&o.keep.generated){notes.push('-- '+qid(o.name)+' is a generated column; change it with SQL, not the designer (left unchanged)');return;}
-  alt.push((renamed?'CHANGE COLUMN '+qid(o.name)+' ':'MODIFY COLUMN ')+colDef(c));
+  if(o.keep&&o.keep.generated){notes.push('-- '+qid(o.name)+' is a generated column; change or move it with SQL, not the designer (left unchanged)');return;}
+  alt.push((renamed?'CHANGE COLUMN '+qid(o.name)+' ':'MODIFY COLUMN ')+def(c)+pos);
  });
  orig.filter(o=>!seen.has(o.name)).forEach(o=>alt.push('DROP COLUMN '+qid(o.name)));
  // The key keeps the order it has: its own columns first, as they were, then any newly ticked.
@@ -8521,10 +8615,36 @@ function dAlterSql(orig,cols,tbl){
  const ticked=cols.filter(c=>c.pk),pkCols=[...oldOrder.map(n=>ticked.find(c=>was(c)===n)).filter(Boolean),...ticked.filter(c=>!oldOrder.includes(was(c)))];
  const oldPk=oldOrder.join(','),newPk=pkCols.map(was).join(',');
  if(oldPk!==newPk){if(oldPk)alt.push('DROP PRIMARY KEY');if(pkCols.length)alt.push('ADD PRIMARY KEY ('+pkCols.map(c=>qid(c.name)).join(',')+')');}
+ // Indexes and keys name columns as they are now; compared with what was read, a column renamed
+ // on the Columns tab counts as its old name, so the server's own renaming of it is enough.
+ const ren=new Map(cols.filter(c=>c.keep&&c.keep.origName!=null).map(c=>[c.name.toLowerCase(),c.keep.origName]));
+ const part=(t,map)=>dIdList(t).map(p=>((map&&ren.get(p.name.toLowerCase()))||p.name).toLowerCase()+'('+p.len+')'+(p.desc?'D':'')).join(',');
+ if(x.idx){const io=x.idxOrig||[];
+  const key=(ix,map)=>JSON.stringify([ix.name,ix.kind,ix.keep&&ix.keep.expr?ix.cols:part(ix.cols,map),ix.comment||'']);
+  io.forEach(o=>{const c=x.idx.find(i=>i.keep&&i.keep.origName===o.name);
+   if(!c||key(o,false)!==key(c,true)){alt.push('DROP INDEX '+qid(o.name));if(c)alt.push('ADD '+dIdxDef(c));}});
+  x.idx.filter(i=>!(i.keep&&i.keep.origName!=null&&io.some(o=>o.name===i.keep.origName))).forEach(i=>{if(i.cols.trim())alt.push('ADD '+dIdxDef(i));});}
+ if(x.fk){const fo=x.fkOrig||[],db=x.db;
+  const key=(f,map)=>{const r=dRefTbl(f.ref,db);return JSON.stringify([f.name,part(f.cols,map),r.db.toLowerCase(),r.name.toLowerCase(),part(f.refCols,false),f.onDel||'',f.onUpd||'']);};
+  fo.forEach(o=>{const c=x.fk.find(f=>f.keep&&f.keep.origName===o.name);
+   if(!c||key(o,false)!==key(c,true)){pre.push('DROP FOREIGN KEY '+qid(o.name));if(c)alt.push('ADD '+dFkDef(c,db));}});
+  x.fk.filter(f=>!(f.keep&&f.keep.origName!=null&&fo.some(o=>o.name===f.keep.origName))).forEach(f=>{if(f.cols.trim()&&f.ref.trim())alt.push('ADD '+dFkDef(f,db));});}
+ if(x.opt)alt.push(...dOptSql(x.opt,x.optOrig));
+ if(x.newTbl&&x.newTbl!==tbl)alt.push('RENAME TO '+x.newTbl);
  if(alt.length)notes.push(...dTsNotes(cols.filter(c=>{const on=c.keep&&c.keep.origName;const o=on!=null?orig.find(x=>x.name===on):null;return !o||alt.some(a=>a.includes(qid(c.name)));})));
  const head=notes.length?notes.join('\n')+'\n':'';
- return alt.length?head+'ALTER TABLE '+tbl+'\n  '+alt.join(',\n  ')+';':head+'-- no changes detected';
+ const out=[pre,alt].filter(a=>a.length).map(a=>'ALTER TABLE '+tbl+'\n  '+a.join(',\n  ')+';').join('\n');
+ return out?head+out:head+'-- no changes detected';
 }
+// The CREATE TABLE for a new table, with the other tabs as in dAlterSql.
+function dCreateSql(cols,tbl,x){x=x||{};const tc=x.opt&&x.opt.coll?x.opt.coll:null;
+ const tsn=dTsNotes(cols),pk=cols.filter(c=>c.pk).map(c=>qid(c.name));
+ const lines=cols.map(c=>colDef(c,tc));
+ if(pk.length)lines.push('PRIMARY KEY ('+pk.join(',')+')');
+ (x.idx||[]).filter(i=>i.cols.trim()).forEach(i=>lines.push(dIdxDef(i)));
+ (x.fk||[]).filter(f=>f.cols.trim()&&f.ref.trim()).forEach(f=>lines.push(dFkDef(f,x.db)));
+ const opts=x.opt?dOptSql(x.opt,{}).map(o=>o.replace(/^DEFAULT CHARACTER SET /,'DEFAULT CHARSET=').replace(/ COLLATE /,' COLLATE=')):[];
+ return (tsn.length?tsn.join('\n')+'\n':'')+'CREATE TABLE '+tbl+' (\n  '+lines.join(',\n  ')+'\n)'+(opts.length?' '+opts.join(' '):'')+';';}
 // With explicit_defaults_for_timestamp OFF (MariaDB's default before 10.10, and a setting some MySQL
 // servers keep), a TIMESTAMP NOT NULL written without a default is given DEFAULT CURRENT_TIMESTAMP ON
 // UPDATE CURRENT_TIMESTAMP when it is the table's first - measured on MySQL 8: a MODIFY that only
@@ -8534,11 +8654,25 @@ async function dReadTimestampMode(){window._dTsAuto=false;try{const r=await api(
 function dTsNotes(cols){if(typeof window==='undefined'||!window._dTsAuto)return [];
  return cols.filter(c=>c.type==='TIMESTAMP'&&c.nn&&(c.def==null||c.def==='')&&!(c.keep&&c.keep.onUpdate)&&!(c.keep&&c.keep.defSql!=null&&c.def===c.keep.defShown))
   .map(c=>'-- explicit_defaults_for_timestamp is OFF on this server: '+qid(c.name)+' as written here may be given DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP. Give it a default to prevent that.');}
-async function designTable(name,db){dEdited=false;await dReadTimestampMode();db=db||curSchema||'';$('dSchema').value=db;$('dName').value=name||'';$('dCols').innerHTML='';$('dLog').textContent='';dOrig=null;
+let dIdxOrig=null,dFkOrig=null,dOptOrig=null,dTblOrig=null;
+// The server's collations and engines, for the lists the collation and engine boxes offer, and
+// each collation's character set (dCsOf).
+async function dReadLists(){
+ if(!window._dCollCs){const r=await api('/api/query',{sql:'SHOW COLLATION'});if(r&&r.ok){window._dCollCs={};r.rows.forEach(x=>{if(x[0]&&x[1])window._dCollCs[String(x[0]).toLowerCase()]=String(x[1]);});
+  $('dCollList').innerHTML=Object.keys(window._dCollCs).sort().map(c=>'<option value="'+esc(c)+'">').join('');}}
+ const e=await api('/api/query',{sql:'SHOW ENGINES'});
+ if(e&&e.ok)$('dEngList').innerHTML=e.rows.filter(x=>/^(YES|DEFAULT)$/i.test(String(x[1]))).map(x=>'<option value="'+esc(x[0])+'">').join('');}
+async function designTable(name,db){dEdited=false;await dReadTimestampMode();db=db||curSchema||'';$('dSchema').value=db;$('dName').value=name||'';
+ ['dCols','dIdx','dFks'].forEach(id=>$(id).innerHTML='');$('dLog').textContent='';dOrig=dIdxOrig=dFkOrig=dOptOrig=dTblOrig=null;
+ $('dEngine').value='';$('dColl').value='';$('dTblComment').value='';dTab($('dTabs').querySelector('.dtab'));
+ await dReadLists();
  if(name){$('dTitle').textContent='Alter table';$('dMode').textContent='(existing - generates ALTER)';
    const r=await api('/api/query',{sql:"SELECT COLUMN_NAME,DATA_TYPE,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,COLUMN_KEY,COLUMN_COMMENT,CHARACTER_SET_NAME,COLLATION_NAME,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" ORDER BY ORDINAL_POSITION"});
-   const tc=await api('/api/query',{sql:"SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
+   const tc=await api('/api/query',{sql:"SELECT TABLE_COLLATION,ENGINE,TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)});
    const tableColl=tc.ok&&tc.rows[0]?tc.rows[0][0]:null;
+   dOptOrig={coll:tableColl||'',engine:tc.ok&&tc.rows[0]&&tc.rows[0][1]||'',comment:tc.ok&&tc.rows[0]&&tc.rows[0][2]||''};
+   $('dColl').value=dOptOrig.coll;$('dEngine').value=dOptOrig.engine;$('dTblComment').value=dOptOrig.comment;
+   dTblOrig={db,name};
    // What information_schema does not say about a column, the server's own CREATE line does: a
    // column-level CHECK (MariaDB writes one for every JSON column, json_valid) and MySQL's SRID. A
    // MODIFY built without them dropped both - invalid JSON was accepted afterwards, and a spatial
@@ -8554,31 +8688,69 @@ async function designTable(name,db){dEdited=false;await dReadTimestampMode();db=
    dOrig=[];if(pkOrder)dOrig.pkOrder=pkOrder;
    if(r.ok)r.rows.forEach(row=>{const col=dColFromInfo(row,!!window.mariadb,tableColl);if(pkOrder)col.pk=pkOrder.includes(col.name);dKeepFromCreate(col,lines[String(col.name).toLowerCase()]);dOrig.push(col);dAddCol(col);});
    else{$('dLog').textContent='Could not read the table: '+r.error;}
+   const st=await api('/api/query',{sql:"SELECT * FROM information_schema.STATISTICS WHERE TABLE_SCHEMA="+lit(db)+" AND TABLE_NAME="+lit(name)+" ORDER BY INDEX_NAME,SEQ_IN_INDEX"});
+   dIdxOrig=st.ok?dIdxFromStats(st.columns,st.rows):[];dIdxOrig.forEach(ix=>dAddIdx(ix));
+   const fk=await api('/api/query',{sql:"SELECT k.CONSTRAINT_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_SCHEMA,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,c.UPDATE_RULE,c.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k JOIN information_schema.REFERENTIAL_CONSTRAINTS c ON c.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND c.CONSTRAINT_NAME=k.CONSTRAINT_NAME AND c.TABLE_NAME=k.TABLE_NAME WHERE k.TABLE_SCHEMA="+lit(db)+" AND k.TABLE_NAME="+lit(name)+" AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME,k.ORDINAL_POSITION"});
+   dFkOrig=fk.ok?dFksFromInfo(fk.rows,db):[];dFkOrig.forEach(f=>dAddFk(f));
  } else {$('dTitle').textContent='Create table';$('dMode').textContent='(new - generates CREATE)';dAddCol({name:'id',type:'INT',len:'',nn:true,ai:true,pk:true,def:null,comment:''});dAddCol({name:'',type:'VARCHAR',len:'255',nn:false,ai:false,pk:false,def:null,comment:''});}
  dGen();show('mDesign');}
-function dAddCol(c){c=c||{name:'',type:'VARCHAR',len:'255',nn:false,ai:false,pk:false,def:null,comment:''};const tr=document.createElement('tr');
+function dTab(b){if(!b)return;$('dTabs').querySelectorAll('.dtab').forEach(t=>{const on=t===b;t.classList.toggle('on',on);$(t.dataset.p).style.display=on?'flex':'none';});}
+// UNSIGNED only for a number, a collation only for text: the boxes that do not apply are greyed.
+function dRowState(tr){const t=tr.querySelector('.dt').value;tr.querySelector('.dun').disabled=!D_NUMERIC.test(t);tr.querySelector('.dco').disabled=!D_TEXTY.test(t);}
+function dMove(b,by){const tr=b.closest('tr'),to=by<0?tr.previousElementSibling:tr.nextElementSibling;if(!to)return;if(by<0)to.before(tr);else to.after(tr);dGen();}
+// A column renamed on the Columns tab is renamed in the index and key lists too, as the server does.
+function dRenameRefs(from,to){if(!from||from===to)return;
+ document.querySelectorAll('#dIdx .dic:not(:disabled),#dFks .dfc').forEach(el=>{const p=dIdList(el.value);let hit=false;p.forEach(x=>{if(x.name.toLowerCase()===from.toLowerCase()){x.name=to;hit=true;}});if(hit)el.value=dIdText(p);});}
+function dAddCol(c){c=c||{name:'',type:'VARCHAR',len:'255',nn:false,ai:false,pk:false,def:null,comment:'',un:false,coll:''};const tr=document.createElement('tr');
  // A type the list does not carry (SET, TINYTEXT, GEOMETRY...) must still be offered, or the
  // select falls back to its first entry and the column is silently read back as INT.
  const types=DTYPES.includes(c.type)?DTYPES:DTYPES.concat([c.type]);
  tr.innerHTML='<td><input class="dn" value="'+esc(c.name)+'"></td><td><select class="dt">'+types.map(t=>'<option'+(t===c.type?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></td>'+
   '<td><input class="dl" value="'+esc(c.len==null?'':c.len)+'"></td><td><input type="checkbox" class="dnn"'+(c.nn?' checked':'')+'></td>'+
   '<td><input type="checkbox" class="dai"'+(c.ai?' checked':'')+'></td><td><input type="checkbox" class="dpk"'+(c.pk?' checked':'')+'></td>'+
-  '<td><input class="dd" value="'+esc(c.def==null?'':c.def)+'"></td><td><input class="dc" value="'+esc(c.comment||'')+'"></td>'+
-  '<td><button class="sm" title="Remove this column" onclick="this.closest(\'tr\').remove();dGen()">&times;</button></td>';
+  '<td><input type="checkbox" class="dun" title="UNSIGNED"'+(c.un?' checked':'')+'></td>'+
+  '<td><input class="dd" value="'+esc(c.def==null?'':c.def)+'"></td><td><input class="dco" list="dCollList" placeholder="(table\'s)" value="'+esc(c.coll||'')+'"></td><td><input class="dc" value="'+esc(c.comment||'')+'"></td>'+
+  '<td style="white-space:nowrap"><button class="sm" title="Move up" onclick="dMove(this,-1)">&#8593;</button><button class="sm" title="Move down" onclick="dMove(this,1)">&#8595;</button><button class="sm" title="Remove this column" onclick="this.closest(\'tr\').remove();dGen()">&times;</button></td>';
  tr._keep=c.keep||null;
- if(c.keep){const hint=[c.keep.mods,c.keep.cs&&('CHARACTER SET '+c.keep.cs),c.keep.onUpdate&&('ON UPDATE '+c.keep.onUpdate),c.keep.invisible&&'INVISIBLE',c.keep.generated&&'GENERATED'].filter(Boolean).join(', ');if(hint)tr.title='Kept as is: '+hint;}
- $('dCols').appendChild(tr);tr.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',dGen));}
+ if(c.keep){const hint=[/ZEROFILL/.test(c.keep.mods||'')&&'ZEROFILL',c.keep.onUpdate&&('ON UPDATE '+c.keep.onUpdate),c.keep.invisible&&'INVISIBLE',c.keep.generated&&'GENERATED'].filter(Boolean).join(', ');if(hint)tr.title='Kept as is: '+hint;}
+ $('dCols').appendChild(tr);dRowState(tr);
+ const nm=tr.querySelector('.dn');nm.dataset.prev=c.name||'';nm.addEventListener('change',()=>{dRenameRefs(nm.dataset.prev,nm.value.replace(/\s+$/,''));nm.dataset.prev=nm.value.replace(/\s+$/,'');});
+ tr.querySelector('.dt').addEventListener('change',()=>dRowState(tr));
+ tr.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',dGen));}
+const D_RULES=['','RESTRICT','CASCADE','SET NULL','NO ACTION','SET DEFAULT'];
+function dAddIdx(ix){ix=ix||{name:'',kind:'INDEX',cols:'',comment:''};const tr=document.createElement('tr'),expr=!!(ix.keep&&ix.keep.expr),dis=expr?' disabled':'';
+ tr.innerHTML='<td><input class="din" value="'+esc(ix.name)+'"'+dis+'></td><td><select class="dik"'+dis+'>'+Object.keys(D_IDXKW).map(k=>'<option'+(k===ix.kind?' selected':'')+'>'+k+'</option>').join('')+'</select></td>'+
+  '<td><input class="dic" placeholder="a, b(10) DESC" value="'+esc(ix.cols)+'"'+dis+'></td><td><input class="dim" value="'+esc(ix.comment||'')+'"'+dis+'></td>'+
+  '<td><button class="sm" title="Remove this index" onclick="this.closest(\'tr\').remove();dGen()">&times;</button></td>';
+ tr._keep=ix.keep||null;if(expr)tr.title='An index on an expression: change it with SQL. It can be removed here.';
+ $('dIdx').appendChild(tr);tr.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',dGen));}
+function dAddFk(f){f=f||{name:'',cols:'',ref:'',refCols:'',onDel:'RESTRICT',onUpd:'RESTRICT'};const tr=document.createElement('tr');
+ const rules=v=>(D_RULES.includes(v)?D_RULES:D_RULES.concat([v])).map(r=>'<option value="'+esc(r)+'"'+(r===v?' selected':'')+'>'+esc(r||'(server default)')+'</option>').join('');
+ tr.innerHTML='<td><input class="dfn" value="'+esc(f.name)+'"></td><td><input class="dfc" placeholder="a, b" value="'+esc(f.cols)+'"></td>'+
+  '<td><input class="dfr" placeholder="table or db.table" value="'+esc(f.ref)+'"></td><td><input class="dfrc" placeholder="id" value="'+esc(f.refCols)+'"></td>'+
+  '<td><select class="dfd">'+rules(f.onDel)+'</select></td><td><select class="dfu">'+rules(f.onUpd)+'</select></td>'+
+  '<td><button class="sm" title="Remove this foreign key" onclick="this.closest(\'tr\').remove();dGen()">&times;</button></td>';
+ tr._keep=f.keep||null;$('dFks').appendChild(tr);tr.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',dGen));}
 function dMark(){dEdited=true;$('dEditNote').textContent='✎ manually edited - auto-update paused; use Regenerate to rebuild';}
 // Names lose trailing spaces only - a name cannot end in one, but may begin with one, and trimming
 // both ends renamed a column called " a" to "a" on the next Apply. A comment is kept exactly as it
 // is: trimmed, it no longer matched the table's own, and any change to that column rewrote it.
-function dReadCols(){return [...$('dCols').children].map(tr=>({name:tr.querySelector('.dn').value.replace(/\s+$/,''),type:tr.querySelector('.dt').value,len:tr.querySelector('.dl').value.trim(),nn:tr.querySelector('.dnn').checked,ai:tr.querySelector('.dai').checked,pk:tr.querySelector('.dpk').checked,def:tr.querySelector('.dd').value,comment:tr.querySelector('.dc').value,keep:tr._keep||null})).filter(c=>c.name.trim());}
-function dGen(force){if(dEdited&&!force)return;const db=$('dSchema').value.replace(/\s+$/,''),name=$('dName').value.replace(/\s+$/,'');const cols=dReadCols();const pk=cols.filter(c=>c.pk).map(c=>qid(c.name));
+function dReadCols(){return [...$('dCols').children].map(tr=>({name:tr.querySelector('.dn').value.replace(/\s+$/,''),type:tr.querySelector('.dt').value,len:tr.querySelector('.dl').value.trim(),nn:tr.querySelector('.dnn').checked,ai:tr.querySelector('.dai').checked,pk:tr.querySelector('.dpk').checked,un:tr.querySelector('.dun').checked,def:tr.querySelector('.dd').value,coll:tr.querySelector('.dco').value.trim(),comment:tr.querySelector('.dc').value,keep:tr._keep||null})).filter(c=>c.name.trim());}
+function dReadIdx(){return [...$('dIdx').children].map(tr=>({name:tr.querySelector('.din').value.replace(/\s+$/,''),kind:tr.querySelector('.dik').value,cols:tr.querySelector('.dic').value,comment:tr.querySelector('.dim').value,keep:tr._keep||null}));}
+function dReadFks(){return [...$('dFks').children].map(tr=>({name:tr.querySelector('.dfn').value.replace(/\s+$/,''),cols:tr.querySelector('.dfc').value,ref:tr.querySelector('.dfr').value,refCols:tr.querySelector('.dfrc').value,onDel:tr.querySelector('.dfd').value,onUpd:tr.querySelector('.dfu').value,keep:tr._keep||null}));}
+function dGen(force){if(dEdited&&!force)return;const db=$('dSchema').value.replace(/\s+$/,''),name=$('dName').value.replace(/\s+$/,'');const cols=dReadCols();
  if(!name){$('dSql').value='-- enter a table name';return;}const tbl=qid(db)+'.'+qid(name);
- if(!dOrig){const tsn=dTsNotes(cols);let s=(tsn.length?tsn.join('\n')+'\n':'')+'CREATE TABLE '+tbl+' (\n  '+cols.map(colDef).join(',\n  ');if(pk.length)s+=',\n  PRIMARY KEY ('+pk.join(',')+')';s+='\n);';$('dSql').value=s;dEdited=false;$('dEditNote').textContent='';return;}
- $('dSql').value=dAlterSql(dOrig,cols,tbl);dEdited=false;$('dEditNote').textContent='';}
-async function dApply(){if(roBlock())return;const sql=$('dSql').value;$('dLog').textContent='Applying...';const r=await api('/api/script',{sql,db:curSchema});if(r.ok){$('dLog').textContent='Applied OK.';log('DESIGN OK');if(curSchema)loadObjects(curSchema);}else{const _n=ddlFailureNote(r.error,sql);$('dLog').textContent=_n;log('DESIGN error: '+_n);}}
-
+ const x={db,idx:dReadIdx(),fk:dReadFks(),opt:{engine:$('dEngine').value.trim(),coll:$('dColl').value.trim(),comment:$('dTblComment').value}};
+ if(!dOrig){$('dSql').value=dCreateSql(cols,tbl,x);dEdited=false;$('dEditNote').textContent='';return;}
+ // Changing the name or the database box renames (or moves) the table.
+ const otbl=qid(dTblOrig.db)+'.'+qid(dTblOrig.name);
+ Object.assign(x,{idxOrig:dIdxOrig,fkOrig:dFkOrig,optOrig:dOptOrig,newTbl:tbl});
+ $('dSql').value=dAlterSql(dOrig,cols,otbl,x);dEdited=false;$('dEditNote').textContent='';}
+// After an Apply the designer reads the table again, so a second Apply starts from what is there now.
+async function dApply(){if(roBlock())return;const sql=$('dSql').value;$('dLog').textContent='Applying...';const r=await api('/api/script',{sql,db:curSchema});
+ if(r.ok){log('DESIGN OK');if(curSchema)loadObjects(curSchema);const db=$('dSchema').value.replace(/\s+$/,''),name=$('dName').value.replace(/\s+$/,'');
+  if(name)await designTable(name,db);$('dLog').textContent='Applied OK.';}
+ else{const _n=ddlFailureNote(r.error,sql);$('dLog').textContent=_n;log('DESIGN error: '+_n);}}
 // ---- export/import ----
 // [key, label, default, what it does, group, the mysqldump option]. Include is always on show; the
 // other groups sit under Advanced options, where their defaults rarely need changing.
