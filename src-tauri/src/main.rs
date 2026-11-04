@@ -344,8 +344,9 @@ fn running_compare_conns() -> &'static Mutex<CompareConnMap> {
     static MAP: OnceLock<Mutex<CompareConnMap>> = OnceLock::new();
     MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
 }
-fn register_compare_conn(rid: &Option<String>, conn: &mut Conn, connj: &Value) {
+fn register_compare_conn(rid: &Option<String>, conn: &mut PConn, connj: &Value) {
     let Some(r) = rid else { return };
+    conn.not_again();
     if let Ok((_c, rows)) = run_select(conn, "SELECT CONNECTION_ID()") {
         if let Some(cid) = rows.first().and_then(|row| row.first()).cloned().flatten().and_then(|s| s.parse::<u64>().ok()) {
             running_compare_conns().lock().unwrap().entry(r.clone()).or_default().push((cid, connj.clone()));
@@ -651,7 +652,8 @@ fn open_tunnel_on(local: u16, ssh_host: &str, ssh_port: u16, ssh_user: &str, key
     Ok(Tunnel { child, port: local })
 }
 
-fn build_conn(connj: &Value) -> Result<Conn, String> {
+// A new connection, and the statements it runs on opening (the pool runs them again after a reset).
+fn open_conn(connj: &Value) -> Result<(Conn, Vec<String>), String> {
     let resolved = resolve_saved(connj);
     let connj = &resolved;
     let (host, port) = endpoint(connj)?;
@@ -674,7 +676,7 @@ fn build_conn(connj: &Value) -> Result<Conn, String> {
         // this in mind. Reads, temporary tables and the app's own session settings are unaffected.
         init.push("SET SESSION TRANSACTION READ ONLY".into());
     }
-    if !init.is_empty() { ob = ob.init(init); }
+    if !init.is_empty() { ob = ob.init(init.clone()); }
     // "default" is what the MySQL and MariaDB clients call PREFERRED: encrypted whenever the server
     // offers TLS, the certificate not checked. It used to mean plaintext here, always - passwords
     // and rows went over the wire in the clear to servers that offered TLS, while Export and
@@ -694,12 +696,110 @@ fn build_conn(connj: &Value) -> Result<Conn, String> {
     if ssl == "default" {
         let tls = ob.clone().ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true))).enable_cleartext_plugin(clear_ok);
         match Conn::new(Opts::from(tls)) {
-            Ok(c) => return Ok(c),
+            Ok(c) => return Ok((c, init)),
             Err(e) if tls_was_the_problem(&e) => {}
             Err(e) => return Err(explain_conn_error(ssl, ca.is_some(), &e.to_string())),
         }
     }
-    Conn::new(Opts::from(ob)).map_err(|e| explain_conn_error(ssl, ca.is_some(), &e.to_string()))
+    Conn::new(Opts::from(ob)).map(|c| (c, init)).map_err(|e| explain_conn_error(ssl, ca.is_some(), &e.to_string()))
+}
+
+// ---------- The pool of connections for everything but a tab's runs ----------
+// A tab's runs have a connection of their own (see "The connection a tab keeps"). Everything else -
+// the sidebar's lists, the designer, the Overview, a grid's save - used to open a new connection
+// for every request: a TCP connect, a TLS handshake and a sign-in each time, and over SSH a round
+// trip more for each. Now a connection is handed back when the request is done and the next
+// request to the same server with the same settings takes it.
+//
+// What a request leaves behind must not reach the next one, so a connection is cleaned before it
+// goes back: COM_RESET_CONNECTION rolls back a transaction, releases table and GET_LOCK locks,
+// drops temporary tables and @variables and puts every session setting back to the server's
+// (max_execution_time, sql_mode, foreign_key_checks...); the connection's own opening statements
+// (time zone, SET NAMES, read-only) are then run again. A reset keeps the database a USE picked,
+// and a request that names no database must not run in one, so a connection that has one is
+// signed in again instead (COM_CHANGE_USER), which leaves none. That is done on a thread of its
+// own after the request has answered, so it costs the request nothing. A connection that fails
+// any of it is closed instead of kept.
+//
+// A connection idle for more than a few seconds is pinged before it is handed out (the server's
+// wait_timeout, a dropped network or tunnel); one idle for a minute is closed, so the app does not
+// sit on server connections it is not using. Connections are keyed by the connection's settings as
+// they resolve - address, user, password, TLS, SSH, read-only - so an edited connection never gets
+// one opened with its old settings.
+const POOL_IDLE_PER_KEY: usize = 4;
+const POOL_IDLE_SECS: u64 = 60;
+const POOL_PING_AFTER_SECS: u64 = 5;
+struct PoolIdle { c: Conn, init: Vec<String>, since: std::time::Instant }
+fn pool() -> &'static Mutex<std::collections::HashMap<String, Vec<PoolIdle>>> {
+    static MAP: OnceLock<Mutex<std::collections::HashMap<String, Vec<PoolIdle>>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+fn pool_key(resolved: &Value) -> String { resolved.to_string() }
+// The connections idle too long, taken out; closed by the caller once the lock is let go.
+fn pool_expired(m: &mut std::collections::HashMap<String, Vec<PoolIdle>>) -> Vec<Conn> {
+    let mut out = Vec::new();
+    for v in m.values_mut() {
+        let mut keep = Vec::new();
+        for i in v.drain(..) { if i.since.elapsed().as_secs() >= POOL_IDLE_SECS { out.push(i.c); } else { keep.push(i); } }
+        *v = keep;
+    }
+    m.retain(|_, v| !v.is_empty());
+    out
+}
+fn pool_take(key: &str) -> Option<(Conn, Vec<String>)> {
+    loop {
+        let (idle, old) = {
+            let mut m = pool().lock().unwrap();
+            let old = pool_expired(&mut m);
+            (m.get_mut(key).and_then(|v| v.pop()), old)
+        };
+        drop(old);
+        let mut i = idle?;
+        if i.since.elapsed().as_secs() < POOL_PING_AFTER_SECS || i.c.ping().is_ok() { return Some((i.c, i.init)); }
+    }
+}
+// Every idle connection to a server, closed: a Connect starts from new ones.
+fn pool_forget(key: &str) {
+    let gone = pool().lock().unwrap().remove(key);
+    drop(gone);
+}
+// Clean a connection for the next request; false if it cannot be (it is then closed, not kept).
+fn pool_clean(c: &mut Conn, init: &[String]) -> bool {
+    let db: Option<Option<String>> = match c.query_first("SELECT DATABASE()") { Ok(v) => v, Err(_) => return false };
+    if matches!(db, Some(Some(_))) {
+        if c.change_user(mysql::ChangeUserOpts::DEFAULT).is_err() { return false; }
+        init.iter().all(|s| c.query_drop(s).is_ok())
+    } else {
+        // reset() runs the opening statements again itself.
+        c.reset().is_ok()
+    }
+}
+fn pool_give_back(key: String, init: Vec<String>, mut c: Conn) {
+    std::thread::spawn(move || {
+        if !pool_clean(&mut c, &init) { return; }
+        let mut m = pool().lock().unwrap();
+        let v = m.entry(key).or_default();
+        if v.len() < POOL_IDLE_PER_KEY { v.push(PoolIdle { c, init, since: std::time::Instant::now() }); }
+    });
+}
+// A connection from the pool, or a new one. Used as a Conn; dropped, it goes back to the pool.
+struct PConn { c: Option<Conn>, key: String, init: Vec<String>, again: bool }
+impl std::ops::Deref for PConn { type Target = Conn; fn deref(&self) -> &Conn { self.c.as_ref().unwrap() } }
+impl std::ops::DerefMut for PConn { fn deref_mut(&mut self) -> &mut Conn { self.c.as_mut().unwrap() } }
+impl Drop for PConn { fn drop(&mut self) { if let Some(c) = self.c.take().filter(|_| self.again) { pool_give_back(std::mem::take(&mut self.key), std::mem::take(&mut self.init), c); } } }
+impl PConn {
+    // The connection itself, for something that keeps it (a cursor's thread); it is not given back.
+    fn detach(mut self) -> Conn { self.c.take().unwrap() }
+    // Closed when done rather than given back: a Cancel holds its id and may still KILL QUERY on it
+    // after the request is over, which must not land on whatever request took it next.
+    fn not_again(&mut self) { self.again = false; }
+}
+fn build_conn(connj: &Value) -> Result<PConn, String> {
+    let resolved = resolve_saved(connj);
+    let key = pool_key(&resolved);
+    if let Some((c, init)) = pool_take(&key) { return Ok(PConn { c: Some(c), key, init, again: true }); }
+    let (c, init) = open_conn(&resolved)?;
+    Ok(PConn { c: Some(c), key, init, again: true })
 }
 
 // Whether a connection failed at TLS rather than anywhere after it: the server offers none, or the
@@ -1110,23 +1210,25 @@ fn sess_checkout(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> 
 }
 // A new connection for a session already registered as busy under `id`; a failure unregisters it.
 fn sess_open(id: &str, connj: &Value, tx: bool) -> Result<SessConn, String> {
-    let opened = build_conn(connj).and_then(|mut c| if tx { c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err) } else { Ok(c) });
+    // Its own connection, not the pool's: the session keeps it.
+    let opened = open_conn(connj).map(|(c, _)| c).and_then(|mut c| if tx { c.query_drop("SET autocommit=0").map(|_| c).map_err(db_err) } else { Ok(c) });
     match opened {
         Ok(c) => Ok(SessConn { id: id.to_string(), c: Some(c), tx }),
         Err(e) => { sessions().lock().unwrap().remove(id); Err(e) }
     }
 }
 // Where a command's connection comes from: the tab's session when it names one, else a new one.
-enum Db { Own(Conn), Sess(SessConn) }
+enum Db { Own(PConn), Sess(SessConn) }
 impl std::ops::Deref for Db { type Target = Conn; fn deref(&self) -> &Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
 impl std::ops::DerefMut for Db { fn deref_mut(&mut self) -> &mut Conn { match self { Db::Own(c) => c, Db::Sess(s) => s } } }
 impl Db {
     fn in_session(&self) -> bool { matches!(self, Db::Sess(_)) }
+    fn not_again(&mut self) { if let Db::Own(c) = self { c.not_again(); } }
     // In the tab's own transaction, rather than only on its kept connection.
     fn in_tx(&self) -> bool { matches!(self, Db::Sess(s) if s.tx) }
     // The connection itself, for a cursor thread to own, and the session to hand it back to.
     fn into_parts(self) -> (Conn, Option<String>) {
-        match self { Db::Own(c) => (c, None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
+        match self { Db::Own(c) => (c.detach(), None), Db::Sess(mut s) => { let c = s.c.take().unwrap(); (c, Some(s.id.clone())) } }
     }
 }
 // The time limit a saved connection gives the statements run from the editor, in seconds; 0 for
@@ -1865,6 +1967,9 @@ fn friendly_dump_err(raw: &str) -> String {
 #[tauri::command]
 async fn connect(req: Value) -> R {
     tokio::task::spawn_blocking(move || {
+        // Connect is a real sign-in: the idle connections to this server are closed, so a changed
+        // password or a restarted server shows here rather than on some later request.
+        pool_forget(&pool_key(&resolve_saved(&req["conn"])));
         let mut c = match build_conn(&req["conn"]) { Ok(c) => c, Err(e) => return Ok(json!({"ok":false,"error":format!("Connection failed: {}", e)})) };
         match c.query_first::<String, _>("SELECT VERSION()") {
             Ok(Some(v)) => Ok(json!({"ok":true,"version":v,"mariadb":v.contains("MariaDB")})),
@@ -2128,6 +2233,7 @@ async fn query(req: Value) -> R {
             if let Ok((_cols, rows)) = run_select(&mut c, "SELECT CONNECTION_ID()") {
                 if let Some(cid) = rows.first().and_then(|r| r.first()).cloned().flatten().and_then(|s| s.parse::<u64>().ok()) {
                     running_queries().lock().unwrap().insert(rid.clone(), (cid, req["conn"].clone()));
+                    c.not_again();
                 }
             }
         }
@@ -2849,6 +2955,7 @@ async fn script_results(req: Value) -> R {
             if let Ok((_c, rows)) = run_select(&mut c, "SELECT CONNECTION_ID()") {
                 if let Some(cid) = rows.first().and_then(|r| r.first()).cloned().flatten().and_then(|s| s.parse::<u64>().ok()) {
                     running_queries().lock().unwrap().insert(rid.clone(), (cid, req["conn"].clone()));
+                    c.not_again();
                 }
             }
         }
@@ -9114,6 +9221,115 @@ mod conn_loss_tests {
         false
     }
 
+    // ---- The pool ----
+    // Each test uses a connection of its own settings (a distinct dummy key in the JSON), so the
+    // tests do not take each other's connections.
+    fn pool_conn(tag: &str) -> Value { let mut c = dsn_json().unwrap(); c["poolTest"] = json!(tag); c }
+    // Waits for a connection handed back to be cleaned and kept.
+    fn pooled(connj: &Value) -> usize {
+        let key = pool_key(&resolve_saved(connj));
+        for _ in 0..100 {
+            let n = pool().lock().unwrap().get(&key).map(|v| v.len()).unwrap_or(0);
+            if n > 0 { return n; }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        0
+    }
+    fn id_of(c: &mut Conn) -> u64 { c.query_first::<u64, _>("SELECT CONNECTION_ID()").unwrap().unwrap() }
+
+    #[test]
+    #[ignore]
+    fn the_pool_hands_a_connection_back_cleaned() {
+        if dsn_json().is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return }
+        exec("CREATE DATABASE IF NOT EXISTS nobs_test");
+        exec("DROP TABLE IF EXISTS nobs_test.pool_t");
+        exec("CREATE TABLE nobs_test.pool_t (id INT PRIMARY KEY) ENGINE=InnoDB");
+        let cj = pool_conn("clean");
+        let global_mode: String = build_conn(&dsn_json().unwrap()).unwrap().query_first("SELECT @@GLOBAL.sql_mode").unwrap().unwrap();
+
+        // Everything a request could leave behind in its session.
+        let mut c = build_conn(&cj).unwrap();
+        let first = id_of(&mut c);
+        for s in ["SET @x = 1", "SET SESSION sql_mode = 'ALLOW_INVALID_DATES'",
+                  "CREATE TEMPORARY TABLE nobs_test.pool_tmp (a INT)", "USE nobs_test",
+                  "START TRANSACTION", "INSERT INTO pool_t VALUES (1)", "DO GET_LOCK('nobs_pool_lock', 0)"] {
+            c.query_drop(s).unwrap_or_else(|e| panic!("{s}: {e}"));
+        }
+        drop(c);
+        assert_eq!(pooled(&cj), 1, "a connection that was used is kept for the next request");
+
+        let mut c = build_conn(&cj).unwrap();
+        assert_eq!(id_of(&mut c), first, "the next request to the same server takes it");
+        let row: (Option<i64>, Option<String>, String, i64) = c.query_first(
+            "SELECT @x, DATABASE(), @@SESSION.sql_mode, IS_FREE_LOCK('nobs_pool_lock')").unwrap().unwrap();
+        assert_eq!(row, (None, None, global_mode, 1), "@variables, the database, session settings and locks are gone");
+        assert!(c.query_drop("SELECT * FROM nobs_test.pool_tmp").is_err(), "the temporary table is gone");
+        assert_eq!(count("SELECT COUNT(*) FROM nobs_test.pool_t"), 0, "the open transaction was rolled back, not committed");
+        drop(c);
+        exec("DROP TABLE IF EXISTS nobs_test.pool_t");
+    }
+
+    #[test]
+    #[ignore]
+    fn a_pooled_connection_keeps_its_opening_settings() {
+        if dsn_json().is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return }
+        exec("CREATE DATABASE IF NOT EXISTS nobs_test");
+        exec("CREATE TABLE IF NOT EXISTS nobs_test.pool_ro (id INT)");
+        // Browsing in latin1 opens the connection with SET NAMES latin1 and read-only.
+        let mut cj = pool_conn("settings"); cj["charset"] = json!("latin1"); cj["utc"] = json!(true);
+        let mut c = build_conn(&cj).unwrap();
+        let first = id_of(&mut c);
+        c.query_drop("SET NAMES utf8mb4").unwrap();
+        c.query_drop("SET time_zone = '+05:00'").unwrap();
+        drop(c);
+        assert_eq!(pooled(&cj), 1);
+        let mut c = build_conn(&cj).unwrap();
+        assert_eq!(id_of(&mut c), first);
+        let row: (String, String) = c.query_first("SELECT @@character_set_client, @@time_zone").unwrap().unwrap();
+        assert_eq!(row, ("latin1".to_string(), "+00:00".to_string()), "the opening statements ran again");
+        assert!(c.query_drop("INSERT INTO nobs_test.pool_ro VALUES (1)").is_err(), "and it is still read-only");
+        drop(c);
+        exec("DROP TABLE IF EXISTS nobs_test.pool_ro");
+    }
+
+    #[test]
+    #[ignore]
+    fn a_connection_that_died_while_idle_is_not_handed_out() {
+        if dsn_json().is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return }
+        let cj = pool_conn("dead");
+        let mut c = build_conn(&cj).unwrap();
+        let first = id_of(&mut c);
+        drop(c);
+        assert_eq!(pooled(&cj), 1);
+        exec(&format!("KILL {first}"));
+        // Pinged only once it has been idle a while.
+        std::thread::sleep(std::time::Duration::from_secs(POOL_PING_AFTER_SECS + 1));
+        let mut c = build_conn(&cj).unwrap();
+        assert_ne!(id_of(&mut c), first, "a new connection, not the dead one");
+    }
+
+    #[test]
+    #[ignore]
+    fn connections_are_kept_apart_by_settings_and_a_cancellable_one_is_not_kept() {
+        if dsn_json().is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return }
+        let (a, b) = (pool_conn("apart-a"), pool_conn("apart-b"));
+        let mut c = build_conn(&a).unwrap();
+        let first = id_of(&mut c);
+        drop(c);
+        assert_eq!(pooled(&a), 1);
+        let mut c = build_conn(&b).unwrap();
+        assert_ne!(id_of(&mut c), first, "a connection with other settings does not get it");
+        drop(c);
+
+        let cj = pool_conn("cancellable");
+        let mut c = build_conn(&cj).unwrap();
+        c.not_again();
+        drop(c);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert_eq!(pool().lock().unwrap().get(&pool_key(&resolve_saved(&cj))).map(|v| v.len()).unwrap_or(0), 0,
+            "a connection a Cancel may still KILL QUERY on is closed, not kept");
+    }
+
     #[tokio::test]
     #[ignore]
     async fn a_connection_lost_mid_batch_leaves_nothing_behind() {
@@ -9529,7 +9745,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
         let Some(ca) = server_ca() else { eprintln!("NOBS_TEST_SERVER_CA not set - skipping"); return };
         let Some(right) = conn_with("verify-ca", &ca) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
         let c = build_conn(&right).unwrap_or_else(|e| panic!("ssl=verify-ca refused the server's own CA: {e}"));
-        assert!(!cipher(c).is_empty(), "ssl=verify-ca connected, but not over TLS");
+        assert!(!cipher(c.detach()).is_empty(), "ssl=verify-ca connected, but not over TLS");
 
         let wrong_file = unrelated_ca_file();
         let wrong = conn_with("verify-ca", &wrong_file.path().to_string_lossy()).unwrap();
@@ -9547,7 +9763,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
         let Some(conn) = conn_with("verify", &ca) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
         match build_conn(&conn) {
             // A server whose certificate really does name this host: nothing to explain.
-            Ok(c) => assert!(!cipher(c).is_empty(), "ssl=verify connected, but not over TLS"),
+            Ok(c) => assert!(!cipher(c.detach()).is_empty(), "ssl=verify connected, but not over TLS"),
             Err(e) => {
                 if e.contains("CN name does not match") {
                     assert!(e.contains("verify-ca"),
@@ -9567,7 +9783,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
         let wrong_file = unrelated_ca_file();
         let Some(conn) = conn_with("required", &wrong_file.path().to_string_lossy()) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
         let c = build_conn(&conn).expect("ssl=required must connect whatever CA is configured - it verifies nothing");
-        assert!(!cipher(c).is_empty(), "ssl=required connected but not over TLS");
+        assert!(!cipher(c.detach()).is_empty(), "ssl=required connected but not over TLS");
     }
 
     // A CA file that is not there must fail as a missing FILE. That is also what shows the path is
