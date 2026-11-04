@@ -13,7 +13,8 @@ INSERT INTO ${DB}.m VALUES (1,'a','x'),(2,'b','y'),(3,'c','z');`);
     const row = id => t.rows.findIndex(r => String(r[0]) === id);
     const tr = ri => $('res_' + i).querySelector('tbody tr[data-r="' + ri + '"]');
     const marked = sel => [...$('res_' + i).querySelectorAll(sel)];
-    const head = () => marked('thead th.kbcol').map(th => th.innerText.trim());
+    // A header cell holds the column's name, then its type.
+    const head = () => marked('thead th.kbcol').map(th => th.innerText.trim().split(/\s/)[0]);
     const rowsMarked = cls => marked('tbody tr.' + cls).map(r => +r.dataset.r).sort();
 
     gridSetFocus(i, row('2'), 1);

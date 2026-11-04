@@ -11,7 +11,7 @@
   const run = async sql => { $('ed_' + i).value = sql; await runTab(i, true); await G.until(() => !T(i).runningReqId, 20000); await G.wait(300); };
   try {
     setHistOn(true);
-    await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB}; CREATE TABLE ${DB}.h (id INT PRIMARY KEY);`);
+    await G.run(`DROP DATABASE IF EXISTS ${DB}; CREATE DATABASE ${DB}; CREATE TABLE ${DB}.h (id INT PRIMARY KEY, v VARCHAR(30));`);
     i = openTab('hist', '', DB, false, null);
 
     await run(`SELECT 1 AS a /* ${MARK} q */`);
@@ -19,7 +19,7 @@
     G.check('a query the user runs is kept', !!e, await mine());
     G.eq('with what came of it', e && [e.o, e.rows, e.db, e.conn, e.tab, typeof e.ms, typeof e.ts], ['ok', 1, DB, histConn(), T(i).title, 'number', 'number']);
 
-    await run(`INSERT INTO ${DB}.h VALUES (1),(2),(3) /* ${MARK} w */`);
+    await run(`INSERT INTO ${DB}.h (id) VALUES (1),(2),(3) /* ${MARK} w */`);
     e = (await mine()).find(x => x.sql.includes(MARK + ' w'));
     G.eq('a write, with the rows it changed', e && [e.o, e.affected], ['ok', 3]);
 
@@ -61,6 +61,22 @@
     [...rows()[0].querySelectorAll('button')].find(b => /^Delete/.test(b.textContent)).click();
     for (let k = 0; k < 50 && (await mine()).some(x => x.sql.includes(MARK + ' q')); k++) await G.wait(100);
     G.check('Delete takes both runs of it out', !(await mine()).some(x => x.sql.includes(MARK + ' q')), '');
+
+    // A grid edit saved with Apply is the user's too, kept with what came of it.
+    const g = await G.openTable(DB, 'h'), vi = g.cols.indexOf('v'), r1 = g.rows.findIndex(r => String(r[0]) === '1');
+    const applied = async label => { for (let k = 0; k < 50 && !(await mine()).some(x => x.sql.includes(label)); k++) await G.wait(100); return (await mine()).find(x => x.sql.includes(label)); };
+    g.pending.upd[r1 + ':' + vi] = MARK + ' ap';
+    G.check('Apply saves the edit', await applyChanges(g.id), '');
+    e = await applied(MARK + ' ap');
+    G.check('the UPDATE Apply ran is kept, without the row guard', e && e.o === 'ok' && /^UPDATE/.test(e.sql) && !/nobs_guard/.test(e.sql) && e.db === DB, e);
+    await G.until(() => !g.runningReqId, 20000);
+    g.pending.upd[g.rows.findIndex(r => String(r[0]) === '1') + ':' + vi] = MARK + ' toolong' + 'x'.repeat(20);
+    G.take();
+    G.check('an edit too long for its column is refused', !(await applyChanges(g.id)), '');
+    G.check('and the user is told', G.take().t.some(m => /^ERR Apply failed: .*too long/i.test(m)), '');
+    e = await applied(MARK + ' toolong');
+    G.check('and is kept as an error, with the message', e && e.o === 'err' && /too long|1406/i.test(e.err), e);
+    g.pending.upd = {}; closeTab(g.id);
   } finally {
     setHistOn(wasOn);
     const left = await mine(); if (left.length) await api('/api/hist-delete', { ids: left.map(x => x.id) });
