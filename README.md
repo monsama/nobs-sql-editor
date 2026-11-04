@@ -221,8 +221,8 @@ Export files are kept wherever you saved them.
   is being written to. Two tables whose names give the same file name get two files.
 - **Schema sync writes each column as the source server defines it**, including its character
   set, collation, comment and generated expression.
-- **Binary values are shown and saved as `0x…` hex**, byte for byte - BLOB, BINARY, BIT, spatial
-  types and MySQL 9's VECTOR.
+- **Binary values are shown and saved as `0x…` hex**, byte for byte - BLOB, BINARY, spatial types
+  and MySQL 9's VECTOR. BIT is shown and edited as a number.
 
 ## SSL / TLS
 
