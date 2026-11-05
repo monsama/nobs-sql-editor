@@ -714,8 +714,12 @@ fn open_conn(connj: &Value) -> Result<(Conn, Vec<String>), String> {
 // What a request leaves behind must not reach the next one, so a connection is cleaned before it
 // goes back: COM_RESET_CONNECTION rolls back a transaction, releases table and GET_LOCK locks,
 // drops temporary tables and @variables and puts every session setting back to the server's
-// (max_execution_time, sql_mode, foreign_key_checks...); the connection's own opening statements
-// (time zone, SET NAMES, read-only) are then run again. A reset keeps the database a USE picked,
+// (max_execution_time, sql_mode, foreign_key_checks...). That takes the character set too, on
+// servers whose default is not what the connection signed in with (latin1 on a stock 5.7 or 10.2),
+// and text would then read garbled and be written double-encoded, so what it opened with is read
+// then and set again; the connection's own opening statements (time zone, SET NAMES, read-only)
+// are run again after it.
+// A reset keeps the database a USE picked,
 // and a request that names no database must not run in one, so a connection that has one is
 // signed in again instead (COM_CHANGE_USER), which leaves none. That is done on a thread of its
 // own after the request has answered, so it costs the request nothing. A connection that fails
@@ -766,13 +770,11 @@ fn pool_forget(key: &str) {
 // Clean a connection for the next request; false if it cannot be (it is then closed, not kept).
 fn pool_clean(c: &mut Conn, init: &[String]) -> bool {
     let db: Option<Option<String>> = match c.query_first("SELECT DATABASE()") { Ok(v) => v, Err(_) => return false };
-    if matches!(db, Some(Some(_))) {
-        if c.change_user(mysql::ChangeUserOpts::DEFAULT).is_err() { return false; }
-        init.iter().all(|s| c.query_drop(s).is_ok())
-    } else {
-        // reset() runs the opening statements again itself.
-        c.reset().is_ok()
-    }
+    let cleaned = if matches!(db, Some(Some(_))) { c.change_user(mysql::ChangeUserOpts::DEFAULT) } else { c.reset() };
+    if cleaned.is_err() { return false; }
+    // reset() has run these already, but not on every path, and they are cheap to repeat; build_conn
+    // put the character set first among them, which the plain opening statements do not hold.
+    init.iter().all(|s| c.query_drop(s).is_ok())
 }
 fn pool_give_back(key: String, init: Vec<String>, mut c: Conn) {
     std::thread::spawn(move || {
@@ -798,7 +800,11 @@ fn build_conn(connj: &Value) -> Result<PConn, String> {
     let resolved = resolve_saved(connj);
     let key = pool_key(&resolved);
     if let Some((c, init)) = pool_take(&key) { return Ok(PConn { c: Some(c), key, init, again: true }); }
-    let (c, init) = open_conn(&resolved)?;
+    let (mut c, mut init) = open_conn(&resolved)?;
+    // Read, not assumed: which collation a sign-in ends up with is the server's to say (MariaDB 11.5
+    // and later answer utf8mb4 with uca1400), and it decides how strings compare.
+    let names: Option<(String, String)> = c.query_first("SELECT @@character_set_client, @@collation_connection").map_err(|e| e.to_string())?;
+    if let Some((cs, coll)) = names { init.insert(0, format!("SET NAMES {cs} COLLATE {coll}")); }
     Ok(PConn { c: Some(c), key, init, again: true })
 }
 
@@ -9290,6 +9296,34 @@ mod conn_loss_tests {
         assert!(c.query_drop("INSERT INTO nobs_test.pool_ro VALUES (1)").is_err(), "and it is still read-only");
         drop(c);
         exec("DROP TABLE IF EXISTS nobs_test.pool_ro");
+    }
+
+    // A reset puts the character set back to the server's default, not to the one the connection
+    // opened with, on servers where those differ: latin1 on a stock 5.7 or 10.2. Text then reads
+    // garbled, and is written double-encoded.
+    #[test]
+    #[ignore]
+    fn a_cleaned_connection_keeps_the_character_set_it_opened_with() {
+        if dsn_json().is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return }
+        exec("CREATE DATABASE IF NOT EXISTS nobs_test");
+        type Names = (String, String, String, String);
+        let names = |c: &mut PConn| -> Names { c.query_first("SELECT @@character_set_client, @@character_set_connection, @@character_set_results, @@collation_connection").unwrap().unwrap() };
+        let cj = pool_conn("charset");
+        let mut c = build_conn(&cj).unwrap();
+        let (first, opened) = (id_of(&mut c), names(&mut c));
+        assert_eq!(opened.0, "utf8mb4");
+        drop(c);
+        assert_eq!(pooled(&cj), 1);
+        let mut c = build_conn(&cj).unwrap();
+        assert_eq!(id_of(&mut c), first);
+        assert_eq!(names(&mut c), opened, "after a reset");
+        // With a database picked it is signed in again instead, the other way of cleaning.
+        c.query_drop("USE nobs_test").unwrap();
+        drop(c);
+        assert_eq!(pooled(&cj), 1);
+        let mut c = build_conn(&cj).unwrap();
+        assert_eq!(id_of(&mut c), first);
+        assert_eq!(names(&mut c), opened, "after signing in again");
     }
 
     #[test]
