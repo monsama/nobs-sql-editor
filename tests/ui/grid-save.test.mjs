@@ -44,12 +44,12 @@ const bundle = extractConst(html, 'ONE_ROW_REFUSED') + '\n' + NAMES.map(n => ext
     : 'function warnFromWrites(){return [];}function warnText(){return "";}function warnLine(){return "";}');
 
 async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, reply = { ok: true }, session, preview, modeOf, anyway }) {
-  const sent = [], toasts = [], sessions = [], shown = [], opened = [], requests = [], runWarn = [];
+  const sent = [], toasts = [], sessions = [], shown = [], opened = [], requests = [], runWarn = [], logged = [], hist = [];
   const win = { noBackslashEscapes: false };
   const t = { db: 'd', table: 't', cols, pk, rows, binCols: [], exact: true,
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
-    roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, runLog: () => {}, invalidateTableCache: () => {},
+    roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, runLog: (id, m) => logged.push(m), histStart: (tab, sql) => { const h = { sql }; hist.push(h); return h; }, histKeep: () => {}, clip: s => s, invalidateTableCache: () => {},
     openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession, sessFree: async () => {},
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
@@ -62,7 +62,7 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
   };
   const keys = Object.keys(env);
   const result = await new Function(...keys, bundle + '\nreturn applyChanges;')(...keys.map(k => env[k]))('x', preview, anyway);
-  return { win, sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending, opened, requests, runWarn };
+  return { win, sql: sent.join('\n'), stmts: sent.length ? sent[0].split('\n') : [], toasts, sessions, shown, result, pending: t.pending, opened, requests, runWarn, logged, hist };
 }
 const guardOf = where => 'SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE (SELECT COUNT(*) FROM `d`.`t` WHERE ' + where + ') <> 1 INTO @nobs_one_row;';
 
@@ -152,6 +152,8 @@ test('Show SQL shows exactly what Apply would run, and runs nothing', async () =
 // A value the server would store otherwise than typed - cut short under a sql_mode without
 // STRICT_TRANS_TABLES - stops the save, and the warnings are shown with a way to apply anyway.
 const truncated = { statement: 2, level: 'Warning', code: 1265, message: "Data truncated for column 'v' at row 1" };
+// As shown: numbered among the user's statements, without the row guard before it.
+const truncatedShown = { ...truncated, statement: 1 };
 const warnSkip = hasWarnings ? false : 'this edition does not read the server\'s warnings yet';
 const oneEdit = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'a very long value' }, types: { id: 'int', v: 'varchar' } };
 
@@ -166,8 +168,9 @@ test('a save the server warned about is not kept, and the warnings are shown', {
   assert.equal(r.result, false, 'Commit must not go on');
   assert.deepEqual(Object.keys(r.pending.upd), ['0:1'], 'the edit is still pending');
   assert.equal(r.opened.length, 1);
-  assert.deepEqual(r.opened[0].ws, [truncated]);
-  assert.match(r.opened[0].stmts[1], /^UPDATE `d`\.`t` SET `v`='a very long value'/, 'the list can name the statement');
+  assert.deepEqual(r.opened[0].ws, [truncatedShown]);
+  assert.match(r.opened[0].stmts[0], /^UPDATE `d`\.`t` SET `v`='a very long value'/, 'the list can name the statement');
+  assert.ok(!r.opened[0].stmts.some(x => /nobs_guard/.test(x)), 'and leaves the row guard out');
   assert.ok(!r.toasts.some(m => /^ERR Apply failed/.test(m)), 'it is not reported as a failure: ' + r.toasts);
 });
 
@@ -178,7 +181,7 @@ test('Apply anyway saves without the check', { skip: warnSkip }, async () => {
   assert.equal(r.requests.length, 2);
   assert.equal(r.requests[1].failOnWarnings, false);
   assert.ok(r.toasts.some(m => m === 'Applied 1 change(s), with 1 warning.'), r.toasts.join());
-  assert.deepEqual(r.runWarn, [[truncated]], 'and what the server said stays beside the status');
+  assert.deepEqual(r.runWarn, [[truncatedShown]], 'and what the server said stays beside the status');
 });
 
 test('the warning every row guard gives is not one about the edits', { skip: warnSkip }, async () => {
@@ -247,4 +250,26 @@ test('a paste leaves generated columns alone, and NULL out of a column that cann
   f.pasteCellsFrom('x', 0, 0);
   assert.deepEqual(t.pending.upd, { '0:0': null });
   assert.ok(toasts.some(m => /generated column/.test(m)) && toasts.some(m => /cannot hold NULL/.test(m)), toasts.join());
+});
+
+// The row guards are the app's own check: the output window and the history show the user's
+// statements alone, and a failure is numbered among those.
+const tooLong = { cols: ['id', 'v'], pk: ['id'], rows: [['1', 'a']], upd: { '0:1': 'a very long value' }, types: { id: 'int', v: 'varchar' } };
+test('the output and the history leave the row guards out', async () => {
+  const r = await apply({ ...tooLong, reply: { ok: false, error: "Statement 2 of 2 failed: ERROR 1406 (22001): Data too long for column 'v' at row 1\n\nUPDATE `d`.`t` SET `v`='a very long value' WHERE `id`='1' LIMIT 1;\n\nNo changes were applied - the batch was rolled back." } });
+  assert.match(r.sql, /nobs_guard/, 'the guard is still run');
+  assert.ok(!r.logged.some(m => /nobs_guard/.test(m)), r.logged.join('\n'));
+  assert.ok(r.logged.some(m => /^APPLY:\nUPDATE /.test(m)), r.logged.join('\n'));
+  assert.ok(r.logged.some(m => /^APPLY error: Statement 1 of 1 failed: ERROR 1406/.test(m)), r.logged.join('\n'));
+  assert.equal(r.hist.length, 1);
+  assert.match(r.hist[0].sql, /^UPDATE `d`\.`t` SET `v`='a very long value'/);
+  assert.doesNotMatch(r.hist[0].sql, /nobs_guard/);
+  assert.deepEqual([r.hist[0].o, r.hist[0].err], ['err', "Statement 1 of 1 failed: ERROR 1406 (22001): Data too long for column 'v' at row 1"]);
+});
+
+test('a guard that refuses is told as the row no longer matching, without its SQL', async () => {
+  const r = await apply({ ...tooLong, reply: { ok: false, error: 'Statement 1 of 2 failed: ERROR 1172 (42000): Result consisted of more than one row\n\nSELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) nobs_guard WHERE ...\n\nNo changes were applied - the batch was rolled back.' } });
+  const err = r.logged.find(m => /^APPLY error/.test(m));
+  assert.ok(err && err.includes('no longer matches exactly one row') && !/nobs_guard/.test(err), err);
+  assert.ok(err.endsWith('No changes were applied - the batch was rolled back.'), err);
 });
