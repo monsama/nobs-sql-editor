@@ -1,6 +1,6 @@
 {
   "name": "nobs-sql-editor",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
   "scripts": {
     "tauri": "tauri",
