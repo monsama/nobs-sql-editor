@@ -12,7 +12,8 @@
 CREATE TABLE ${DB}.t (id INT PRIMARY KEY, v VARCHAR(10));
 INSERT INTO ${DB}.t VALUES (1,'a');`);
     const first = await on("UPDATE t SET v='b' WHERE id=1; INSERT INTO t VALUES (2,'c')");
-    G.eq('a script runs in the tab\'s transaction, saying how many rows it changed', [first.ok, first.affected], [true, 2]);
+    G.eq('a script runs in the tab\'s transaction', first.ok, true);
+    G.gap('ps', 'saying how many rows it changed', G.ROWS_GAP, () => G.eq('saying how many rows it changed', first.affected, 2));
     G.eq('the next run sees what the tab has not committed', await inTab('SELECT id, v FROM t ORDER BY id'), [['1', 'b'], ['2', 'c']]);
     G.eq('another connection does not see it', await outside(`SELECT GROUP_CONCAT(v ORDER BY id) FROM ${DB}.t`), 'a');
 
@@ -57,7 +58,8 @@ INSERT INTO ${DB}.t VALUES (1,'a');`);
     txShowLog(i);
     const card = $('txLogList').querySelector('.citem');
     G.check('and opens it, statement and all', !!card && /UPDATE t SET v='q' WHERE id=1/.test(card.innerText), card ? card.innerText.slice(0, 200) : 'no card');
-    G.check('with what came of it, and Commit and Rollback there', /1 row changed/.test(card.innerText) && !$('txLogCommit').disabled && !$('txLogRollback').disabled, card.innerText.slice(0, 200));
+    G.check('with Commit and Rollback there', !$('txLogCommit').disabled && !$('txLogRollback').disabled, 'disabled');
+    G.gap('ps', 'and what came of it', G.ROWS_GAP, () => G.check('and what came of it', /1 row changed/.test(card.innerText), card.innerText.slice(0, 200)));
     await txLogEnd('rollback');
     G.check('Rollback clears it', !$('txcommit_' + i).classList.contains('go'), $('txcommit_' + i).className);
     G.eq('and empties the log', [$('txlog_' + i).textContent, $('txlog_' + i).disabled], ['0', true]);

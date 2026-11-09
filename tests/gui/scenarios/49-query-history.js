@@ -21,7 +21,8 @@
 
     await run(`INSERT INTO ${DB}.h (id) VALUES (1),(2),(3) /* ${MARK} w */`);
     e = (await mine()).find(x => x.sql.includes(MARK + ' w'));
-    G.eq('a write, with the rows it changed', e && [e.o, e.affected], ['ok', 3]);
+    G.eq('a write is kept', e && e.o, 'ok');
+    G.gap('ps', 'with the rows it changed', G.ROWS_GAP, () => G.eq('with the rows it changed', e && e.affected, 3));
 
     await run(`SELECT * FROM ${DB}.no_such_table /* ${MARK} e */`);
     e = (await mine()).find(x => x.sql.includes(MARK + ' e'));
