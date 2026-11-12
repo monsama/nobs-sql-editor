@@ -83,14 +83,89 @@ fn dump_starts_with_sandbox_line(path: &str) -> bool {
     buf[..n].starts_with(b"/*M!999999\\- enable the sandbox mode */")
 }
 
-fn dump_file_is_view(path: &str) -> bool {
+// ---------- The order a set of dump files is imported in ----------
+// A per-table export folder holds each object in a file of its own, and files go in by name, which
+// is not the order they need:
+// - "active_customers" ran before "customers" and failed with 1146, leaving the view out of the
+//   restore, and a view could run before a view it reads the same way. Views go last, each after
+//   the ones it reads.
+// - Procedures and functions are created without their tables being there, but an event starts
+//   running as soon as it is created, with the tables after it in the alphabet missing or half
+//   loaded. The routines file goes after the tables, and before the views, which can call its
+//   functions.
+// A file is told by what is in it, never by its name: the section headings mysqldump and
+// mariadb-dump write. A file without them - a script of the user's own, another tool's dump - is
+// Other, and keeps its place among everything but the tables: a script that ran after the routines
+// still does, and one that ran first still does.
+
+// What a dump file holds. A trigger has no heading of its own: it is in its table's file, after the
+// table's rows, and goes with it.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum DumpKind { Tables, Routines, View, Other }
+// Told from the start of the file. Any table heading makes it Tables: a whole-database dump can open
+// with a view's stand-in (its views come first in the alphabet) and has its tables after it, and
+// runs as the one file it is. Otherwise the first heading decides.
+fn dump_kind_of(head: &str) -> DumpKind {
+    let table = |l: &str| l.starts_with("-- Table structure for table ") || l.starts_with("-- Dumping data for table ");
+    let view = |l: &str| l.starts_with("-- Temporary view structure for view ") || l.starts_with("-- Temporary table structure for view ")
+        || l.starts_with("-- Final view structure for view ");
+    let routines = |l: &str| l.starts_with("-- Dumping events for database ") || l.starts_with("-- Dumping routines for database ");
+    if head.lines().any(table) { return DumpKind::Tables; }
+    match head.lines().find(|l| view(l) || routines(l)) {
+        Some(l) if view(l) => DumpKind::View,
+        Some(_) => DumpKind::Routines,
+        None => DumpKind::Other,
+    }
+}
+// A view's name and its definition: the section after its "Final view structure" heading.
+fn dump_view_of(text: &str) -> (Option<String>, String) {
+    match text.find("-- Final view structure for view ") {
+        Some(at) => {
+            let def = &text[at..];
+            (dump_section_name(def.lines().next().unwrap_or("").as_bytes()), def.to_string())
+        }
+        None => (None, String::new()),
+    }
+}
+// What the order is decided on, read from one file.
+struct DumpFileInfo { kind: DumpKind, view: Option<String>, def: String }
+fn dump_file_info(path: &str) -> DumpFileInfo {
     use std::io::Read;
-    let mut buf = vec![0u8; 65536];
-    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut buf)).unwrap_or(0);
-    let head = String::from_utf8_lossy(&buf[..n]);
-    let first_section = head.lines().find(|l| l.starts_with("-- Table structure for table") || l.starts_with("-- Dumping data for table")
-        || l.starts_with("-- Temporary view structure for view") || l.starts_with("-- Temporary table structure for view") || l.starts_with("-- Final view structure for view"));
-    first_section.map(|l| l.contains("for view")).unwrap_or(false)
+    // The headings are near the start: 64 KB is past the opening lines of either tool, and a
+    // view's file is far shorter than the 1 MB read for its definition.
+    let read = |limit: u64| { let mut buf = Vec::new(); let _ = std::fs::File::open(path).and_then(|f| f.take(limit).read_to_end(&mut buf)); String::from_utf8_lossy(&buf).into_owned() };
+    let kind = dump_kind_of(&read(65536));
+    let (view, def) = if kind == DumpKind::View { dump_view_of(&read(1 << 20)) } else { (None, String::new()) };
+    DumpFileInfo { kind, view, def }
+}
+// The order to run the files in, as indexes into them.
+fn dump_import_order(files: &[DumpFileInfo]) -> Vec<usize> {
+    let (views, mut rest): (Vec<usize>, Vec<usize>) = (0..files.len()).partition(|&i| files[i].kind == DumpKind::View);
+    // From the first routines file to the last table, the tables move to the front of the stretch,
+    // so every table is in before an event can run. Nothing else changes place.
+    let first_routines = rest.iter().position(|&i| files[i].kind == DumpKind::Routines);
+    let last_table = rest.iter().rposition(|&i| files[i].kind == DumpKind::Tables);
+    if let (Some(s), Some(e)) = (first_routines, last_table) {
+        if s < e {
+            let (tables, others): (Vec<usize>, Vec<usize>) = rest.drain(s..=e).partition(|&i| files[i].kind == DumpKind::Tables);
+            rest.splice(s..s, tables.into_iter().chain(others));
+        }
+    }
+    // Each view after the views it reads, which its definition names in backquotes. A name that
+    // only looks like one (a column called as a view is) moves a file needlessly and harms nothing;
+    // with no way forward - views that seem to read each other - the order is kept.
+    let mut left = views;
+    while !left.is_empty() {
+        let waits = |i: usize| left.iter().any(|&o| o != i && files[o].view.is_some() && files[o].view != files[i].view
+            && files[i].def.contains(&format!("`{}`", files[o].view.as_deref().unwrap_or("").replace('`', "``"))));
+        let next = left.iter().position(|&i| !waits(i)).unwrap_or(0);
+        rest.push(left.remove(next));
+    }
+    rest
+}
+fn dump_files_in_import_order(files: Vec<String>) -> Vec<String> {
+    let info: Vec<DumpFileInfo> = files.iter().map(|f| dump_file_info(f)).collect();
+    dump_import_order(&info).into_iter().map(|i| files[i].clone()).collect()
 }
 
 // DEFINER=`user`@`host` as mysqldump writes it into views, triggers, routines and events.
@@ -3202,12 +3277,7 @@ async fn import_run(req: Value, mbin: String) -> R {
                 .arg("-e").arg(format!("CREATE DATABASE IF NOT EXISTS {}", sql_id(&target))).output();
             log.push(format!("Ensured database {}", target));
         }
-        // A per-table export folder holds each view in a file of its own, and files go in by name:
-        // "active_customers" ran before "customers" and failed with 1146, leaving the view out of the
-        // restore. Views go after everything else; the order within each is kept.
-        let mut files = files;
-        files.sort_by_key(|f| dump_file_is_view(f));
-        for f in files {
+        for f in dump_files_in_import_order(files) {
             if job_is_cancelled(&job) { log.push("CANCELLED (remaining files skipped)".into()); cancelled = true; break; }
             if !std::path::Path::new(&f).exists() { log.push(format!("SKIP (missing): {}", f)); continue; }
             // Warnings are asked for (import_args): a dump sets a non-strict sql_mode, so a value too
@@ -7654,6 +7724,375 @@ mod import_tests {
         let _ = std::fs::remove_file(&f);
     }
 
+    // ---- The order a set of dump files is imported in (dump_import_order) ----
+    // Dump files are written as mysqldump and mariadb-dump write them, read back through
+    // dump_file_info, and put in every order a folder or a pick of files can hand them over in.
+    // Each file also carries a model of what importing it does: what each of its statements needs
+    // to be there and what it makes. Running the model in the order Import chose decides whether
+    // the restore is complete, as a server would: a view needs what it reads, a trigger its table,
+    // an event its tables (it can run the moment it is made), and a file stops at its first error.
+    // Each statement of a file: what it needs to be there, and what it makes.
+    type Steps = Vec<(Vec<String>, Vec<String>)>;
+    struct SimFile { name: String, text: String, steps: Steps, info: DumpFileInfo }
+    #[derive(Clone, Copy, PartialEq)]
+    enum Flavor { MySql, MariaDb }
+    fn q(db: &str, n: &str) -> String { format!("{db}.{n}") }
+    const HEAD: &str = "-- MySQL dump 10.13  Distrib 8.4.9, for Win64 (x86_64)\n--\n-- Host: 127.0.0.1    Database: d\n-- ------------------------------------------------------\n\n/*!40101 SET NAMES utf8mb4 */;\n/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n\n";
+    const TAIL: &str = "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n\n-- Dump completed on 2026-11-07 10:00:00\n";
+    fn table_file(db: &str, t: &str, trigger: Option<&str>) -> (String, Steps) {
+        let mut text = format!("{HEAD}--\n-- Table structure for table `{t}`\n--\n\nDROP TABLE IF EXISTS `{t}`;\nCREATE TABLE `{t}` (\n  `id` int NOT NULL,\n  PRIMARY KEY (`id`)\n);\n\n--\n-- Dumping data for table `{t}`\n--\n\nLOCK TABLES `{t}` WRITE;\nINSERT INTO `{t}` VALUES (1),(2);\nUNLOCK TABLES;\n");
+        let mut steps = vec![(vec![], vec![q(db, t)])];
+        if let Some(tr) = trigger {
+            text += &format!("/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `{tr}` BEFORE INSERT ON `{t}` FOR EACH ROW SET @x=1 */;;\n");
+            steps.push((vec![q(db, t)], vec![q(db, tr)]));
+        }
+        (text + TAIL, steps)
+    }
+    // reads: what the final definition selects from; calls: functions it calls.
+    fn view_file(db: &str, v: &str, reads: &[&str], calls: &[&str], flavor: Flavor) -> (String, Steps) {
+        let id = v.replace('`', "``");
+        let stub = if flavor == Flavor::MySql { "Temporary view structure for view" } else { "Temporary table structure for view" };
+        let from = reads.iter().map(|r| format!("`{}`", r.replace('`', "``"))).collect::<Vec<_>>().join(" join ");
+        let cols = calls.iter().map(|f| format!("`{db}`.`{f}`() AS `{f}_v`")).chain(std::iter::once("1 AS `one`".to_string())).collect::<Vec<_>>().join(",");
+        let text = format!("{HEAD}--\n-- {stub} `{id}`\n--\n\nDROP TABLE IF EXISTS `{id}`;\n/*!50001 DROP VIEW IF EXISTS `{id}`*/;\n/*!50001 CREATE VIEW `{id}` AS SELECT \n 1 AS `one`*/;\n\n--\n-- Final view structure for view `{id}`\n--\n\n/*!50001 DROP VIEW IF EXISTS `{id}`*/;\n/*!50001 CREATE ALGORITHM=UNDEFINED */\n/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */\n/*!50001 VIEW `{id}` AS select {cols} from {from} */;\n{TAIL}");
+        let needs = reads.iter().chain(calls).map(|r| q(db, r)).collect();
+        (text, vec![(vec![], vec![q(db, v)]), (needs, vec![q(db, v)])])
+    }
+    // events: (name, the tables it uses); routines: (kind, name).
+    fn routines_file(db: &str, events: &[(&str, &[&str])], routines: &[(&str, &str)]) -> (String, Steps) {
+        let mut text = HEAD.to_string();
+        let mut steps = Vec::new();
+        if !events.is_empty() {
+            text += &format!("--\n-- Dumping events for database '{db}'\n--\n");
+            for (e, uses) in events {
+                text += &format!("/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `{e}` ON SCHEDULE EVERY 1 HOUR STARTS '2026-11-07 10:00:00' ON COMPLETION NOT PRESERVE ENABLE DO DELETE FROM `{}` WHERE id < 0 */ ;;\n", uses[0]);
+                steps.push((uses.iter().map(|t| q(db, t)).collect(), vec![q(db, e)]));
+            }
+        }
+        if !routines.is_empty() {
+            text += &format!("\n--\n-- Dumping routines for database '{db}'\n--\n");
+            for (kind, r) in routines {
+                text += &format!("/*!50003 DROP {kind} IF EXISTS `{r}` */;\nDELIMITER ;;\nCREATE DEFINER=`root`@`localhost` {kind} `{r}`() SELECT 1 ;;\nDELIMITER ;\n");
+                steps.push((vec![], vec![q(db, r)]));
+            }
+        }
+        (text + TAIL, steps)
+    }
+    fn sim(dir: &std::path::Path, name: &str, (text, steps): (String, Steps)) -> SimFile {
+        let p = dir.join(name);
+        std::fs::write(&p, &text).unwrap();
+        SimFile { name: name.to_string(), info: dump_file_info(&p.to_string_lossy()), text, steps }
+    }
+    // A per-table export of one database: three tables, two with a trigger; an event that uses two of
+    // the tables, a function and a procedure; a chain of views, one read across it the other way
+    // round by name, one that calls the function, and one with a backquote in its name.
+    fn per_table_export(dir: &std::path::Path, db: &str, flavor: Flavor) -> Vec<SimFile> {
+        let f = |n: &str| format!("{db}.{n}.sql");
+        vec![
+            sim(dir, &f("customers"), table_file(db, "customers", None)),
+            sim(dir, &f("orders"), table_file(db, "orders", Some("tr_orders"))),
+            sim(dir, &f("zeta"), table_file(db, "zeta", Some("tr_zeta"))),
+            sim(dir, &f("routines_events"), routines_file(db, &[("ev_one", &["zeta", "orders"])], &[("FUNCTION", "fn_one"), ("PROCEDURE", "pr_one")])),
+            sim(dir, &f("a_view"), view_file(db, "a_view", &["m_view"], &[], flavor)),
+            sim(dir, &f("m_view"), view_file(db, "m_view", &["z_view", "customers"], &["fn_one"], flavor)),
+            sim(dir, &f("z_view"), view_file(db, "z_view", &["orders"], &[], flavor)),
+            sim(dir, &f("q`v"), view_file(db, "q`v", &["a_view"], &[], flavor)),
+        ]
+    }
+    // Runs the model in this order: the names of the files that failed, each with what it lacked.
+    fn simulate(files: &[&SimFile]) -> Vec<String> {
+        let mut there: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut failed = Vec::new();
+        for f in files {
+            for (needs, makes) in &f.steps {
+                if let Some(missing) = needs.iter().find(|n| !there.contains(*n)) { failed.push(format!("{} (needs {missing})", f.name)); break; }
+                there.extend(makes.iter().cloned());
+            }
+        }
+        failed
+    }
+    // The order Import chose, for files handed over in this order.
+    fn ordered<'a>(input: &[&'a SimFile]) -> Vec<&'a SimFile> {
+        let info: Vec<DumpFileInfo> = input.iter().map(|f| DumpFileInfo { kind: f.info.kind, view: f.info.view.clone(), def: f.info.def.clone() }).collect();
+        dump_import_order(&info).into_iter().map(|i| input[i]).collect()
+    }
+    // What must hold for any input order, with or without files Import cannot tell (Other):
+    // - every file is run, once;
+    // - the routines files run after every table file, and the views after everything else;
+    // - tables keep their order, and so do the files that are neither tables nor views - a script
+    //   is never moved before the routines, nor the routines before a script - and a table that ran
+    //   before a script still does.
+    fn check_invariants(input: &[&SimFile], out: &[&SimFile]) {
+        let names = |v: &[&SimFile]| v.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
+        let (i_names, o_names) = (names(input), names(out));
+        let mut sorted_in = i_names.clone(); sorted_in.sort();
+        let mut sorted_out = o_names.clone(); sorted_out.sort();
+        assert_eq!(sorted_in, sorted_out, "every file once: {i_names:?}");
+        let pos = |n: &String| o_names.iter().position(|x| x == n).unwrap();
+        let kind = |n: &String| input.iter().find(|f| &f.name == n).unwrap().info.kind;
+        let last_table = o_names.iter().rposition(|n| kind(n) == DumpKind::Tables);
+        for (i, n) in o_names.iter().enumerate() {
+            match kind(n) {
+                DumpKind::Routines => assert!(last_table.is_none_or(|t| t < i), "{n} before a table: {o_names:?}"),
+                DumpKind::View => assert!(o_names[i..].iter().all(|m| kind(m) == DumpKind::View), "{n} before a file that is not a view: {o_names:?}"),
+                _ => {}
+            }
+        }
+        let kept = |pick: &dyn Fn(DumpKind) -> bool| {
+            let a: Vec<&String> = i_names.iter().filter(|n| pick(kind(n))).collect();
+            let b: Vec<&String> = o_names.iter().filter(|n| pick(kind(n))).collect();
+            assert_eq!(a, b, "order changed: {i_names:?} -> {o_names:?}");
+        };
+        kept(&|k| k == DumpKind::Tables);
+        kept(&|k| k == DumpKind::Routines || k == DumpKind::Other);
+        for (i, t) in i_names.iter().enumerate().filter(|(_, n)| kind(n) == DumpKind::Tables) {
+            for o in i_names[i + 1..].iter().filter(|n| kind(n) == DumpKind::Other) {
+                assert!(pos(t) < pos(o), "table {t} moved after {o}: {i_names:?} -> {o_names:?}");
+            }
+        }
+    }
+    // Every order of these files (Heap's algorithm).
+    fn each_order(files: &[SimFile], mut f: impl FnMut(&[&SimFile])) -> usize {
+        let mut a: Vec<&SimFile> = files.iter().collect();
+        let mut c = vec![0usize; a.len()];
+        let mut n = 1;
+        f(&a);
+        let mut i = 0;
+        while i < a.len() {
+            if c[i] < i { if i % 2 == 0 { a.swap(0, i) } else { a.swap(c[i], i) } f(&a); n += 1; c[i] += 1; i = 0; } else { c[i] = 0; i += 1; }
+        }
+        n
+    }
+    // A seeded shuffle, so a failure can be run again.
+    fn shuffled<'a>(files: &'a [SimFile], seed: &mut u64) -> Vec<&'a SimFile> {
+        let mut a: Vec<&SimFile> = files.iter().collect();
+        for i in (1..a.len()).rev() {
+            *seed ^= *seed << 13; *seed ^= *seed >> 7; *seed ^= *seed << 17;
+            a.swap(i, (*seed % (i as u64 + 1)) as usize);
+        }
+        a
+    }
+
+    #[test]
+    fn the_files_are_told_by_what_is_in_them_not_by_their_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = per_table_export(dir.path(), "d", Flavor::MySql);
+        let kinds: Vec<(String, DumpKind)> = files.iter().map(|f| (f.name.clone(), f.info.kind)).collect();
+        assert_eq!(kinds.iter().map(|k| k.1).collect::<Vec<_>>(), [DumpKind::Tables, DumpKind::Tables, DumpKind::Tables, DumpKind::Routines, DumpKind::View, DumpKind::View, DumpKind::View, DumpKind::View], "{kinds:?}");
+        assert_eq!(files[7].info.view.as_deref(), Some("q`v"), "a backquote in a view's name");
+        for f in &files {
+            // The same text under a name that says otherwise.
+            let p = dir.path().join(format!("renamed_{}.sql", f.name.len()));
+            std::fs::write(&p, &f.text).unwrap();
+            assert_eq!(dump_file_info(&p.to_string_lossy()).kind, f.info.kind, "{}", f.name);
+        }
+        let kind = |text: &str| dump_kind_of(text);
+        assert_eq!(kind("--\n-- Dumping routines for database 'd'\n--\n"), DumpKind::Routines, "routines without events");
+        assert_eq!(kind("--\n-- Dumping events for database 'd'\n--\n"), DumpKind::Routines, "events without routines");
+        assert_eq!(kind(""), DumpKind::Other, "an empty file");
+        assert_eq!(kind("UPDATE t SET a = 1;\n-- Table structure for a later look\n"), DumpKind::Other, "a script of the user's own");
+        assert_eq!(kind("INSERT INTO t VALUES ('\\n-- Table structure for table `x`');\n"), DumpKind::Other, "a heading inside a value is not one");
+        assert_eq!(kind("--\n-- Structure for view `v`\n--\nCREATE VIEW v AS SELECT 1;\n"), DumpKind::Other, "another tool's view heading");
+        // A whole-database dump whose first object in the alphabet is a view: the view's stand-in
+        // comes first, the tables after it, and its own routines and views at the end.
+        let whole = format!("{HEAD}--\n-- Temporary view structure for view `a_view`\n--\n\n--\n-- Table structure for table `customers`\n--\n\n--\n-- Dumping events for database 'd'\n--\n\n--\n-- Final view structure for view `a_view`\n--\n{TAIL}");
+        assert_eq!(kind(&whole), DumpKind::Tables, "a whole dump is run as the one file it is");
+        // A data-only dump has only the data headings.
+        assert_eq!(kind("--\n-- Dumping data for table `t`\n--\n"), DumpKind::Tables);
+        // A heading further in than the first 64 KB is not looked for.
+        let late = dir.path().join("late.sql");
+        std::fs::write(&late, format!("{}\n-- Table structure for table `t`\n", "-- padding\n".repeat(7000))).unwrap();
+        assert_eq!(dump_file_info(&late.to_string_lossy()).kind, DumpKind::Other);
+        // The dumps the tools really write.
+        for fixture in ["dump-mariadb-12.sql", "dump-mysql-8.sql"] {
+            let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures").join(fixture);
+            assert_eq!(dump_file_info(&src.to_string_lossy()).kind, DumpKind::Tables, "{fixture}");
+        }
+    }
+
+    #[test]
+    fn a_per_table_export_imports_completely_whatever_order_its_files_come_in() {
+        for flavor in [Flavor::MySql, Flavor::MariaDb] {
+            let dir = tempfile::tempdir().unwrap();
+            let files = per_table_export(dir.path(), "d", flavor);
+            // As they were: in name order, which "Add folder" gives - and which fails.
+            let mut by_name: Vec<&SimFile> = files.iter().collect();
+            by_name.sort_by(|a, b| a.name.cmp(&b.name));
+            assert!(!simulate(&by_name).is_empty(), "the name order is expected to fail without reordering");
+            let n = each_order(&files, |input| {
+                let out = ordered(input);
+                check_invariants(input, &out);
+                let failed = simulate(&out);
+                assert!(failed.is_empty(), "{failed:?} for {:?}", input.iter().map(|f| &f.name).collect::<Vec<_>>());
+            });
+            assert_eq!(n, 40320, "every order of eight files");
+        }
+    }
+
+    #[test]
+    fn scripts_and_files_it_cannot_tell_keep_their_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = per_table_export(dir.path(), "d", Flavor::MySql);
+        // A script that sets things up first, one that fixes data after the routines, and one that
+        // runs at the very end and needs the procedure and the last table.
+        files.push(sim(dir.path(), "00_setup.sql", ("CREATE TABLE helper (id INT);\n".into(), vec![(vec![], vec!["d.helper".into()])])));
+        files.push(sim(dir.path(), "d.s_fix.sql", ("CALL pr_one();\n".into(), vec![(vec!["d.pr_one".into()], vec![])])));
+        files.push(sim(dir.path(), "zz_after.sql", ("CALL pr_one();\nINSERT INTO zeta VALUES (9);\n".into(), vec![(vec!["d.pr_one".into(), "d.zeta".into(), "d.helper".into()], vec![])])));
+        let mut by_name: Vec<&SimFile> = files.iter().collect();
+        by_name.sort_by(|a, b| a.name.cmp(&b.name));
+        let out = ordered(&by_name);
+        let names: Vec<&str> = out.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["00_setup.sql", "d.customers.sql", "d.orders.sql", "d.zeta.sql", "d.routines_events.sql", "d.s_fix.sql", "zz_after.sql",
+                           "d.z_view.sql", "d.m_view.sql", "d.a_view.sql", "d.q`v.sql"]);
+        assert_eq!(simulate(&out), Vec::<String>::new());
+        check_invariants(&by_name, &out);
+        // In any order the invariants hold. A script handed over before what it needs fails, as it
+        // did before; it is not Import's to know what a script needs.
+        let mut seed = 0x9e3779b97f4a7c15u64;
+        for _ in 0..20000 { let input = shuffled(&files, &mut seed); check_invariants(&input, &ordered(&input)); }
+    }
+
+    #[test]
+    fn several_databases_and_other_tools_files_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = per_table_export(dir.path(), "d1", Flavor::MySql);
+        files.extend(per_table_export(dir.path(), "d2", Flavor::MariaDb));
+        // A view in d2 that reads one in d1: the name match carries no database, so it waits for
+        // both a_views, which only costs it a place.
+        files.push(sim(dir.path(), "d2.cross.sql", view_file("d2", "cross", &["a_view"], &[], Flavor::MySql)));
+        files.last_mut().unwrap().steps[1].0 = vec!["d1.a_view".into()];
+        // Files another tool wrote, which Import cannot tell apart (other than phpMyAdmin's tables,
+        // whose headings are mysqldump's).
+        files.push(sim(dir.path(), "pma_view.sql", ("--\n-- Structure for view `pv`\n--\nCREATE VIEW pv AS SELECT 1;\n".into(), vec![(vec![], vec!["x.pv".into()])])));
+        files.push(sim(dir.path(), "pma_table.sql", ("--\n-- Table structure for table `pt`\n--\nCREATE TABLE pt (id INT);\n--\n-- Dumping data for table `pt`\n--\n".into(), vec![(vec![], vec!["x.pt".into()])])));
+        assert_eq!((files[files.len() - 2].info.kind, files[files.len() - 1].info.kind), (DumpKind::Other, DumpKind::Tables));
+        let mut by_name: Vec<&SimFile> = files.iter().collect();
+        by_name.sort_by(|a, b| a.name.cmp(&b.name));
+        let out = ordered(&by_name);
+        assert_eq!(simulate(&out), Vec::<String>::new(), "{:?}", out.iter().map(|f| &f.name).collect::<Vec<_>>());
+        // Twenty files have too many orders to try them all; a seeded sample of them. Every dump
+        // file restores in each: the files of other tools have nothing here that waits on them.
+        let mut seed = 0x2545f4914f6cdd1du64;
+        for _ in 0..20000 {
+            let input = shuffled(&files, &mut seed);
+            let out = ordered(&input);
+            check_invariants(&input, &out);
+            let failed = simulate(&out);
+            assert!(failed.is_empty(), "{failed:?} for {:?}", input.iter().map(|f| &f.name).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn what_cannot_be_ordered_is_kept_and_nothing_is_lost() {
+        let dir = tempfile::tempdir().unwrap();
+        // Two views that seem to read each other: nothing to go on, and both stay in the order given.
+        let x = sim(dir.path(), "x.sql", view_file("d", "x", &["y"], &[], Flavor::MySql));
+        let y = sim(dir.path(), "y.sql", view_file("d", "y", &["x"], &[], Flavor::MySql));
+        assert_eq!(ordered(&[&x, &y]).iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["x.sql", "y.sql"]);
+        assert_eq!(ordered(&[&y, &x]).iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["y.sql", "x.sql"]);
+        // No routines file: only the views move. Routines after every table already: nothing moves.
+        let files = per_table_export(dir.path(), "d", Flavor::MySql);
+        let no_routines: Vec<&SimFile> = files.iter().filter(|f| f.info.kind != DumpKind::Routines).collect();
+        let out = ordered(&no_routines);
+        assert_eq!(&out[..3].iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), &["d.customers.sql", "d.orders.sql", "d.zeta.sql"]);
+        let already: Vec<&SimFile> = files.iter().collect();
+        assert_eq!(ordered(&already).iter().take(4).map(|f| f.name.as_str()).collect::<Vec<_>>(), ["d.customers.sql", "d.orders.sql", "d.zeta.sql", "d.routines_events.sql"]);
+        // A view whose column has another view's name waits for it needlessly, and still restores.
+        let col = sim(dir.path(), "c.sql", ("--\n-- Final view structure for view `c`\n--\nVIEW `c` AS select `customers`.`id` AS `z_view` from `customers`\n".into(), vec![(vec!["d.customers".into()], vec!["d.c".into()])]));
+        let mut with_col: Vec<&SimFile> = files.iter().collect();
+        with_col.insert(0, &col);
+        let out = ordered(&with_col);
+        assert!(out.iter().position(|f| f.name == "c.sql") > out.iter().position(|f| f.name == "d.z_view.sql"));
+        assert_eq!(simulate(&out), Vec::<String>::new());
+        // A file that does not exist is handed on as given; the import reports it missing.
+        let missing = DumpFileInfo { kind: dump_file_info(&dir.path().join("gone.sql").to_string_lossy()).kind, view: None, def: String::new() };
+        assert_eq!(missing.kind, DumpKind::Other);
+    }
+
+    // A per-table export, written by the real dump tool and restored by the real client, with its
+    // files handed over in name order (as Add folder lists them), backwards, and shuffled: three
+    // tables, two with a trigger; an event, a function and a procedure; a chain of three views, the
+    // middle one calling the function, each named so the alphabet puts it before what it reads.
+    // Then the name order with two scripts of the user's own, one to run first and one last.
+    #[tokio::test]
+    #[ignore]
+    async fn a_per_table_folder_restores_everything_in_it() {
+        let Some(dsn) = std::env::var("NOBS_TEST_DSN").ok() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let p: Vec<&str> = dsn.split(':').collect();
+        let conn = json!({"host":p[0],"port":p[1],"user":p[2],"password":p[3],"ssl":"default"});
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let mut c = build_conn(&conn).unwrap();
+            for s in ["DROP DATABASE IF EXISTS nobs_order_src", "DROP DATABASE IF EXISTS nobs_order_dst", "CREATE DATABASE nobs_order_src", "USE nobs_order_src",
+                "CREATE TABLE customers (id INT PRIMARY KEY)", "CREATE TABLE orders (id INT PRIMARY KEY)", "CREATE TABLE zeta (id INT PRIMARY KEY)",
+                "INSERT INTO customers VALUES (1)", "INSERT INTO orders VALUES (1),(2)", "INSERT INTO zeta VALUES (1)",
+                "CREATE TRIGGER tr_orders BEFORE INSERT ON orders FOR EACH ROW SET @x=1",
+                "CREATE TRIGGER tr_zeta BEFORE INSERT ON zeta FOR EACH ROW SET @y=1",
+                "CREATE FUNCTION fn_one() RETURNS INT DETERMINISTIC RETURN 1",
+                "CREATE PROCEDURE pr_one() SELECT COUNT(*) FROM zeta",
+                "CREATE EVENT ev_one ON SCHEDULE EVERY 1 HOUR DO DELETE FROM zeta WHERE id < 0",
+                "CREATE VIEW z_view AS SELECT id FROM orders", "CREATE VIEW m_view AS SELECT id, fn_one() AS n FROM z_view",
+                "CREATE VIEW a_view AS SELECT id, n FROM m_view"] { c.query_drop(s).unwrap(); }
+        }
+        let req = json!({"dbs":["nobs_order_src"],"folder":dir.path().to_string_lossy(),"mode":"table","conn":conn,"excludes":[],
+            "options":{"charset":"utf8mb4","routines":true,"triggers":true,"events":true,"quick":true,"extinsert":true}});
+        let r = export_run(req, std::env::var("MYSQLDUMP_BIN").unwrap_or_else(|_| "mysqldump".into())).await.unwrap();
+        assert_eq!(r["ok"], true, "{r}");
+        let mut files: Vec<String> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().path().to_string_lossy().into_owned()).collect();
+        files.sort();
+        assert_eq!(files.len(), 7, "{files:?}");
+
+        let restore = |files: Vec<String>| { let conn = conn.clone(); async move {
+            let req = json!({"files":files, "targetDb":"nobs_order_dst", "createDb":true, "conn":conn});
+            let r = import_run(req, std::env::var("MYSQL_BIN").unwrap_or_else(|_| "mysql".into())).await.unwrap();
+            let log: Vec<String> = r["log"].as_array().unwrap().iter().filter_map(|l| l.as_str().map(String::from)).collect();
+            let mut c = build_conn(&conn).unwrap();
+            let counts: (u64, u64, u64, u64, u64) = c.query_first("SELECT \
+                (SELECT COUNT(*) FROM information_schema.VIEWS WHERE TABLE_SCHEMA='nobs_order_dst'), \
+                (SELECT COUNT(*) FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA='nobs_order_dst'), \
+                (SELECT COUNT(*) FROM information_schema.EVENTS WHERE EVENT_SCHEMA='nobs_order_dst'), \
+                (SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='nobs_order_dst'), \
+                (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='nobs_order_dst' AND TABLE_TYPE='BASE TABLE')").unwrap().unwrap();
+            let read: Option<(u64, u64)> = c.query_first("SELECT COUNT(*), COALESCE(SUM(n), 0) FROM nobs_order_dst.a_view").ok().flatten();
+            c.query_drop("DROP DATABASE IF EXISTS nobs_order_dst").unwrap();
+            (log, counts, read)
+        }};
+        let mut orders: Vec<(String, Vec<String>)> = vec![("by name".into(), files.clone()), ("backwards".into(), files.iter().rev().cloned().collect())];
+        let mut seed = 0x9e3779b97f4a7c15u64;
+        for k in 0..6 {
+            let mut f = files.clone();
+            for i in (1..f.len()).rev() { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; f.swap(i, (seed % (i as u64 + 1)) as usize); }
+            orders.push((format!("shuffled {k}"), f));
+        }
+        for (what, given) in orders {
+            let (log, counts, read) = restore(given).await;
+            println!("  {what}: {counts:?} {read:?}");
+            assert!(!log.iter().any(|l| l.starts_with("FAILED")), "{what}: {log:?}");
+            assert_eq!(counts, (3, 2, 1, 2, 3), "{what}: views, routines, events, triggers and tables");
+            assert_eq!(read, Some((2, 2)), "{what}: the last view reads through the others and calls the function");
+        }
+
+        // The user's own scripts keep their place: one that sets up first, one that runs last and
+        // needs the procedure and the last table.
+        let setup = dir.path().join("00_setup.sql");
+        std::fs::write(&setup, "CREATE TABLE helper (id INT);\n").unwrap();
+        let after = dir.path().join("zz_after.sql");
+        std::fs::write(&after, "CALL pr_one();\nINSERT INTO zeta VALUES (9);\nINSERT INTO helper VALUES (1);\n").unwrap();
+        let mut with_scripts = files.clone();
+        with_scripts.push(setup.to_string_lossy().into_owned());
+        with_scripts.push(after.to_string_lossy().into_owned());
+        with_scripts.sort();
+        let req = json!({"files":with_scripts, "targetDb":"nobs_order_dst", "createDb":true, "conn":conn});
+        let r = import_run(req, std::env::var("MYSQL_BIN").unwrap_or_else(|_| "mysql".into())).await.unwrap();
+        let log: Vec<&str> = r["log"].as_array().unwrap().iter().filter_map(|l| l.as_str()).collect();
+        for l in &log { println!("  | {l}"); }
+        assert!(!log.iter().any(|l| l.starts_with("FAILED")), "{log:?}");
+        let mut c = build_conn(&conn).unwrap();
+        assert_eq!(c.query_first::<(u64, u64), _>("SELECT (SELECT COUNT(*) FROM nobs_order_dst.zeta), (SELECT COUNT(*) FROM nobs_order_dst.helper)").unwrap(), Some((2, 1)));
+        c.query_drop("DROP DATABASE nobs_order_src").unwrap();
+        c.query_drop("DROP DATABASE nobs_order_dst").unwrap();
+    }
+
     // mariadb-dump 11.x+ opens every dump with a line MySQL's client does not know. With MySQL's
     // tools the import failed at line 1 ("Unknown command '\-'"); the line is left out for them.
     #[tokio::test]
@@ -8905,8 +9344,8 @@ mod dump_split_tests {
                 dir.path().join(format!("{}.sql", name.replace('`', "_"))).to_string_lossy().into_owned()
             }).unwrap();
             let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
-            // Import runs a view's file after the others (dump_file_is_view); only the view's file is one.
-            for (n, p) in &files { assert_eq!(dump_file_is_view(p), n == "v", "{fixture}: {n}"); }
+            // Import runs a view's file after the others (dump_file_info); only the view's file is one, the rest are tables.
+            for (n, p) in &files { assert_eq!(dump_file_info(p).kind, if n == "v" { DumpKind::View } else { DumpKind::Tables }, "{fixture}: {n}"); }
             assert_eq!(names, ["a`b", "t2", "v"], "{fixture}");
             assert_eq!(seen.len(), 3, "one file per name, the view's two sections included: {fixture}");
             let head_end = text.find("--\n-- Table structure").or_else(|| text.find("--\r\n-- Table structure")).unwrap();
