@@ -2275,6 +2275,7 @@ const ICONS={
  explain:'<path d="M4 5h16M8 12h12M12 19h8"/>',
  format:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
  lastq:'<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5"/>',
+ refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/>',
  wholetable:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9.5h18M3 14.5h18M9 9.5V20"/>',
  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
  wrap:'<path d="M3 6h18M3 12h15a3 3 0 0 1 0 6h-4M16 16l-2 2 2 2M3 18h7"/>',
@@ -3838,6 +3839,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   lastBtn+selBtn+applyBtn+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'"'+(tab.ddl?'':' data-reserve')+' style="display:none;gap:9px;align-items:center" class="tbgroup">'+
+  '<button class="sm" id="refbtn_'+id+'" title="Fetch the rows again with the query that produced them, keeping the column filters, the search and the sort" onclick="refreshGrid(\''+id+'\')" data-ic="refresh" data-fit="2">Refresh</button>'+
   '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy" data-fit="3">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap" data-fit="2"><span class="stk"><span class="off">Wrap: On</span><span>Wrap: Off</span></span></button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns" data-fit="2">Columns</button>'+'<button class="sm" title="Chart the rows the grid shows, as bars or a line" onclick="chartOpen(\''+id+'\')" data-ic="chart" data-fit="2">Chart</button>'+'<button class="sm tog'+(vpOpen?' ison':'')+'" id="vpbtn_'+id+'" aria-pressed="'+vpOpen+'" title="Show the value of the cell you click in a panel under the grid, to read and edit it at full length" onclick="vpToggle()">Value</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="(v=>gridTypeSoon(\''+id+'\',()=>setGridSearch(\''+id+'\',v)))(this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf" data-fit="2">Clear filters</button>'+
   '</span>'+
   '<span style="flex:1 1 auto"></span>'+
@@ -5324,6 +5326,29 @@ function syncFilterUi(id){const t=T(id);if(!t)return;const on=!!t.search,any=on|
  const box=$('gsearch_'+id);if(box)box.classList.toggle('on',on);const b=$('clrflt_'+id);if(b)b.style.display=any?'':'none';}
 function clearGridFilters(id){const t=T(id);if(!t)return;t.filters={};const fr=$('filterrow_'+id);if(fr)fr.querySelectorAll('input').forEach(i=>i.value='');
  const box=$('gsearch_'+id);if(box)box.value='';setGridSearch(id,'');}
+// The grid's Refresh button: the query that produced the rows runs again - not whatever the editor
+// holds now - and the column filters and the sort are put back on the new rows. A run clears both
+// (runSql), so they are kept here by column name and given back to the columns still there; the
+// search belongs to the tab and stays anyway. Edits not applied yet would go with the old rows, so
+// that is asked first, and so is a run that does more than read: running it again would change data.
+async function refreshGrid(id){const t=T(id);if(!t)return;const sql=t.curRun;
+ if(!sql||!String(sql).trim()){toast('Nothing to refresh - run a query first.',true);return;}
+ if(t.runningReqId){toast('A query is still running in this tab.',true);return;}
+ const n=pendingCount(t);if(n>0&&!(await ask('This tab has '+n+' change'+(n===1?'':'s')+' not applied yet. Refresh and discard '+(n===1?'it':'them')+'?')))return;
+ const stmts=splitStmts(String(sql)).filter(s=>!isCommentOnly(s));
+ if(!stmts.every(s=>/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)))&&!(await ask('The query that produced these rows also runs statements that are not plain reads. Run all of it again?')))return;
+ const cols=t.cols||[],filters={};Object.entries(t.filters||{}).forEach(([ci,v])=>{if(v&&cols[ci]!=null)filters[cols[ci]]=v;});
+ const sortName=t.sortCol>=0?cols[t.sortCol]:null,sortDir=t.sortDir;
+ const w=$('res_'+id),top=w?w.scrollTop:0,left=w?w.scrollLeft:0;
+ const seq0=t.runSeq||0;
+ await runSql(id,sql);
+ // Only the run started here gets them back: one started meanwhile shows rows of its own.
+ if(!T(id)||t.runSeq!==seq0+1||t.resultSets||!t.cols||!t.cols.length||!$('tbody_'+id))return;
+ const nf={};Object.keys(filters).forEach(c=>{const ci=t.cols.indexOf(c);if(ci>=0)nf[ci]=filters[c];});
+ const si=sortName!=null?t.cols.indexOf(sortName):-1;
+ if(Object.keys(nf).length||si>=0){t.filters=nf;t._hitAt=null;if(si>=0){t.sortCol=si;t.sortDir=sortDir;}
+  renderGrid(id);updatePager(id);updateStatusLine(id);}
+ const w2=$('res_'+id);if(w2){w2.scrollTop=top;w2.scrollLeft=left;}}
 // q is already lower-cased. The same case-insensitive "contains" a column filter uses, on any column.
 function rowHasText(row,q){return row.some(v=>v!=null&&String(v).toLowerCase().includes(q));}
 function sortBy(id,ci){const t=T(id);if(t.sortCol===ci){if(t.sortDir>0){t.sortDir=-1;}else{t.sortCol=-1;t.sortDir=1;}}else{t.sortCol=ci;t.sortDir=1;}$('sortrow_'+id).innerHTML=sortHeader(id,!!t.pk);renderBody(id);syncFilterRowTop(id);wireColResize(id);updatePager(id);updateStatusLine(id);}
