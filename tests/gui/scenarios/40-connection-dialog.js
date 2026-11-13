@@ -52,6 +52,26 @@
     await again;
     G.check('Esc closes it and saves nothing', !$('mConn').classList.contains('show') && connMeta()[N].env === 'changed', connMeta()[N]);
 
+    // The sidebar: every saved connection, the one shown marked; its copy button duplicates it -
+    // password, environment and read-only included - and shows the copy; a click loads another.
+    const side = editConn();
+    await G.until(() => $('mConn').classList.contains('show'), 5000);
+    const items = [...document.querySelectorAll('#cd_side .cdsitem')];
+    G.check('the sidebar lists the saved connections, the one shown marked', shown('cd_side') && items.length === connNames().length
+      && (document.querySelector('#cd_side .cdsitem.on') || {}).dataset?.name === N, items.map(i => i.dataset.name));
+    const NC = N + ' (copy)';
+    const it0 = items.find(i => i.dataset.name === N);
+    it0.querySelector('.cdsdup').click();
+    await G.until(() => _cd && _cd.savedName === NC, 10000);
+    const copied = ((await G.A('/api/conn-list')).items || []).find(c => c.name === NC);
+    G.check('duplicate saves a copy with the password, environment and read-only', copied && copied.hasPassword === true && copied.env === 'changed' && copied.readonly === true, copied);
+    G.eq('and shows it, in the fields and the sidebar', [$('cd_name').value, (document.querySelector('#cd_side .cdsitem.on') || {}).dataset?.name], [NC, NC]);
+    G.eq('the connection box keeps what it had picked', $('connlist').value, N);
+    await cdPick(N);
+    G.eq('a click on another loads it', [_cd && _cd.savedName, $('cd_name').value], [N, N]);
+    cdClose(null); await side;
+    await G.A('/api/conn-delete', { name: NC }); await refreshConns(); $('connlist').value = N;
+
 
     // Connected through the saved connection, then renamed in Edit: the connection you are on goes on
     // under the new name. It went on under the old one and was refused ("using password: NO").
@@ -68,6 +88,7 @@
   } finally {
     if (_cd) cdClose(null);
     await G.A('/api/conn-delete', { name: N + '_renamed' });
+    await G.A('/api/conn-delete', { name: N + ' (copy)' });
     await G.A('/api/conn-delete', { name: N });
     $('host').value = form.host; $('port').value = form.port; $('user').value = form.user; $('pass').value = form.pass;
     await refreshConns(); $('connlist').value = form.list;
