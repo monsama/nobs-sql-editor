@@ -365,6 +365,10 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #log .ln{border-left:3px solid transparent;padding-left:6px;margin-left:-6px} #log .ln.ok{border-left-color:var(--erd-pk)}
  #log .ln.warn{border-left-color:var(--log-warn)} #log .ln.err{border-left-color:var(--err-line);color:#f2b8b0}
  #log .ln.jump{cursor:pointer} #log .ln.jump:hover{background:rgba(255,255,255,.07)}
+ /* The expander of a line whose SQL is shortened. Its glyph is generated content, so a copy of the
+    output does not take it along. */
+ #log .lnx{cursor:pointer;display:inline-block;width:1.2em;opacity:.75} #log .lnx:hover{opacity:1}
+ #log .lnx::before{content:'\25B8'} #log .ln.open>.lnx::before{content:'\25BE'}
  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9000}
 .modal.floating{background:transparent;pointer-events:none}
 .modal.minimized{display:none !important}
@@ -1281,7 +1285,13 @@ function sqlNoSecrets(s){return String(s).replace(/(\bidentified\b(?:\s+(?:with|
 // error, amber for a warning or a cancel. A caller that knows says which (meta.kind); the rest is read
 // from the text. An error from a run carries where its statement is (meta.jump), and a click on it
 // selects that statement in the tab's editor.
-function log(s,meta){const l=$('log');const d=document.createElement('div');const k=meta&&meta.kind!=null?meta.kind:logKind(s);d.className='ln'+(k?' '+k:'');d.textContent=sqlNoSecrets(s);
+// A line whose SQL was shortened carries the whole of it (meta.full), and an expander before it
+// switches between the two.
+function log(s,meta){const l=$('log');const d=document.createElement('div');const k=meta&&meta.kind!=null?meta.kind:logKind(s);d.className='ln'+(k?' '+k:'');
+ const txt=sqlNoSecrets(s),full=meta&&meta.full!=null&&meta.full!==s?sqlNoSecrets(meta.full):null;
+ if(full==null)d.textContent=txt;
+ else{const b=document.createElement('span'),x=document.createElement('span');b.className='lnx';b.title='Show the whole statement';x.textContent=txt;d.append(b,x);
+  b.onclick=e=>{e.stopPropagation();const o=d.classList.toggle('open');x.textContent=o?full:txt;b.title=o?'Show it shortened, on one line':'Show the whole statement';};}
  if(meta&&meta.jump){d.classList.add('jump');d.title='Click to show this statement in the editor';d.onclick=()=>logJump(meta.jump);}
  l.appendChild(d);l.scrollTop=l.scrollHeight;}
 function logKind(s){s=String(s);if(/\bERROR\b|^APPLY error|\nFailed:\n/.test(s))return 'err';if(/\bwarnings?\b|\bcancel/i.test(s))return 'warn';if(/\bOK\b|^Applied\b|^Saved\b/.test(s))return 'ok';return '';}
@@ -2757,8 +2767,17 @@ function fmtMs(ms){ms=+ms||0;if(ms>=10000)return Math.round(ms/1000)+'s';if(ms>=
 // statement's start on one line - and what came of it: the rows a write changed, the rows a query
 // returned, the error, and how long it took. A script lists each statement under its first line.
 function runClock(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
-function sqlOneLine(sql,max){const x=String(sql==null?'':sql).replace(/\s+/g,' ').trim();max=max||80;return x.length>max?x.slice(0,max)+'...':x;}
-function runLog(id,msg,kind,jump){const t=T(id);log('['+runClock()+'] '+(t?t.title:'Query')+': '+msg,{kind:kind==='-'?'':(kind||'ok'),jump:jump?{id,sql:jump.sql,n:jump.n||0}:null});}
+// A statement is shown on one line up to LOG_SQL_MAX characters; a longer one gets an expander on its
+// log line that shows the whole of it, as written, up to LOG_SQL_FULL_MAX (the backend reports a
+// script's statements up to the same length).
+const LOG_SQL_MAX=300,LOG_SQL_FULL_MAX=20000;
+function sqlOneLine(sql,max){const x=String(sql==null?'':sql).replace(/\s+/g,' ').trim();max=max||LOG_SQL_MAX;return x.length>max?x.slice(0,max)+'...':x;}
+function sqlWhole(sql){const x=String(sql==null?'':sql).trim();return x.length>LOG_SQL_FULL_MAX?x.slice(0,LOG_SQL_FULL_MAX)+'...':x;}
+// msg is the text, or a function that writes it with the SQL it names put through the formatter it
+// is given: sqlOneLine for the line as shown, sqlWhole for what its expander shows.
+function runLog(id,msg,kind,jump){const t=T(id),head='['+runClock()+'] '+(t?t.title:'Query')+': ';
+ const short=typeof msg==='function'?msg(sqlOneLine):msg,full=typeof msg==='function'?msg(sqlWhole):null;
+ log(head+short,{kind:kind==='-'?'':(kind||'ok'),jump:jump?{id,sql:jump.sql,n:jump.n||0}:null,full:full!=null&&full!==short?head+full:null});}
 // Rows changed means something only for a statement that writes rows; a CREATE or a SET is just OK.
 function stmtWrites(sql){return /^(insert|update|delete|replace|load\s+data)\b/i.test(sqlHead(String(sql||'')));}
 function rowsAffected(n){n=+n||0;return fmtCount(n)+' row'+(n===1?'':'s')+' affected';}
@@ -2768,7 +2787,7 @@ function stmtOutcome(st){const a=+st.affected||0,m=st.matched;
 // The rows the writes of a script changed, or null when none of its statements writes rows.
 function scriptAffected(sts){const w=(sts||[]).filter(x=>stmtWrites(x.sql));return w.length?w.reduce((a,x)=>a+(+x.affected||0),0):null;}
 // One statement: one line. Several: a line for the script, and one under it for each statement.
-function stmtLines(sts,total){return (sts||[]).map(x=>'  '+x.index+(total?'/'+total:'')+'. '+x.sql+' -> '+stmtOutcome(x));}
+function stmtLines(sts,total,f){f=f||sqlOneLine;return (sts||[]).map(x=>'  '+x.index+(total?'/'+total:'')+'. '+f(x.sql)+' -> '+stmtOutcome(x));}
 // The statement behind the grid: the result picked from a script's results, else the last
 // statement run.
 function gridSql(t){const rs=t.resultSets&&t.resultSets[t.resultIdx||0];if(rs)return rs.sql;const s=splitStmts(String(t.curRun||'')).filter(x=>!isCommentOnly(x));return s.length?s[s.length-1]:'';}
@@ -4587,7 +4606,7 @@ async function runScriptResults(id,sql,reqId,seq){const t0=performance.now();
  if(t.resultSets.length){showResultSet(id,0);}
  else{t.cols=[];t.rows=[];$('res_'+id).innerHTML='';renderResultSetTabs(id);updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';}
  const n=t.resultSets.length;
- if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';runLog(id,'SCRIPT OK ('+stmts.length+' statements, '+n+' results, '+fmtMs(performance.now()-t0)+')'+(stmts.length===1?': '+sqlOneLine(stmts[0]):''));}
+ if(r.ok){st.className='status';st.textContent='OK. '+stmts.length+' statement(s) executed, '+n+' result(s).';runLog(id,f=>'SCRIPT OK ('+stmts.length+' statements, '+n+' results, '+fmtMs(performance.now()-t0)+')'+(stmts.length===1?': '+f(stmts[0]):''));}
  else{st.className='status err';st.textContent=timeLimitNote(r.error||'Failed.')+(n?' - showing the '+n+' result(s) produced before it.':'');runLog(id,logErr(r.error||'Failed.'),'err',{sql,n:errStmtNo(r.error)});}
  setRunWarnings(id,r.warnings,stmts);
  if(writes&&t.db)loadObjects(t.db);
@@ -4734,7 +4753,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     t.lastRunQ={sql:_q,db:runDb,timeLimit:timeLimitSec()};const r=await api('/api/query',{sql:_q,db:runDb,timeLimit:t.lastRunQ.timeLimit,requestId:reqId,pageSize:PAGE_BATCH,browse:true,session:runSessOf(t)},t.abortCtrl.signal);
     if(r.aborted){if(!stale()){st.className='status';st.textContent='Query cancelled.';}return;}
     if(stale())return;
-    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
+    if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,f=>f(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
@@ -4749,7 +4768,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     // pages has its warnings with its last page (fetchNextBatch).
     t.warnFinalNo=stmts.length||1;
     addRunWarnings(id,r.warnings);
-    if(!r.columns.length){st.textContent=r.message||'Query OK.';runLog(id,sqlOneLine(_q)+' -> OK, '+fmtMs(r.elapsedMs));$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
+    if(!r.columns.length){st.textContent=r.message||'Query OK.';runLog(id,f=>f(_q)+' -> OK, '+fmtMs(r.elapsedMs));$('res_'+id).innerHTML='';updatePager(id);const ra0=$('resultActions_'+id);if(ra0)ra0.style.display='none';return;}
     const ra=$('resultActions_'+id);if(ra)ra.style.display='inline-flex';
     refreshRunTableBinding(id,lastStmt,tableDb);
     // Column types and NULL-ability are read again for every result: the tab may now show another
@@ -4772,7 +4791,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     } else { t.estRows=null; }
     if(stale())return;
     t.lastElapsedMs=r.elapsedMs;
-    runLog(id,sqlOneLine(_q)+' -> '+fmtCount(t.rows.length)+' row'+(t.rows.length===1?'':'s')+(t.hasMore?' (more as you scroll)':'')+', '+fmtMs(r.elapsedMs)+(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300?' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+')':''));
+    runLog(id,f=>f(_q)+' -> '+fmtCount(t.rows.length)+' row'+(t.rows.length===1?'':'s')+(t.hasMore?' (more as you scroll)':'')+', '+fmtMs(r.elapsedMs)+(r.fetchMs!=null&&r.jsonMs!=null&&r.elapsedMs>=300?' (parse '+fmtMs(r.fetchMs)+', JSON '+fmtMs(r.jsonMs)+')':''));
     renderGrid(id);updatePager(id);
     updateStatusLine(id);
     updateSchemaBadge(id);
@@ -4790,7 +4809,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
       if(!r.failures.length){
         const ra=scriptAffected(r.statements);
         st.textContent='OK. '+r.succeeded+' of '+r.total+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
-        runLog(id,'SCRIPT OK ('+r.succeeded+'/'+r.total+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(r.statements?'\n'+stmtLines(r.statements,r.total).join('\n'):''));
+        runLog(id,f=>'SCRIPT OK ('+r.succeeded+'/'+r.total+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(r.statements?'\n'+stmtLines(r.statements,r.total,f).join('\n'):''));
       } else {
         st.className='status err';
         st.textContent=r.succeeded+' of '+r.total+' succeeded, '+r.failures.length+' failed (see log for details).';
@@ -4803,17 +4822,17 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
         const succNote=succeededIdx.length?' (statement(s) '+succeededIdx.join(', ')+')':'';
         const detail=r.failures.map(f=>'Statement '+f.index+' of '+r.total+': '+f.error+'\n  '+f.preview).join('\n\n');
         const ra=scriptAffected(r.statements);
-        runLog(id,'SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+(ra!=null?', '+rowsAffected(ra):'')+'.'+(r.statements&&r.statements.length?'\n'+stmtLines(r.statements,r.total).join('\n'):'')+'\n\nFailed:\n'+detail,'err',{sql,n:r.failures[0].index});
+        runLog(id,f=>'SCRIPT: '+r.succeeded+' of '+r.total+' succeeded'+succNote+(ra!=null?', '+rowsAffected(ra):'')+'.'+(r.statements&&r.statements.length?'\n'+stmtLines(r.statements,r.total,f).join('\n'):'')+'\n\nFailed:\n'+detail,'err',{sql,n:r.failures[0].index});
       }
       if(t.db)loadObjects(t.db);
     } else if(r.ok){if(hr&&r.affected!=null)hr.affected=+r.affected;const sts=r.statements,ra=scriptAffected(sts);
       st.textContent='OK. '+stmts.length+' statement(s) executed'+(ra!=null?', '+rowsAffected(ra):'')+'.';
       // One statement says it all on one line; a script gets a line, and one per statement under it.
-      if(sts&&sts.length===1)runLog(id,sts[0].sql+' -> '+stmtOutcome(sts[0]));
-      else runLog(id,'SCRIPT OK ('+stmts.length+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(sts?'\n'+stmtLines(sts,sts.length).join('\n'):''));
+      if(sts&&sts.length===1)runLog(id,f=>f(sts[0].sql)+' -> '+stmtOutcome(sts[0]));
+      else runLog(id,f=>'SCRIPT OK ('+stmts.length+' statements'+(ra!=null?', '+rowsAffected(ra):'')+(r.elapsedMs!=null?', '+fmtMs(r.elapsedMs):'')+')'+(sts?'\n'+stmtLines(sts,sts.length,f).join('\n'):''));
       if(t.db)loadObjects(t.db);}
     else{st.className='status err';st.textContent=timeLimitNote(r.error);const sts=r.statements;
-      runLog(id,'SCRIPT ERROR: '+r.error+(sts&&sts.length?'\nRan before it:\n'+stmtLines(sts).join('\n'):''),'err',{sql,n:errStmtNo(r.error)});await schemaGoneNote(id,r.error);}
+      runLog(id,f=>'SCRIPT ERROR: '+r.error+(sts&&sts.length?'\nRan before it:\n'+stmtLines(sts,0,f).join('\n'):''),'err',{sql,n:errStmtNo(r.error)});await schemaGoneNote(id,r.error);}
     setRunWarnings(id,r.warnings,stmts);
   }
  } finally {

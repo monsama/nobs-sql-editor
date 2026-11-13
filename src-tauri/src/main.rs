@@ -2925,14 +2925,17 @@ async fn script(req: Value) -> R {
     mark_reset(&sid, r)
 }
 
-// What the output window says about one statement that ran: its number, its start on one line, the
-// rows it changed and how long it took. For an UPDATE the server also says how many rows its WHERE
-// found ("Rows matched: 5  Changed: 2  Warnings: 0"): a row that already held the new value is
+// What the output window says about one statement that ran: its number, its text, the rows it
+// changed and how long it took. The text goes as written - the window puts it on one line and
+// shortens it, with an expander for the whole of it - up to STMT_REPORT_MAX characters, so a script
+// of huge INSERTs does not send them all back. For an UPDATE the server also says how many rows its
+// WHERE found ("Rows matched: 5  Changed: 2  Warnings: 0"): a row that already held the new value is
 // matched but not changed, and the two numbers apart tell the user so.
+const STMT_REPORT_MAX: usize = 20_000;
 fn stmt_report(idx: usize, stmt: &str, affected: u64, info: &str, t0: std::time::Instant) -> Value {
-    let one_line = stmt.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut sql: String = one_line.chars().take(80).collect();
-    if one_line.chars().count() > 80 { sql.push_str("..."); }
+    let stmt = stmt.trim();
+    let mut sql: String = stmt.chars().take(STMT_REPORT_MAX).collect();
+    if sql.len() < stmt.len() { sql.push_str("..."); }
     let matched = info.split("Rows matched:").nth(1)
         .and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse::<u64>().ok());
     json!({"index": idx + 1, "sql": sql, "affected": affected, "matched": matched, "ms": t0.elapsed().as_millis() as u64})
@@ -10143,14 +10146,18 @@ mod stmt_report_tests {
     use super::*;
 
     #[test]
-    fn a_statement_is_reported_on_one_line_with_its_rows() {
-        let r = stmt_report(2, "UPDATE t\n   SET v = 1\n WHERE id < 10", 12, "Rows matched: 15  Changed: 12  Warnings: 0", std::time::Instant::now());
-        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone(), r["matched"].clone()), (json!(3), json!("UPDATE t SET v = 1 WHERE id < 10"), json!(12), json!(15)));
+    fn a_statement_is_reported_whole_with_its_rows() {
+        let r = stmt_report(2, "\n UPDATE t\n   SET v = 1\n WHERE id < 10 ", 12, "Rows matched: 15  Changed: 12  Warnings: 0", std::time::Instant::now());
+        assert_eq!((r["index"].clone(), r["sql"].clone(), r["affected"].clone(), r["matched"].clone()), (json!(3), json!("UPDATE t\n   SET v = 1\n WHERE id < 10"), json!(12), json!(15)));
+        // a long one is not cut short for the window - it shortens it itself, and can show it all
         let long = format!("INSERT INTO t VALUES {}", "(1),".repeat(40));
         let r = stmt_report(0, &long, 40, "Records: 40  Duplicates: 0  Warnings: 0", std::time::Instant::now());
-        let sql = r["sql"].as_str().unwrap();
-        assert!(sql.ends_with("...") && sql.chars().count() == 83, "{sql}");
+        assert_eq!(r["sql"].as_str().unwrap(), long);
         assert!(r["matched"].is_null(), "only an UPDATE says how many rows it matched: {r}");
+        // a huge one is, at STMT_REPORT_MAX characters
+        let huge = format!("INSERT INTO t VALUES {}", "('ä'),".repeat(5000));
+        let sql = stmt_report(0, &huge, 1, "", std::time::Instant::now())["sql"].as_str().unwrap().to_string();
+        assert!(sql.ends_with("...") && sql.chars().count() == STMT_REPORT_MAX + 3, "{}", sql.chars().count());
     }
 }
 
