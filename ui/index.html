@@ -4736,6 +4736,7 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     if(stale())return;
     if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
+    {const kv=t._keepView;t._keepView=null;if(kv&&kv.cols.length===t.cols.length&&kv.cols.every((c,i)=>c===t.cols[i])){t.filters=kv.filters;t.sortCol=kv.sortCol;t.sortDir=kv.sortDir;}}
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
     // this one is still fetching. Must also drop updateEditBar's own "nothing changed" cache
@@ -4948,7 +4949,12 @@ function sqlBlankStringsAndComments(s){let out='',q=null;
 // together - lets you stack e.g. status='active' AND created_at>'2024-01-01' instead of the last
 // pick replacing the one before it.
 function combinedFilterWhere(t){return (t.filterClauses&&t.filterClauses.length)?t.filterClauses.join(' AND '):null;}
-async function openRun(id){const t=T(id);const where=combinedFilterWhere(t);const wh=where?(' WHERE '+where):'';const sql='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+wh+';';t.genSql=sql;edSetAll(id,sql);syncHl(id);await runSql(id,sql);updateFilterBar(id);}
+// keepView: the reload after Apply keeps the grid's column filters and sort as they were, so the
+// rows the user narrowed down to are still the ones shown once the save is in (runSql only takes
+// them back if the reloaded result has the same columns).
+async function openRun(id,keepView){const t=T(id);const where=combinedFilterWhere(t);const wh=where?(' WHERE '+where):'';const sql='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+wh+';';t.genSql=sql;edSetAll(id,sql);syncHl(id);
+ t._keepView=keepView&&t.cols?{cols:t.cols.slice(),filters:Object.assign({},t.filters||{}),sortCol:t.sortCol,sortDir:t.sortDir}:null;
+ try{await runSql(id,sql);}finally{t._keepView=null;}updateFilterBar(id);}
 
 // ---- editable grid with pending changes ----
 function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
@@ -7095,7 +7101,7 @@ async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const
  // was saved, since until then the reload is still reading on the tab's connection.
  // What was done, by kind: rows updated (however many of their cells), inserted and deleted.
  const nIns=S.filter(x=>x.startsWith('INSERT INTO')).length,what=[[updWh.length,'updated'],[nIns,'inserted'],[delWh.length,'deleted']].filter(x=>x[0]).map(x=>fmtCount(x[0])+' row'+(x[0]===1?'':'s')+' '+x[1]).join(', ');
- if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
+ if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id,true);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");
