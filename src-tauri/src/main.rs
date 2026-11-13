@@ -5287,7 +5287,6 @@ async fn hist_clear(req: Value) -> R {
     match r { Ok(()) => Ok(json!({"ok":true})), Err(e) => Ok(json!({"ok":false,"error":e})) }
 }
 
-#[tauri::command]
 /// "core_val*" -> "%c%o%r%e%v%a%l%": only letters and digits are kept, so nothing in it is a
 /// LIKE wildcard or needs escaping.
 fn fuzzy_like(term: &str) -> String {
@@ -5306,6 +5305,7 @@ mod fuzzy_like_tests {
     }
 }
 
+#[tauri::command]
 async fn search_all_schemas(req: Value) -> R {
     let term = req["term"].as_str().unwrap_or("").trim().to_string();
     if term.is_empty() { return Ok(json!({"ok":false,"error":"Empty search term."})); }
