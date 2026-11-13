@@ -142,7 +142,7 @@ Export files are kept wherever you saved them.
 - A **Value** panel under the grid shows the clicked cell at full length, read as Binary, HTML,
   JSON, Text or XML in a chosen encoding, laid out for reading (Auto format) and wrapped or not.
   Edit it there and Save it into the cell, save it as a file, or load it from one.
-- **Go to referenced row** follows a foreign key, into another database too.
+- **Go to referenced row** follows a foreign key, into another database too - from the cell menu, or the little ↗ in the key's cell; resting on the ↗ shows a short preview of that row.
 - Manual transactions: with Auto-commit off a tab keeps one transaction open across its runs
   until Commit or Rollback, with a log of what it has run. It is the tab's own connection, so what
   the session held before is still there.
