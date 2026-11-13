@@ -9741,7 +9741,11 @@ function acAccept(id){const ta=acTa||$('ed_'+id);const pos=ta.selectionStart;con
  // it: the backtick used to stay in front of the suggestion, doubled by its own quoting or left open.
  const m=before.match(/\x60[^\x60\n]*$|[A-Za-z_][A-Za-z0-9_$]*$/);const start=pos-(m?m[0].length:0);const quoted=!!(m&&m[0][0]==='\x60');
  const mAfter=quoted?(after.match(/^[^\x60\n]*\x60/)||after.match(/^[A-Za-z0-9_$]+/)):after.match(/^[A-Za-z0-9_$]+/);const end=pos+(mAfter?mAfter[0].length:0);const val=acItems[acIdx]||'';
- edReplaceRange(id,start,end,val);const np=start+val.length;ta.selectionStart=ta.selectionEnd=np;acHide();syncHl(id);ta.focus();}
+ // LIKE comes with its pattern quotes, '%%', and the cursor between the two % to type the search
+ // term right away - unless a quoted pattern already follows it.
+ const likePat=!quoted&&/^(NOT\s+)?LIKE$/i.test(val)&&!/^\s*['"]/.test(ta.value.slice(end));
+ const ins=likePat?val+" '%%'":val;
+ edReplaceRange(id,start,end,ins);const np=start+(likePat?val.length+3:ins.length);ta.selectionStart=ta.selectionEnd=np;acHide();syncHl(id);ta.focus();}
 
 let csvTarget={db:null,table:null};
 async function exportFull(db,name,fmt){fmt=fmt||'csv';const ext=(fmt==='inserts')?'sql':'csv';const defName=name+(fmt==='inserts'?'_inserts.sql':'.csv');
