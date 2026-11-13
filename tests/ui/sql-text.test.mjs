@@ -91,6 +91,14 @@ test('keywords inside strings and quoted names are not clauses', () => {
   assert.ok(f.includes("'from where'") && f.includes('`select`'));
 });
 
+test('a function call keeps its bracket against the name, since MySQL rejects COUNT (*)', () => {
+  assert.equal(lib.formatSql("select count(*), group_concat(u.v), cast(a as char) from t where b in (1, 2)"),
+    'select count(*), group_concat(u.v), cast(a as char)\nfrom t\nwhere b in (1, 2)');
+  // a space the author wrote stays a space
+  assert.equal(lib.formatSql('select a from t where b in(1)'), 'select a\nfrom t\nwhere b in(1)');
+  assert.equal(lib.formatSql('insert into t (a) values (1)'), 'insert into t (a)\nvalues (1)');
+});
+
 test('a name after a dot is not a keyword', () => {
   assert.equal(lib.formatSql('select t.from, t.limit from t'), 'select t.from, t.limit\nfrom t');
 });

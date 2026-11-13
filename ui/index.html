@@ -4452,20 +4452,27 @@ function formatSql(sql){
   +'|(0x[0-9A-Fa-f]+(?!'+W+')|0b[01]+(?!'+W+')|(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?(?!'+W+'))'
   +'|(@@?(?:[A-Za-z0-9_$.\\u0080-\\uffff]+|`(?:[^`]|``)*`|'+STR+')|'+W+'+)'
   +'|(<=>|->>|->|<>|!=|<=|>=|:=|\\|\\||&&|<<|>>|[\\s\\S])','g');
- let m,toks=[];
+ // gap: whether whitespace came before the token in the text as written
+ let m,toks=[],gap=false;
  while((m=re.exec(sql))){
-  if(m[1])toks.push({t:'comment',v:m[1]});
-  else if(m[2])toks.push({t:'str',v:m[2]});
-  else if(m[3])toks.push({t:'num',v:m[3]});
-  else if(m[4])toks.push({t:'word',v:m[4]});
-  else if(!/\s/.test(m[5]))toks.push({t:'ch',v:m[5]});
+  if(m[1])toks.push({t:'comment',v:m[1],gap});
+  else if(m[2])toks.push({t:'str',v:m[2],gap});
+  else if(m[3])toks.push({t:'num',v:m[3],gap});
+  else if(m[4])toks.push({t:'word',v:m[4],gap});
+  else if(!/\s/.test(m[5]))toks.push({t:'ch',v:m[5],gap});
+  else{gap=true;continue;}
+  gap=false;
  }
  const BREAK1=new Set(['select','from','where','set','values','union']);
  const COMPOUND={group:'by',order:'by',left:'join',right:'join',inner:'join',full:'join',union:'all',insert:'into','delete':'from'};
  let out='',depth=0;
  for(let i=0;i<toks.length;i++){
   const tok=toks[i];
-  if(tok.t==='ch'&&tok.v==='('){depth++;out+=(out&&!/[\s(]$/.test(out)?' ':'')+'(';continue;}
+  // A bracket written against the word before it stays there: MySQL takes COUNT (*), CAST (x AS
+  // CHAR) or GROUP_CONCAT (x), with a space, as a call to a function of the database by that name,
+  // which isn't there (unless sql_mode has IGNORE_SPACE).
+  const glued=tok.t==='ch'&&tok.v==='('&&!tok.gap&&toks[i-1]&&toks[i-1].t==='word';
+  if(tok.t==='ch'&&tok.v==='('){depth++;out+=(out&&!glued&&!/[\s(]$/.test(out)?' ':'')+'(';continue;}
   if(tok.t==='ch'&&tok.v===')'){depth=Math.max(0,depth-1);out+=')';continue;}
   if(tok.t==='ch'&&(tok.v===','||tok.v===';'||tok.v==='.')){out+=tok.v;continue;}
   const lw=tok.t==='word'?tok.v.toLowerCase():'';
