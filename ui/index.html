@@ -5211,6 +5211,7 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
     const t=T(id);
     if(t&&t.cellSel&&t.cellSel.size){e.preventDefault();const n=t.cellSel.size;
      copyText(pickedCellsText(id),'Copied '+n+' cell'+(n===1?'':'s')+'.');return;}
+    if(gridTextSelected(id))return;
     if(t&&t.selected&&t.selected.size){e.preventDefault();copySelRows(id);return;}
     return;}
    // Esc lets the picked cells go; pressed again, the ticked rows. Not while typing in a cell.
@@ -6466,8 +6467,19 @@ function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
 // there. Cleared after the fact it came back on the next move, ran from the cell into the rest of the
 // window, and could stay behind when the button was let go. The cell's editor and any other text box
 // select text as always.
+// A read-only result is the exception: no cell opens for editing there, so a press that stays in one
+// cell selects that cell's characters, to copy part of a value. Leaving the cell still picks cells.
+function gridReadOnly(id){const t=T(id);return !t||!t.pk||document.body.classList.contains('ro');}
 document.addEventListener('selectstart',e=>{const n=e.target&&(e.target.nodeType===1?e.target:e.target.parentElement);
- if(n&&n.closest&&n.closest('[id^="res_"] table.grid td')&&!n.closest('input,textarea,[contenteditable="true"]'))e.preventDefault();});
+ if(!(n&&n.closest&&n.closest('[id^="res_"] table.grid td')&&!n.closest('input,textarea,[contenteditable="true"]')))return;
+ const w=n.closest('[id^="res_"]'),d=window._gridDrag;
+ if(w&&gridReadOnly(w.id.slice(4))&&!(d&&d.moved)&&!document.body.classList.contains('gridpicking'))return;
+ e.preventDefault();});
+// Characters selected with the mouse in a cell of this result: what Ctrl+C copies, ahead of ticked rows.
+function gridTextSelected(id){if(!window.getSelection)return false;const s=window.getSelection();
+ if(!s||s.isCollapsed||!s.anchorNode)return false;
+ const w=$('res_'+id),n=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;
+ return !!(w&&n&&w.contains(n)&&n.closest('td'));}
 function gridDragBegin(d,t){d.moved=true;
  if(!d.add)t.cellSel.clear();
  d.base=new Set(t.cellSel);
