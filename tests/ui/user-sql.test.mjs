@@ -557,6 +557,46 @@ test('following a foreign key, and the quick filter, find the right rows', async
   CHECK(q.seen.clauses.join(' ; ') === "`id` = X'' ; `id` <> X''", 'the quick filter writes the value for its column type', q.seen.clauses.join(' ; '));
 });
 
+// The quick filter on a typed value, and on the clipboard's: the clause each comparison writes, which
+// clipboard contents count as one value, and where both sit in the submenu.
+test('the quick filter takes a typed value and the clipboard value', async () => {
+  const names = ['qfSub', 'qfClause', 'qfClipUsable', 'qfClipPreview', 'qfMenu', 'litAs', 'lit', 'strLit'];
+  const body = 'const QF_CLIP_MAX=1000;\n' + names.map(n => extractFunction(html, n)).join('\n');
+  const tab = { cols: ['id', 'v'] };
+  const env = {
+    qid: s => '`' + s + '`', T: () => tab, gridBinCols: async () => [true, false],
+    addFilterClause: async () => {}, qfCustom: () => {}, qfReadClip: async () => null, toast: () => {},
+  };
+  const keys = Object.keys(env);
+  const f = new Function(...keys, body + '\nreturn {qfClause, qfClipUsable, qfClipPreview, qfMenu};')(...keys.map(k => env[k]));
+  assert.equal(await f.qfClause('t1', 'v', '=', "it's"), "`v` = 'it''s'");
+  assert.equal(await f.qfClause('t1', 'v', '=', '0x41'), "`v` = '0x41'", 'a text column keeps hex-looking text as text');
+  assert.equal(await f.qfClause('t1', 'id', '<>', '0x'), "`id` <> X''", 'a binary column gets its value as bytes');
+  assert.equal(await f.qfClause('t1', 'v', 'contains', '5%_a\\b'), "`v` LIKE '%5\\\\%\\\\_a\\\\\\\\b%' ESCAPE '\\\\'");
+  assert.equal(await f.qfClause('t1', 'v', 'notcontains', 'x'), "`v` NOT LIKE '%x%' ESCAPE '\\\\'");
+  assert.equal(await f.qfClause('t1', 'v', 'starts', 'x'), "`v` LIKE 'x%' ESCAPE '\\\\'");
+  assert.equal(await f.qfClause('t1', 'v', 'ends', 'x'), "`v` LIKE '%x' ESCAPE '\\\\'");
+  assert.equal(await f.qfClause('t1', 'v', 'like', 'a%b_'), "`v` LIKE 'a%b_'", 'a LIKE pattern keeps its wildcards');
+  assert.equal(await f.qfClause('t1', 'v', 'notlike', 'a%'), "`v` NOT LIKE 'a%'");
+
+  assert.equal(f.qfClipUsable('abc\r\n'), 'abc', 'the line end a copied spreadsheet cell comes with is dropped');
+  assert.equal(f.qfClipUsable('a\nb'), 'a\nb', 'a value with a line end inside it is still one value');
+  assert.equal(f.qfClipUsable(''), null, 'an image or file list reads as no text');
+  assert.equal(f.qfClipUsable('a\tb\nc\td'), null, 'a range of cells is not one value');
+  assert.equal(f.qfClipUsable('x'.repeat(1001)), null, 'a whole document is not one value');
+  assert.equal(f.qfClipPreview('line1\nline2 and some more text after it'), '"line1⏎line2 and some mor…"');
+
+  const labels = m => m.map(x => Array.isArray(x) ? x[0] : x);
+  const withClip = f.qfMenu('t1', 'v', 'abc', '42');
+  const ci = withClip.findIndex(x => Array.isArray(x) && x[0].startsWith('Clipboard value "42"'));
+  assert.ok(labels(withClip).includes('Custom value...'), labels(withClip).join(' | '));
+  assert.ok(ci >= 0 && Array.isArray(withClip[ci][1]), 'the clipboard value has its own comparisons');
+  const cl = labels(withClip[ci][1]);
+  assert.ok(cl.includes("`v` = '42'") && cl.includes("`v` > '42'") && !cl.some(l => /IS NULL/.test(l)), cl.join(' | '));
+  const noClip = f.qfMenu('t1', 'v', null, null);
+  assert.ok(labels(noClip).includes('Clipboard value...') && labels(noClip).includes('Custom value...'), labels(noClip).join(' | '));
+});
+
 test('editWidgetFor actually applies that round-trip test', () => {
   // The rule above can be right and never run. This pins the wiring.
   const body = extractFunction(html, 'editWidgetFor');

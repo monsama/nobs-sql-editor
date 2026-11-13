@@ -6735,7 +6735,12 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   !multi&&editable&&!sel&&['Delete row',()=>{if(!t.pending.del.has(ri))toggleDel(id,ri);}],
   editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],
   '-'];
- if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length){if(t.filterClauses.length>1)items.push(['Remove filter',t.filterClauses.map((c,i)=>[clip(c,60),()=>removeFilterClause(id,i)])]);items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);}
+ // The clipboard's value for the quick filter, read before the menu shows (it cannot be read while
+ // building it). Copied in this app from a cell, the value itself is used rather than its text, so
+ // a binary one keeps its type.
+ let clipQf=null;if(t.table&&!multi){clipQf=await qfReadClip(true);const c1=window._cellClipboard;
+  if(clipQf!=null&&c1&&cellClipCount()===1){const v=c1.flat().find(x=>x!==undefined);if(v!=null&&qfClipUsable(cellCopyValue(v))===clipQf)clipQf=v;}}
+ if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfMenu(id,col,cur,clipQf)]);if(t.filterClauses&&t.filterClauses.length){if(t.filterClauses.length>1)items.push(['Remove filter',t.filterClauses.map((c,i)=>[clip(c,60),()=>removeFilterClause(id,i)])]);items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);}
   const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
   // The key is followed into the database it names, on every column it has; a part that is NULL
   // points nowhere.
@@ -6886,7 +6891,7 @@ function copyColumn(id,ci){const t=T(id);const vals=t.rows.map((row,ri)=>{const 
 // The comparisons are built when picked, with the value written for the column's type (see litAs):
 // lit() alone turned an empty binary value into the text '0x' and a text value like 0x41 into a
 // byte, so the filter found nothing, or the wrong rows.
-function qfSub(id,col,val){const q=qid(col);const lv=lit(val);
+function qfSub(id,col,val,noNull){const q=qid(col);const lv=lit(val);
  const cmp=op=>async()=>{const bc=await gridBinCols(id);const ci=T(id).cols.indexOf(col);await addFilterClause(id,q+' '+op+' '+litAs(val,bc&&ci>=0?bc[ci]:null));};const esc=s=>String(s).replace(/([%_\\])/g,'\\$1').replace(/'/g,"''");const sub=[];
  if(val===null){sub.push([q+' IS NULL',()=>addFilterClause(id,q+' IS NULL')]);sub.push([q+' IS NOT NULL',()=>addFilterClause(id,q+' IS NOT NULL')]);return sub;}
  const sv=String(val).trim();const isNum=/^-?\d+(\.\d+)?$/.test(sv);const isDate=/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$/.test(sv);
@@ -6900,7 +6905,58 @@ function qfSub(id,col,val){const q=qid(col);const lv=lit(val);
  // string, a backslash in the value was taken as an escape and the filter matched nothing.
  const likeSql=p=>' LIKE '+strLit(p)+' ESCAPE '+strLit('\\'),lk=String(like).replace(/([%_\\])/g,'\\$1');
  sub.push([q+" LIKE '%"+ld+"%'",()=>addFilterClause(id,q+likeSql('%'+lk+'%'))]);sub.push([q+" LIKE '"+ld+"%'",()=>addFilterClause(id,q+likeSql(lk+'%'))]);if(!isDate)sub.push([q+" LIKE '%"+ld+"'",()=>addFilterClause(id,q+likeSql('%'+lk))]);}
+ if(noNull)return sub;
  sub.push('-');sub.push([q+' IS NULL',()=>addFilterClause(id,q+' IS NULL')]);sub.push([q+' IS NOT NULL',()=>addFilterClause(id,q+' IS NOT NULL')]);return sub;}
+// The comparisons the "Custom value..." dialog offers, and the clause each one makes of a typed
+// value. Values are written as qfSub writes them: by the column's type for the plain comparisons,
+// and as a LIKE pattern with %, _ and \ escaped for "contains" and the like. "LIKE pattern" is the
+// one that takes the value as written, wildcards and all.
+const QF_OPS=[['=','='],['<>','<> (not equal)'],['>','>'],['>=','>='],['<','<'],['<=','<='],['contains','contains'],['notcontains','does not contain'],['starts','starts with'],['ends','ends with'],['like','LIKE pattern (% and _ as typed)'],['notlike','NOT LIKE pattern']];
+async function qfClause(id,col,op,val){const q=qid(col);
+ const lk=String(val).replace(/([%_\\])/g,'\\$1'),likeSql=(not,p)=>' '+(not?'NOT ':'')+'LIKE '+strLit(p)+' ESCAPE '+strLit('\\');
+ switch(op){
+  case 'contains':return q+likeSql(false,'%'+lk+'%');
+  case 'notcontains':return q+likeSql(true,'%'+lk+'%');
+  case 'starts':return q+likeSql(false,lk+'%');
+  case 'ends':return q+likeSql(false,'%'+lk);
+  case 'like':return q+' LIKE '+strLit(val);
+  case 'notlike':return q+' NOT LIKE '+strLit(val);
+ }
+ const bc=await gridBinCols(id),ci=T(id).cols.indexOf(col);
+ return q+' '+op+' '+litAs(val,bc&&ci>=0?bc[ci]:null);}
+// Quick filter on a value typed in, rather than one taken from a cell: starts from the right-clicked
+// cell's value (or the clipboard's), selected, so typing replaces it.
+async function qfCustom(id,col,init){
+ const res=await inputBox({title:'Quick filter: '+col,okText:'Filter',fields:[
+  {key:'op',label:'Column '+col,type:'select',options:QF_OPS.map(o=>({value:o[0],label:o[1]})),value:'='},
+  {key:'val',label:'Value',value:init==null?'':String(init)}]});
+ if(!res)return;
+ await addFilterClause(id,await qfClause(id,col,res.op,res.val));}
+// What the system clipboard holds, if it is something a filter can use: text, one value of it. An
+// image or a file list reads as no text; a range of cells (tab-separated) or a whole document is not
+// one value, and is not offered. A single line end at the end - which a cell copied from a
+// spreadsheet comes with - is not part of the value. null when there is nothing usable or the
+// clipboard cannot be read without asking (a browser asks for permission, and that is left for a
+// click, not every right-click).
+const QF_CLIP_MAX=1000;
+function qfClipUsable(s){if(typeof s!=='string')return null;s=s.replace(/\r?\n$/,'');
+ if(!s.length||s.length>QF_CLIP_MAX||s.indexOf('\t')>=0||s.indexOf('\0')>=0)return null;return s;}
+async function qfReadClip(silent){
+ try{if(!navigator.clipboard||!navigator.clipboard.readText)return null;
+  if(silent&&!window.__TAURI__){const p=navigator.permissions&&await navigator.permissions.query({name:'clipboard-read'}).catch(()=>null);if(!p||p.state!=='granted')return null;}
+  const s=await Promise.race([navigator.clipboard.readText(),new Promise(r=>setTimeout(()=>r(null),400))]);
+  return qfClipUsable(s);
+ }catch(e){return null;}}
+// A short look at the clipboard's value for a menu label: line ends and other control characters
+// shown as visible marks, so a value with a line end in it does not read as two.
+function qfClipPreview(s){const v=String(s).replace(/\r?\n/g,'⏎').replace(/[\x00-\x1F\x7F]/g,'·');return '"'+(v.length>24?v.slice(0,24)+'…':v)+'"';}
+// The quick-filter submenu for a cell: the comparisons on its value, then a value typed in, then the
+// clipboard's - its own comparisons when it could be read already, else read when clicked.
+function qfMenu(id,col,cur,clipText){const sub=qfSub(id,col,cur);
+ sub.push('-');sub.push(['Custom value...',()=>qfCustom(id,col,cur)]);
+ if(clipText!=null)sub.push(['Clipboard value '+qfClipPreview(clipText),qfSub(id,col,clipText,true).concat(['-',['Other comparison...',()=>qfCustom(id,col,clipText)]])]);
+ else sub.push(['Clipboard value...',async()=>{const s=await qfReadClip(false);if(s==null){toast('The clipboard holds no single text value to filter on.',true);return;}qfCustom(id,col,s);}]);
+ return sub;}
 // Adds one more ANDed condition to the table tab's active quick filter (does not replace the
 // existing ones) - lets right-clicking two different cells build up a compound WHERE, matching
 // how Heidi's quick-filter stacking works. Re-picking the exact same condition is a no-op.
