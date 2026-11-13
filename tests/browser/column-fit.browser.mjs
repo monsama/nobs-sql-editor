@@ -56,7 +56,7 @@ assert.equal(css.length, 3, `expected the three grid rules, found ${css.length}`
 
 const code = [cons('CTRL_NAMES'), cons('CTRL_RE'), cons('FIT_SAMPLE'),
   ...['esc', 'clip', 'ctrlBadge', 'textCellHtml', 'decodeCtrlCharCell', 'hexToBitNumber', 'cellHtml',
-    'viewIndices', 'viewIndicesFresh', 'widestCandidates', 'fitMeasure', 'autofitCol'].map(fn)].join('\n');
+    'viewIndices', 'viewIndicesFresh', 'wildMatcher', 'widestCandidates', 'fitMeasure', 'autofitCol'].map(fn)].join('\n');
 
 // 900 rows, so the grid is past the point where it draws them all, with the value that decides the
 // width at row 880 - below anything drawn - and a 600 character value in another column for the cap

@@ -3144,17 +3144,22 @@ function toggleObjGroup(key,all){let s=objCollapsed();const fold=!s.has(key);
 function objGroupHdr(box,key,text,folded){const h=document.createElement('div');h.className='ohdr';h.title=(folded?'Click to show':'Click to hide')+' (Shift+click: every group)';
  const c=document.createElement('span');c.className='caret';c.textContent=folded?'\u25B8':'\u25BE';h.appendChild(c);h.appendChild(document.createTextNode(text));
  h.onclick=e=>toggleObjGroup(key,e.shiftKey);box.appendChild(h);return !folded;}
-function renderObjects(){if(allDbs){renderAllDbs();return;}const box=$('objects');box.innerHTML='';if(!objData)return;const db=objData.db,r=objData.r;const f=($('objFilter').value||'').toLowerCase();const tf=window._objTypeFilter;const folded=objCollapsed();
+// The objects filter is fuzzy: the term's letters and digits, in order, anywhere in the name, so
+// "corevalue" finds core_value and core_attribute_value. Anything else typed (_ . - * ...) is
+// ignored, which makes * "anything here" and a term of only such characters match everything.
+function objNameMatcher(f){const t=String(f||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');if(!t)return ()=>true;
+ return n=>{const s=String(n).toLowerCase();let i=0;for(let j=0;j<s.length&&i<t.length;j++)if(s[j]===t[i])i++;return i===t.length;};}
+function renderObjects(){if(allDbs){renderAllDbs();return;}const box=$('objects');box.innerHTML='';if(!objData)return;const db=objData.db,r=objData.r;const f=($('objFilter').value||'').trim().toLowerCase();const fm=objNameMatcher(f);const tf=window._objTypeFilter;const folded=objCollapsed();
  const pinned=tf.has('table')?pinnedTables(db):[];
  if(pinned.length){
-   const fil=pinned.filter(n=>r.tables.includes(n)&&(!f||n.toLowerCase().includes(f)));
+   const fil=pinned.filter(n=>r.tables.includes(n)&&fm(n));
    if(fil.length&&objGroupHdr(box,'pinned','\u2605 Pinned ('+fil.length+')',folded.has('pinned'))){
      fil.forEach(n=>{const d=document.createElement('div');d.className='item';d.title=n;if(objData.sizes&&(n in objData.sizes)){const a=document.createElement('span');a.className='onm';a.textContent=n;const b=document.createElement('span');b.className='osz';b.textContent=fmtBytes(objData.sizes[n]);d.appendChild(a);d.appendChild(b);}else{d.textContent=n;}
       d.onclick=()=>{[...box.querySelectorAll('.item')].forEach(c=>c.classList.remove('sel'));d.classList.add('sel');objOpen(db,'table',n);};
       d.oncontextmenu=e=>{e.preventDefault();objMenu(e,db,'table',n);};box.appendChild(d);});}
  }
  const groups=[['Tables',r.tables,'table'],['Views',r.views,'view'],['Sequences',r.sequences||[],'sequence'],['Procedures',r.procedures,'procedure'],['Functions',r.functions,'function'],['Triggers',r.triggers,'trigger'],['Events',r.events,'event']];
- groups.forEach(([label,items,type])=>{if(!tf.has(type))return;const fil=(items||[]).filter(n=>!f||n.toLowerCase().includes(f));if(!fil.length)return;if(!objGroupHdr(box,type,label+' ('+fil.length+(f?'/'+items.length:'')+')',folded.has(type)))return;
+ groups.forEach(([label,items,type])=>{if(!tf.has(type))return;const fil=(items||[]).filter(fm);if(!fil.length)return;if(!objGroupHdr(box,type,label+' ('+fil.length+(f?'/'+items.length:'')+')',folded.has(type)))return;
   // At most OBJ_CAP of a kind are drawn; the rest are counted, and the filter finds them. Ten
   // thousand rows in the sidebar made opening and filtering a large schema hang.
   const more=fil.length-OBJ_CAP;
@@ -5335,9 +5340,14 @@ function viewIndices(id){const t=T(id);
  const key=t.rows.length+'\u0001'+JSON.stringify(t.filters||{})+'\u0001'+(t.search||'')+'\u0001'+t.sortCol+'\u0001'+t.sortDir;
  if(t._viewMemo&&t._viewMemo.rows===t.rows&&t._viewMemo.key===key)return t._viewMemo.view;
  const view=viewIndicesFresh(t);t._viewMemo={rows:t.rows,key,view};return view;}
+// A column filter is a case-insensitive "contains"; a * in it stands for any run of characters
+// (greedy), so "a*z" keeps values holding an a with a z somewhere after it. Nothing else is special.
+function wildMatcher(f){f=String(f);if(!f.includes('*')){f=f.toLowerCase();return s=>s.toLowerCase().includes(f);}
+ const re=new RegExp(f.split('*').map(p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.*'),'is');return s=>re.test(s);}
 function viewIndicesFresh(t){let view=t.rows.map((r,ri)=>ri);
  const fk=Object.keys(t.filters).filter(k=>t.filters[k]!=='' && t.filters[k]!=null);
- if(fk.length)view=view.filter(ri=>fk.every(ci=>{const v=t.rows[ri][ci];return v!=null&&String(v).toLowerCase().includes(String(t.filters[ci]).toLowerCase());}));
+ const fm=fk.map(ci=>[ci,wildMatcher(t.filters[ci])]);
+ if(fk.length)view=view.filter(ri=>fm.every(([ci,m])=>{const v=t.rows[ri][ci];return v!=null&&m(String(v));}));
  // The toolbar's search, ANDed with the column filters.
  const q=t.search?String(t.search).toLowerCase():'';
  if(q)view=view.filter(ri=>rowHasText(t.rows[ri],q));
