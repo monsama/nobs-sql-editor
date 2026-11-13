@@ -3623,7 +3623,9 @@ function toggleOverview() {
         ov.style.display = 'none';
     }
 }
-function objOpen(db,type,name){if(type==='table'){const _id=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_id);}else if(type==='view'||type==='sequence'){openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null);}else{openDdl(db,type,name);}}
+// A table already open in a tab of its own is shown again rather than opened twice. FK tabs carry
+// the table too but show a filtered slice of it, so they don't count.
+function objOpen(db,type,name){if(type==='table'){const _open=tabs.find(t=>t.db===db&&t.table===name&&!t.ddl&&!/ \(FK: /.test(t.title));if(_open){activate(_open.id);return;}const _id=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_id);}else if(type==='view'||type==='sequence'){openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null);}else{openDdl(db,type,name);}}
 // A table's menu, in groups: reading it, its structure, its data in and out, its upkeep, and last
 // what changes or removes it. information_schema and performance_schema are the server's views of
 // itself - nothing in them is designed, filled, kept up, renamed or dropped - so their tables and
@@ -3988,7 +3990,10 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
     edReplaceRange(id,ls,le,block);ta.selectionStart=ls;ta.selectionEnd=ls+block.length;}}
  });
  syncHl(id);activate(id);if(run)runTab(id);return id;}
-function activate(id){activeTab=id;const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
+// Tabs in the order they were last shown, most recent last: closing the shown tab goes back to
+// the one shown before it, not to whichever happens to sit beside it.
+let tabHistory=[];
+function activate(id){activeTab=id;tabHistory=tabHistory.filter(x=>x!==id);tabHistory.push(id);const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
 // Where the active tab's queries run: that schema's row in the list is marked (.runs). It was a
 // "Schema: x" chip in the top bar; the list already names every schema, so marking the row says
 // the same without the room a label takes. A table or DDL tab keeps the schema it was opened from
@@ -4062,7 +4067,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='F6'||e.ctrlKey||e.altKey||!a
 // F1 opens the list of shortcuts, as help does in most programs, and closes it again.
 document.addEventListener('keydown',e=>{if(e.key==='F1'&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){e.preventDefault();if($('mShortcuts').classList.contains('show'))hide('mShortcuts');else show('mShortcuts');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=[...document.querySelectorAll('.modal.show')].filter(m=>!window._floatingMinimized[m.id]);if(open.length){modalClose(open[open.length-1].id);}else if(window._newConnPrev&&!$('ctx').offsetParent)cancelNewConn();}});
-function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}delete vpState[id];closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();if(activeTab===id&&tabs.length)activate(tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
+function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}delete vpState[id];closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();tabHistory=tabHistory.filter(x=>x!==id&&T(x));if(activeTab===id&&tabs.length)activate(tabHistory.length?tabHistory[tabHistory.length-1]:tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
 // Each saved connection remembers its own open tabs (keyed by connection name; ad-hoc/unsaved
 // connections are keyed by host+user+port so different credentials don't collide).
 function sessionKeyFor(){const cn=$('connlist')?$('connlist').value:'';if(cn)return 'conn:'+cn;return 'adhoc:'+($('user')?$('user').value:'')+'@'+($('host')?$('host').value:'')+':'+($('port')?$('port').value:'');}
