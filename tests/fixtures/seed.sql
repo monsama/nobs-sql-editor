@@ -53,6 +53,18 @@ INSERT INTO txn_child (parent_id, code, qty, descr) VALUES
   (1,'AAA',10,'first'), (1,'BBB',20,'second'), (2,'CCC',30,'third'),
   (2,'DDD',40,NULL),    (1,'EEE',50,'fifth');
 
+-- A foreign key that may be NULL, as most optional references are: rows that
+-- point at a parent and rows that point at nothing, for the grid's arrow to the
+-- referenced row and for setting a key to NULL and back.
+CREATE TABLE fk_optional (
+  id        INT PRIMARY KEY,
+  parent_id INT          NULL,
+  note      VARCHAR(32)  NULL,
+  CONSTRAINT fk_optional_parent FOREIGN KEY (parent_id) REFERENCES txn_parent(id)
+) ENGINE=InnoDB;
+INSERT INTO fk_optional (id, parent_id, note) VALUES
+  (1, 1, 'points at alpha'), (2, 2, 'points at beta'), (3, NULL, 'points at nothing');
+
 -- Composite primary key: editing and deleting rows here exercises the
 -- multi-column WHERE the grid has to build to identify a row.
 CREATE TABLE txn_composite (
