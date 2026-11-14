@@ -5347,19 +5347,30 @@ async function refreshGrid(id){const t=T(id);if(!t)return;const sql=t.curRun;
 // column filters, the sort and the scroll position back on the new rows. A run clears filters and
 // sort (runSql), so they are kept here by column name and given back to the columns still there; a
 // column that is gone takes its filter with it. The search belongs to the tab and stays anyway.
+// As many rows as were loaded are read again - a run reads the first page only, so after loading
+// 5,000 rows an Apply showed 1,000 - and the scroll position is put back once the grid is drawn,
+// so the row just edited is still in front of you rather than the top of the table.
 async function rerunKeepingView(id,run){const t=T(id);if(!t)return;
  const cols=t.cols||[],filters={};Object.entries(t.filters||{}).forEach(([ci,v])=>{if(v&&cols[ci]!=null)filters[cols[ci]]=v;});
  const sortName=t.sortCol>=0?cols[t.sortCol]:null,sortDir=t.sortDir;
- const w=$('res_'+id),top=w?w.scrollTop:0,left=w?w.scrollLeft:0;
+ const w=$('res_'+id),top=w?w.scrollTop:0,left=w?w.scrollLeft:0,loaded=(t.rows||[]).length;
  const seq0=t.runSeq||0;
  await run();
  // Only the run started here gets them back: one started meanwhile shows rows of its own.
- if(!T(id)||t.runSeq!==seq0+1||t.resultSets||!t.cols||!t.cols.length||!$('tbody_'+id))return;
+ const mine=()=>T(id)&&t.runSeq===seq0+1;
+ if(!mine()||t.resultSets||!t.cols||!t.cols.length||!$('tbody_'+id))return;
  const nf={};Object.keys(filters).forEach(c=>{const ci=t.cols.indexOf(c);if(ci>=0)nf[ci]=filters[c];});
  const si=sortName!=null?t.cols.indexOf(sortName):-1;
  if(Object.keys(nf).length||si>=0){t.filters=nf;t._hitAt=null;if(si>=0){t.sortCol=si;t.sortDir=sortDir;}
   renderGrid(id);updatePager(id);updateStatusLine(id);}
- const w2=$('res_'+id);if(w2){w2.scrollTop=top;w2.scrollLeft=left;}}
+ while(mine()&&t.hasMore&&t.cursorId&&t.rows.length<loaded){const before=t.rows.length;
+  // A batch already being read (by a scroll) is waited for, not doubled.
+  if(t.fetchingMore){await new Promise(r=>setTimeout(r,50));continue;}
+  await fetchNextBatch(id,Math.min(5000,loaded-before));if(t.rows.length===before)break;}
+ if(!mine())return;
+ // The grid draws its columns' widths in the next frame (autofitAll); the position goes back after.
+ await new Promise(r=>{requestAnimationFrame(()=>requestAnimationFrame(r));setTimeout(r,150);}); // a hidden window draws no frames
+ const w2=$('res_'+id);if(mine()&&w2){w2.scrollTop=top;w2.scrollLeft=left;renderBody(id);}}
 // q is already lower-cased. The same case-insensitive "contains" a column filter uses, on any column.
 function rowHasText(row,q){return row.some(v=>v!=null&&String(v).toLowerCase().includes(q));}
 function sortBy(id,ci){const t=T(id);if(t.sortCol===ci){if(t.sortDir>0){t.sortDir=-1;}else{t.sortCol=-1;t.sortDir=1;}}else{t.sortCol=ci;t.sortDir=1;}$('sortrow_'+id).innerHTML=sortHeader(id,!!t.pk);renderBody(id);syncFilterRowTop(id);wireColResize(id);updatePager(id);updateStatusLine(id);}

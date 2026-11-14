@@ -38,6 +38,26 @@
     G.eq('the change is in it', q.rows[0][1], 'avocado2');
     G.eq('and its filter is kept', q.filters[1], 'a');
 
+    // More rows than the first page, scrolled far down: after Apply as many rows are there again,
+    // and the grid is where it was, not back at the top.
+    const D = '(SELECT 0 d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)';
+    await G.run(`CREATE TABLE ${DB}.many (id INT PRIMARY KEY, v VARCHAR(20)); INSERT INTO ${DB}.many SELECT n, CONCAT('v', n) FROM (SELECT a.d+b.d*10+c.d*100+e.d*1000+1 AS n FROM ${D} a, ${D} b, ${D} c, ${D} e) x WHERE n <= 2600;`);
+    const m = await G.openTable(DB, 'many');
+    while (m.hasMore) { const n = m.rows.length; await fetchNextBatch(m.id); if (m.rows.length === n) break; }
+    G.eq('all 2,600 rows loaded', m.rows.length, 2600);
+    const wrap = $('res_' + m.id), rowH = m._rowH || 23;
+    wrap.scrollTop = 2200 * rowH; renderBody(m.id);
+    await G.wait(100);
+    const at = wrap.scrollTop;
+    const ri = m.rows.findIndex(r => String(r[0]) === '2210');
+    setUpd(m.id, ri, m.cols.indexOf('v'), 'edited');
+    G.check('a change far down applies', await applyChanges(m.id));
+    G.eq('as many rows as before are there again', m.rows.length, 2600);
+    G.eq('the change is in them', m.rows[m.rows.findIndex(r => String(r[0]) === '2210')][1], 'edited');
+    G.check('and the grid is where it was, not at the top', Math.abs(wrap.scrollTop - at) <= rowH, [at, wrap.scrollTop]);
+    G.check('with the edited row on screen', !!document.querySelector('#tbody_' + m.id + ' tr[data-r="' + m.rows.findIndex(r => String(r[0]) === '2210') + '"]'));
+    closeTab(m.id);
+
     // A filter on a column the rows no longer have goes; the others stay.
     const NOTE = t.cols.indexOf('note');
     setFilter(t.id, NOTE, 'x');
