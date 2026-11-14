@@ -23,8 +23,12 @@
     G.eq('and the number stays as typed', $('stlan_' + t.id).value, '1500');
 
     $('stlan_' + t.id).value = 'abc';
+    const nt = G.toasts.length;
     await loadMoreRows(t.id);
     G.eq('a number that is not one reads nothing', t.rows.length, 2500);
+    // and says so - a warning this test asked for, so not one of the errors checked at the end
+    const said = G.toasts.splice(nt);
+    G.check('and says what to type', said.length === 1 && /whole number/.test(said[0]), said);
 
     await loadAllRows(t.id);
     G.eq('Load all rows reads the rest', [t.rows.length, t.hasMore], [3500, false]);
