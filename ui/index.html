@@ -229,7 +229,8 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .applyn{min-width:6.6em;font-variant-numeric:tabular-nums} .txn{min-width:2.8em;font-variant-numeric:tabular-nums}
  .statusbar{display:flex;min-width:0} .statusbar>.status:first-child{flex:1;min-width:0} .pagerinfo{white-space:nowrap} .pagerinfo:empty{display:none}
  /* The server's warnings for the last run, beside its status (setRunWarnings): warnings stand out, Notes do not. */
- .warnspan{white-space:nowrap;flex:none} .warnspan:empty{display:none} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
+ .warnspan{white-space:nowrap;flex:none} .warnspan:empty{display:none}
+ .loadall{white-space:nowrap;flex:none;padding-top:1px;padding-bottom:1px} .loadall:empty{display:none} .loadall button{font-size:11px;padding:0 8px} .loadall button+button{margin-left:4px} .loadall .stlan{width:64px;font-size:11px;padding:0 4px;margin:0 4px 0 0;text-align:right;height:20px;box-sizing:border-box;vertical-align:middle} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
  .stk{display:inline-grid} .stk>span{grid-area:1/1} .stk>.off{visibility:hidden}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -2817,7 +2818,75 @@ function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st
   const lim=t.hasMore?null:trailingLimit(gridSql(t));
   const limLabel=(lim!=null&&t.rows.length>=lim)?'  |  LIMIT '+fmtCount(lim)+' in the query - there may be more rows':'';
   st.textContent=rowLabel+ms+moreLabel+limLabel+(t.pk?('  |  editable PK: '+t.pk.join(', ')):'');
+  paintLoadAll(id);
 }
+// "Load all rows", next to the row count: reads the rest of the result into the grid, batch after
+// batch from the same open cursor that scrolling reads from, instead of scrolling to the bottom over
+// and over. While it reads, the same button stops it (as does Cancel), keeping what has arrived.
+const LOAD_ALL_WARN=100000;
+// Rows read per round trip by Load all rows and Load more: ten times the page scrolling reads, as
+// they read many pages anyway. The backend still ends a batch early at PAGE_BYTES, for large values.
+const LOAD_ALL_BATCH=10000;
+// Beside it, a number and "Load more": that many more rows, in the same way. The number starts at
+// LOAD_MORE_DEFAULT; a number typed is kept for the tab while the app is open, not saved.
+const LOAD_MORE_DEFAULT=10000;
+function paintLoadAll(id){const t=T(id),b=$('stla_'+id);if(!b)return;
+ if(!t||!(t.loadingAll||(t.hasMore&&t.cursorId))){b.innerHTML='';return;}
+ if(t.loadingAll){b.innerHTML='<button class="sm warn" title="Stop reading rows - the rows loaded so far stay in the grid" onclick="loadAllRows(\''+id+'\')">Stop loading</button>';return;}
+ const n=t.loadMoreN||LOAD_MORE_DEFAULT;
+ // The count, then Load more, then Load all rows. A text box, not a number box: no up/down arrows.
+ b.innerHTML='<input type="text" inputmode="numeric" id="stlan_'+id+'" class="stlan" value="'+n+'" title="How many more rows Load more reads" aria-label="How many more rows to load" oninput="loadMoreSet(\''+id+'\',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();loadMoreRows(\''+id+'\');}">'
+  +'<button class="sm" title="Read this many more rows of the result into the grid" onclick="loadMoreRows(\''+id+'\')">Load more</button>'
+  +'<button class="sm" title="Read every remaining row of the result into the grid, rather than scrolling to load them '+fmtCount(PAGE_BATCH)+' at a time" onclick="loadAllRows(\''+id+'\')">Load all rows</button>';}
+function hideLoadAll(id){const b=$('stla_'+id);if(b)b.innerHTML='';}
+// The number typed, as a whole count of at least 1; null while it is not one.
+function loadMoreCount(v){const n=Math.floor(Number(String(v).replace(/['\s,_]/g,'')));return Number.isFinite(n)&&n>=1?n:null;}
+function loadMoreSet(id,v){const t=T(id),n=loadMoreCount(v);if(t&&n)t.loadMoreN=n;}
+function loadMoreRows(id){const t=T(id);if(!t)return;const box=$('stlan_'+id),n=loadMoreCount(box?box.value:t.loadMoreN||LOAD_MORE_DEFAULT);
+ if(!n){toast('Type how many more rows to load: a whole number of 1 or more.',true);if(box)box.focus();return;}
+ t.loadMoreN=n;return loadAllRows(id,n);}
+// Reads the rest of the result, or only `more` more rows of it when that is given.
+async function loadAllRows(id,more){const t=T(id);if(!t)return;
+ if(t.loadingAll){t.loadingAll=null;paintLoadAll(id);return;}
+ if(!t.hasMore||!t.cursorId){paintLoadAll(id);return;}
+ const seq=t.runSeq,loaded=t.rows.length,upTo=more?loaded+more:Infinity;
+ // How many rows that will be: the table's estimate when the grid shows the whole table; for any
+ // other query on a table, the table's size is only an upper bound (barring a join); else unknown.
+ const whole=t.table&&t.estRows!=null&&wholeTableShown(t);
+ const big='Every row is held in memory and shown in the grid: a very large result can make the app slow or run out of memory.';
+ let msg=null;
+ if(more){
+  // At most `more` more: asked only when the grid could then hold LOAD_ALL_WARN rows or more.
+  const most=whole?Math.min(upTo,Math.max(t.estRows,loaded)):upTo;
+  if(most>=LOAD_ALL_WARN)msg='Loading '+fmtCount(more)+' more rows makes up to '+fmtCount(most)+' rows in the grid, '+fmtCount(loaded)+' of them loaded so far.\n\n'+big+'\n\nLoad them?';}
+ else if(whole){if(t.estRows>=LOAD_ALL_WARN)msg='This table has about '+fmtCount(t.estRows)+' rows (an estimate), '+fmtCount(loaded)+' of them loaded so far.\n\n'+big+'\n\nLoad all rows anyway?';}
+ else if(t.table&&t.estRows!=null){if(t.estRows>=LOAD_ALL_WARN)msg='How many rows this query returns is not known in advance. Its table, '+t.table+', has about '+fmtCount(t.estRows)+' rows (an estimate).\n\n'+big+'\n\nLoad all rows?';}
+ else msg='How many rows this query returns is not known in advance - '+fmtCount(loaded)+' are loaded so far.\n\n'+big+' Cancel stops the reading at any time.\n\nLoad all rows?';
+ if(msg&&!(await ask(msg)))return;
+ // The dialog may have stood open while a new run started or the cursor ran out.
+ if(!T(id)||t.runSeq!==seq||!t.hasMore||!t.cursorId)return;
+ // A token of this reading's own: Stop and then Load again must not leave two readings going.
+ const tok={};t.loadingAll=tok;paintLoadAll(id);log(more?'Loading '+fmtCount(more)+' more row(s) of the result...':'Loading every row of the result...');
+ let failed=false;
+ try{
+  while(t.loadingAll===tok&&T(id)&&t.runSeq===seq&&t.hasMore&&t.cursorId&&t.rows.length<upTo){
+   // A batch already being read (by a scroll) is waited for, not doubled.
+   if(t.fetchingMore){await new Promise(r=>setTimeout(r,50));continue;}
+   const before=t.rows.length,cur=t.cursorId;
+   // The last batch asks for just what is still wanted, so the count comes out exact.
+   await fetchNextBatch(id,Math.min(LOAD_ALL_BATCH,upTo-before),true);
+   // A read that failed without closing the cursor is not tried over and over; one that closed
+   // it (fetchNextBatch has said why) leaves the rest of the result unread - not "all loaded".
+   if(t.rows.length===before&&t.hasMore&&t.cursorId===cur){failed=true;break;}
+   if(t.rows.length===before&&!t.cursorId){failed=true;break;}
+  }
+ }finally{const reached=t.rows.length>=upTo,stopped=t.hasMore&&t.runSeq===seq&&!reached;if(t.loadingAll===tok)t.loadingAll=null;
+  // The rows read are drawn once, now (the batches were read quietly).
+  if(T(id)&&t.runSeq===seq&&!t.loadingAll){if(t.rows.length!==loaded)renderBody(id);paintLoadAll(id);
+   log(failed?'The rest of the result could not be read; '+fmtCount(t.rows.length)+' row(s) are in the grid. Run the query again to read the rest.'
+    :stopped?'Stopped loading: '+fmtCount(t.rows.length)+' row(s) loaded.'
+    :more&&t.hasMore?'Loaded '+fmtCount(t.rows.length-loaded)+' more row(s), '+fmtCount(t.rows.length)+' in all; the result has more.'
+    :'All '+fmtCount(t.rows.length)+' row(s) loaded.');}}}
 // Tears down a tab's open result cursor (if any), server-side, and forgets it locally. Fire-and-
 // forget - cursor teardown must never hold up tab close/replace/app-quit for a round trip - and
 // a safe no-op when there's nothing open (close_cursor tolerates an unknown/already-gone id).
@@ -2996,7 +3065,9 @@ function closeCursorFor(t){if(t&&t.cursorId){api('/api/close-cursor',{cursorId:t
 // keeps this cursor's connection registered under its original requestId (t.cursorReqId) for the
 // cursor's whole life, so clicking Cancel during a slow fetch KILL QUERYs it exactly like
 // cancelling the first page does - not just during the very first fetch.
-async function fetchNextBatch(id){
+// quiet: a read that is one of many (Load all rows, Load more) - the grid is drawn and the reading
+// told in the log once at the end, not after every batch; the row count still moves on each.
+async function fetchNextBatch(id,size,quiet){
  const t=T(id);if(!t||!t.hasMore||t.fetchingMore)return;
  if(!t.cursorId)return;
  t.fetchingMore=true;
@@ -3006,7 +3077,7 @@ async function fetchNextBatch(id){
  const stale=()=>!T(id)||t.runSeq!==seq;
  t.runningReqId=t.cursorReqId;setRunning(id,true);
  try{
-  const r=await api('/api/fetch-cursor-batch',{cursorId:t.cursorId,requestId:t.cursorReqId,pageSize:PAGE_BATCH});
+  const r=await api('/api/fetch-cursor-batch',{cursorId:t.cursorId,requestId:t.cursorReqId,pageSize:size||PAGE_BATCH});
   if(stale())return;
   if(!r.ok){toast(timeLimitNote(r.error,true),true);log(logErr(r.error));t.hasMore=false;t.cursorId=null;t.cursorReqId=null;updatePager(id);return;}
   t.rows=(t.rows||[]).concat(r.rows);
@@ -3016,8 +3087,8 @@ async function fetchNextBatch(id){
   // renderBody (not renderGrid) deliberately: it only rewrites tbody's own innerHTML, not the
   // scrollable wrap element's - renderGrid replacing wrap's innerHTML resets scrollTop to 0,
   // which would yank the view back to the top on every background scroll-triggered prefetch.
-  renderBody(id);updatePager(id);updateStatusLine(id);
-  log('Fetched '+fmtCount(r.rows.length)+' more row(s), '+fmtCount(t.rows.length)+' total loaded.');
+  if(!quiet)renderBody(id);updatePager(id);updateStatusLine(id);
+  if(!quiet)log('Fetched '+fmtCount(r.rows.length)+' more row(s), '+fmtCount(t.rows.length)+' total loaded.');
  }catch(e){toast(String(e),true);}
  finally{t.fetchingMore=false;if(!stale()){t.runningReqId=null;setRunning(id,false);}}
 }
@@ -3849,7 +3920,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '<button class="tog ison" id="txac_'+id+'" aria-pressed="true" onclick="txToggle(\''+id+'\',this.classList.contains(\'ison\'))" data-ic="autocommit" data-fit="2" title="Auto-commit: every statement is permanent as soon as it runs. Turn it off to keep everything this tab runs in one transaction, on the tab\'s own connection, until you Commit or Roll back.">Auto-commit</button>'+
   '<span id="txbar_'+id+'" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><button class="sm" id="txcommit_'+id+'" disabled title="Make this tab\'s changes permanent, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'commit\')">Commit</button><button class="sm txn" id="txlog_'+id+'" disabled title="What this transaction has run so far" onclick="txShowLog(\''+id+'\')">0</button><button class="sm warn" id="txrollback_'+id+'" disabled title="Undo everything this tab has not committed, including grid edits not applied yet" onclick="txEnd(\''+id+'\',\'rollback\')">Rollback</button></span>'+
   '</span></div>'+
-  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div><span class="status warnspan" id="stw_'+id+'"></span>'+pager+'</div>';
+  '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div><span class="status loadall" id="stla_'+id+'"></span><span class="status warnspan" id="stw_'+id+'"></span>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);vpWire(id);const ta=$('ed_'+id);ta.value=sql||'';
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
@@ -4654,7 +4725,7 @@ function timeLimitNote(err,reading){err=String(err==null?'':err);
 // runSql(): send the editor SQL to the server and show the rows (or the error).
 async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!t._histNext;t._histNext=false;
  if(!paging&&!(await okToRunUnfiltered(t,splitStmts(String(sql==null?'':sql)).filter(s=>!isCommentOnly(s))))){const s0=$('st_'+id);if(s0){s0.className='status';s0.textContent='Not run.';}return;}
- if(sql!=null&&sql!==t.curRun){t.prevRun=t.curRun;t.curRun=sql;}const st=$('st_'+id);st.className='status';st.textContent='Running\u2026';
+ if(sql!=null&&sql!==t.curRun){t.prevRun=t.curRun;t.curRun=sql;}const st=$('st_'+id);st.className='status';st.textContent='Running\u2026';hideLoadAll(id);
  const hr=(!paging&&userRun)?histStart(t,sql):null;
  const stmts=splitStmts(sql).filter(s=>!isCommentOnly(s));
  const lastStmt=(stmts[stmts.length-1]||sql).trim();
