@@ -2002,6 +2002,14 @@ function buildMenuItems(container,items,local){items.forEach(it=>{if(it==='-'){c
  if(isSub){d.style.position='relative';const fly=document.createElement('div');fly.className='ctxsub';buildMenuItems(fly,tidyMenu(it[1]),local);d.appendChild(fly);let ht=null;const showFly=()=>{if(ht){clearTimeout(ht);ht=null;}fly.style.display='block';fly.style.left='';fly.style.right='';fly.style.top='0';const r=fly.getBoundingClientRect(),dr=d.getBoundingClientRect();if(dr.right+r.width>innerWidth-4){fly.style.right='100%';}else{fly.style.left='100%';}if(dr.top+r.height>innerHeight-4){fly.style.top=(innerHeight-4-(dr.top+r.height))+'px';}};const hideFly=()=>{ht=setTimeout(()=>{fly.style.display='none';},200);};d.onmouseenter=showFly;d.onmouseleave=hideFly;fly.onmouseenter=()=>{if(ht){clearTimeout(ht);ht=null;}};fly.onmouseleave=hideFly;
  }else{d.onclick=()=>{$('ctx').style.display='none';it[1]();};}
  container.appendChild(d);});}
+// The browser's own menu (Back, Refresh, Save as, Print, Inspect) has nothing to offer in this app,
+// and Refresh in it reloads the whole app. It is kept only where it is useful: in a text box or the
+// editor (Cut, Copy, Paste), and on selected text anywhere else (Copy). Everywhere the app has a menu
+// of its own, that menu shows instead, as before.
+function nativeMenuWanted(e){const el=e.target&&e.target.closest?e.target:null;
+ if(el&&el.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"]'))return true;
+ const sel=window.getSelection&&window.getSelection();return !!(sel&&!sel.isCollapsed&&String(sel).trim());}
+document.addEventListener('contextmenu',e=>{if(!nativeMenuWanted(e))e.preventDefault();});
 document.addEventListener('click',(e)=>{$('ctx').style.display='none';const cp=$('colPicker');if(cp&&cp.style.display==='block'&&!cp.contains(e.target))cp.style.display='none';const cm=$('copyMenu');if(cm&&cm.style.display==='block'&&!cm.contains(e.target))cm.style.display='none';const otp=$('objTypePicker');if(otp&&otp.style.display==='block'&&!otp.contains(e.target)&&e.target.id!=='objTypeBtn')otp.style.display='none';const idp=$('impDbPicker');if(idp&&idp.style.display==='block'&&!idp.contains(e.target)&&e.target.id!=='impDb')idp.style.display='none';});
 // Ctrl+mouse-wheel font zoom on any textarea, same convention as Workbench - delegated on
 // document so it works on every SQL query tab's editor (created dynamically per tab) and the
