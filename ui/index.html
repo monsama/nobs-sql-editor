@@ -3988,7 +3988,9 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
     edReplaceRange(id,ls,le,block);ta.selectionStart=ls;ta.selectionEnd=ls+block.length;}}
  });
  syncHl(id);activate(id);if(run)runTab(id);return id;}
-function activate(id){activeTab=id;const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
+function activate(id){activeTab=id;const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}
+ // A table tab brought back on connect reads its table the first time it is shown, not all at once.
+ if(_t&&_t.runOnShow){_t.runOnShow=false;runTab(id);}}
 // Where the active tab's queries run: that schema's row in the list is marked (.runs). It was a
 // "Schema: x" chip in the top bar; the list already names every schema, so marking the row says
 // the same without the room a label takes. A table or DDL tab keeps the schema it was opened from
@@ -4086,17 +4088,33 @@ function saveSession(key){let k,json;try{k=key||sessionKeyFor();json=JSON.string
  // saved again once it has made room.
  try{if(localStorage.getItem('history')!=null){histMigrate().then(done=>{if(done)saveSession(key);});return;}}catch(e){}
  if(!window._sessionSaveWarned){window._sessionSaveWarned=true;const m='The open tabs could not be saved - the browser storage for this app is full. Copy anything you need out of them before closing the app.';toast(m,true);log(m);}}
+// The query a table tab holds as the app writes it - opening the table, its quick filters (openRun).
+function restoredTableSql(db,table,filters){return 'SELECT * FROM '+qid(db)+'.'+qid(table)+(filters&&filters.length?' WHERE '+filters.join(' AND '):'')+';';}
 function restoreSessionFor(key){if(tabs.length)return;let arr=[];try{const raw=localStorage.getItem('session:'+key);if(raw!=null){arr=JSON.parse(raw);}else if(!localStorage.getItem('_sessionMigrated')){const old=localStorage.getItem('session');if(old)arr=JSON.parse(old);localStorage.setItem('_sessionMigrated','1');}}catch(e){}if(Array.isArray(arr)&&arr.length){arr.forEach(t=>{
   // Table tabs only ever pull PAGE_BATCH rows per round trip through the cursor-streaming
   // pipeline regardless of table size, so it's safe to auto-run them on restore - otherwise
   // the tab looks silently empty even though the table has data (never actually queried).
   // Plain query tabs could be arbitrary/heavy, so those restore WITHOUT auto-running; a clear
   // status message replaces what would otherwise look like a blank, broken result.
-  const id=openTab(t.title,t.sql,t.db,!!t.table,t.table,t.ddl||null);if(t.ddl&&t.gen!=null)T(id).genSql=t.gen;
+  // A table tab runs again only while it still holds the table's own query, as the app wrote it
+  // (its quick filters included). One whose text was replaced by a query of your own is a query tab
+  // now: the restore ran that query - whatever it was, and against whatever server you connected
+  // to - so it comes back not run, like any other.
+  const filters=t.table&&Array.isArray(t.filters)?t.filters.filter(x=>typeof x==='string'):[];
+  const gen=t.table&&t.db?restoredTableSql(t.db,t.table,filters):null;
+  const asWritten=!!gen&&String(t.sql||'').trim()===gen;
+  // And it reads its table the first time it is shown (activate), not on connect: ten table tabs
+  // were ten queries before anything was looked at. The tab shown when the restore is done reads
+  // at once.
+  const id=openTab(t.title,t.sql,t.db,false,t.table,t.ddl||null);if(t.ddl&&t.gen!=null)T(id).genSql=t.gen;
+  if(gen&&!asWritten){T(id).genSql=gen;markEdited(id);}
   if(t.file&&typeof t.file.name==='string'){const f=t.file;T(id).file={name:f.name,path:f.path||null,handle:null,bom:!!f.bom,eol:f.eol==='\r\n'?'\r\n':'\n',saved:f.dirty?null:$('ed_'+id).value};const tb=$('tabbtn_'+id);if(tb)tb.title=f.path||'';refreshTabDirty(id);}
-  if(t.table&&Array.isArray(t.filters)&&t.filters.length){T(id).filterClauses=t.filters.filter(x=>typeof x==='string');updateFilterBar(id);}
-  if(!t.table){const st=$('st_'+id);if(st)st.textContent='Restored - not yet run. Click Run Query.';}
-});}}
+  if(asWritten&&filters.length){T(id).filterClauses=filters;updateFilterBar(id);}
+  const st=$('st_'+id);
+  if(asWritten){T(id).runOnShow=true;if(st)st.textContent='Restored - reads the table when you open this tab.';}
+  else if(st)st.textContent='Restored - not yet run. Click Run Query.';
+});
+ if(activeTab)activate(activeTab);}}
 // Closes every tab without the "unsaved changes" prompt - only called right after the user has
 // already confirmed switching connections (connect() asks that separately, once, up front).
 function clearAllTabsSilently(){[...tabs].forEach(t=>{tabSessClose(t);const b=$('tabbtn_'+t.id);if(b)b.remove();const p=$('pane_'+t.id);if(p)p.remove();});tabs=[];activeTab=null;toggleOverview();markRunSchema(null);}
