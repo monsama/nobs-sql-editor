@@ -52,8 +52,11 @@
     await again;
     G.check('Esc closes it and saves nothing', !$('mConn').classList.contains('show') && connMeta()[N].env === 'changed', connMeta()[N]);
 
-    // The sidebar: every saved connection, the one shown marked; its copy button duplicates it -
-    // password, environment and read-only included - and shows the copy; a click loads another.
+    // The sidebar: every saved connection, the one shown marked; its menu (the ⋯ button) duplicates it -
+    // password, environment and read-only included - and shows the copy, or deletes it; a click loads another.
+    const sideMenu = name => { [...document.querySelectorAll('#cd_side .cdsitem')].find(i => i.dataset.name === name).querySelector('.cdsdup').click();
+      return [...document.querySelectorAll('#ctx > .item')]; };
+    const pick = (its, label) => its.find(d => d.textContent === label);
     const side = editConn();
     await G.until(() => $('mConn').classList.contains('show'), 5000);
     const items = [...document.querySelectorAll('#cd_side .cdsitem')];
@@ -61,7 +64,10 @@
       && (document.querySelector('#cd_side .cdsitem.on') || {}).dataset?.name === N, items.map(i => i.dataset.name));
     const NC = N + ' (copy)';
     const it0 = items.find(i => i.dataset.name === N);
-    it0.querySelector('.cdsdup').click();
+    const m0 = sideMenu(N);
+    G.eq('its menu offers Duplicate and Delete', m0.map(d => d.textContent), ['Duplicate', 'Delete...']);
+    G.check('and is a menu, not a copy made at once', !it0.querySelector('svg') && connNames().indexOf(NC) < 0, connNames());
+    pick(m0, 'Duplicate').click();
     await G.until(() => _cd && _cd.savedName === NC, 10000);
     const copied = ((await G.A('/api/conn-list')).items || []).find(c => c.name === NC);
     G.check('duplicate saves a copy with the password, environment and read-only', copied && copied.hasPassword === true && copied.env === 'changed' && copied.readonly === true, copied);
@@ -69,6 +75,11 @@
     G.eq('the connection box keeps what it had picked', $('connlist').value, N);
     await cdPick(N);
     G.eq('a click on another loads it', [_cd && _cd.savedName, $('cd_name').value], [N, N]);
+    // Delete from the menu: the copy goes, from the saved ones and the sidebar, and the one shown stays.
+    pick(sideMenu(NC), 'Delete...').click();
+    await G.until(() => !connNames().includes(NC), 10000);
+    G.check('Delete removes it, from the sidebar too', !document.querySelector('#cd_side .cdsitem[data-name="' + CSS.escape(NC) + '"]'), connNames());
+    G.eq('and the connection shown stays', [_cd && _cd.savedName, $('connlist').value], [N, N]);
     cdClose(null); await side;
     await G.A('/api/conn-delete', { name: NC }); await refreshConns(); $('connlist').value = N;
 

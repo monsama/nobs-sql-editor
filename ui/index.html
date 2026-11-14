@@ -2517,10 +2517,25 @@ function cdRenderSide(){const s=$('cd_side');if(!s||!_cd)return;const meta=connM
   const d=document.createElement('span');d.className='cdsdot';d.style.background=acc[n]||'transparent';it.appendChild(d);
   const t=document.createElement('span');t.className='cdsname';t.textContent=n;it.appendChild(t);
   const env=(meta[n]&&meta[n].env)||'';if(env){const e=document.createElement('span');e.className='cdsenv';e.textContent=env;e.title=env;it.appendChild(e);}
-  const b=document.createElement('button');b.type='button';b.className='sm cdsdup';b.title='Duplicate "'+n+'"';b.setAttribute('aria-label','Duplicate '+n);
-  b.innerHTML='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICONS.copy+'</svg>';
-  b.onclick=e=>{e.stopPropagation();cdDup(n);};it.appendChild(b);s.appendChild(it);});
+  // What can be done to the connection, in a menu of its own: the button, or a right-click on it.
+  const b=document.createElement('button');b.type='button';b.className='sm cdsdup';b.title='More for "'+n+'"';b.setAttribute('aria-label','More for '+n);b.textContent='⋯';
+  const more=e=>{e.preventDefault();e.stopPropagation();const r=b.getBoundingClientRect();cdSideMenu(n,e.type==='contextmenu'?e.clientX:r.left,e.type==='contextmenu'?e.clientY:r.bottom+2);};
+  b.onclick=more;it.oncontextmenu=more;it.appendChild(b);s.appendChild(it);});
  const on=s.querySelector('.cdsitem.on');if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest'});}
+function cdSideMenu(n,x,y){menu(x,y,[['Duplicate',()=>cdDup(n)],'-',['Delete...',()=>cdDel(n)]],{local:true});}
+// Deletes a saved connection from the sidebar. The one shown goes with it: the dialog moves on to the
+// next connection in the list, or closes when none is left.
+async function cdDel(n){if(!_cd||!_cd.manage)return;
+ if(n===_cd.savedName&&JSON.stringify(cdVals())!==_cd.snap){if(!(await ask('Delete saved connection "'+n+'" and the changes not saved yet?')))return;}
+ else if(!(await ask('Delete saved connection "'+n+'"?')))return;
+ const names=connNames(),i=names.indexOf(n),sel=$('connlist').value;
+ const r=await api('/api/conn-delete',{name:n});if(r&&r.ok===false){toast(r.error||'Could not delete the connection.',true);return;}
+ accSet(n,'');if(sel===n){window.curAccent='';applyAccent('');}
+ await refreshConns();if(sel!==n&&connNames().includes(sel))$('connlist').value=sel;paintConnGo();
+ dropActiveIfSaved(n,'The connection you were on was deleted');log('Deleted connection "'+n+'".');
+ if(n!==_cd.savedName){cdRenderSide();return;}
+ const left=connNames();if(!left.length){cdClose(null);return;}
+ _cd.snap=JSON.stringify(cdVals());await cdShowSaved(left[Math.min(i,left.length-1)]);}
 // Leaving the connection shown for another: changes not saved yet are let go only when you say so.
 async function cdLeave(){if(!_cd||JSON.stringify(cdVals())===_cd.snap)return true;
  return !!(await ask('Discard the changes to "'+_cd.savedName+'"?'));}
