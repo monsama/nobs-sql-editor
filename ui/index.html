@@ -6459,7 +6459,15 @@ function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
  // Ctrl or shift held: the press belongs to the grid, not to the browser's text selection, which
  // would otherwise streak from wherever the caret last was to the cell that was clicked.
  if(e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();dropTextSelection();}
- window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null};}
+ window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null,x:e.clientX,y:e.clientY};}
+// Whether the pointer itself has moved since the press. Rows can move under a pointer that has not:
+// the grid draws the rows scrolled to a frame later, at a height it estimates, so a click just after
+// scrolling had the row under it change while the button was down - and the browser's mouseover on
+// the new row picked the cells from the one clicked down to it, five or six of them.
+// A press or move without a position (one made by code, at 0,0 - no real one is at the window's
+// corner, over the toolbar) counts as moved, as it always did.
+function gridDragMoved(d,e){const at=v=>v&&typeof v.clientX==='number'&&(v.clientX||v.clientY);
+ return !at(e)||d.x==null||!(d.x||d.y)||Math.abs(e.clientX-d.x)>3||Math.abs(e.clientY-d.y)>3;}
 // The press becomes a cell selection: the cells picked so far kept (Ctrl) or let go, and no text
 // selected anywhere on the page while it lasts.
 // A press in a result cell picks cells, never text: the browser's own selection is not let start
@@ -6479,6 +6487,7 @@ function gridDragOver(e,id,ri,ci){const d=window._gridDrag;
  if(d&&d.moved)dropTextSelection();
  if(!d||d.id!==id||(e.buttons!==undefined&&!(e.buttons&1)))return;
  if(!d.moved&&d.ri===ri&&d.ci===ci)return;
+ if(!d.moved&&!gridDragMoved(d,e))return;
  const t=T(id);if(!t.cellSel)t.cellSel=new Set();
  if(!d.moved)gridDragBegin(d,t);
  t.cellSel=new Set(d.base);d.lastCi=ci;
@@ -6496,7 +6505,7 @@ document.addEventListener('mousemove',e=>{const d=window._gridDrag;
  // Leaving the cell the press began on, in any direction, is a selection - also where no other cell
  // is passed on the way (from the last row straight down, out of the results). Left to the browser,
  // that drag selected text from the cell into the rest of the window.
- if(d&&!d.moved&&(e.buttons&1)){const c=gridCellEl(d.id,d.ri,d.ci),t=T(d.id);
+ if(d&&!d.moved&&(e.buttons&1)&&gridDragMoved(d,e)){const c=gridCellEl(d.id,d.ri,d.ci),t=T(d.id);
   if(c&&t){const r=c.getBoundingClientRect();
    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){if(!t.cellSel)t.cellSel=new Set();gridDragBegin(d,t);
     t.cellSel=new Set(d.base);t.cellSel.add(d.ri+':'+d.ci);d.lastCi=d.ci;t._cellAnchor=d.ri+':'+d.ci;paintCellPick(d.id);}}}
