@@ -157,9 +157,11 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .item{padding:3px 10px 3px 16px;cursor:pointer;white-space:nowrap} #schemas .item{overflow:hidden;text-overflow:ellipsis} .uitem{padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .uitem:hover{background:var(--hover)} .uitem.sel{background:var(--accent);color:#fff} .item:hover{background:var(--hover)} .item.sel{background:var(--accent);color:#fff}
  .ohdr{padding:3px 8px;font-weight:600;font-size:11px;color:var(--muted);background:var(--panel);border-top:1px solid var(--bd2);position:sticky;top:0;cursor:pointer;user-select:none} .ohdr:hover{color:var(--fg)} .ohdr .caret{display:inline-block;width:12px}
  #content{flex:1;display:flex;flex-direction:column;min-width:0}
- #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;box-sizing:border-box;align-items:center;border-bottom:1px solid var(--bd)}
+ /* Tabs that do not fit wrap onto more rows, rather than scrolling out of sight; past five rows the
+    bar scrolls. Its empty space opens a new tab on a double-click. */
+ #tabsbar{display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px;background:var(--panel2);padding:5px 6px;overflow-x:hidden;overflow-y:auto;min-height:38px;max-height:170px;flex:none;box-sizing:border-box;align-items:center;border-bottom:1px solid var(--bd)}
  .tab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;box-sizing:border-box}
- .tab.active{background:var(--bg);font-weight:600} .tab .x{margin-left:0;color:var(--muted);font-size:14px;line-height:1} .tab .x:hover{color:#c00}
+ .tab .tablabel{overflow:hidden;text-overflow:ellipsis;max-width:300px} .tab.active{background:var(--bg);font-weight:600} .tab .x{margin-left:0;color:var(--muted);font-size:14px;line-height:1} .tab .x:hover{color:#c00}
  .tab.dragging{opacity:.4}
  .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
  .runningdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;animation:rundotpulse 1s ease-in-out infinite}
@@ -3623,7 +3625,9 @@ function toggleOverview() {
         ov.style.display = 'none';
     }
 }
-function objOpen(db,type,name){if(type==='table'){const _id=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_id);}else if(type==='view'||type==='sequence'){openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null);}else{openDdl(db,type,name);}}
+// A table already open in a tab of its own is shown again rather than opened twice. FK tabs carry
+// the table too but show a filtered slice of it, so they don't count.
+function objOpen(db,type,name){if(type==='table'){const _open=tabs.find(t=>t.db===db&&t.table===name&&!t.ddl&&!/ \(FK: /.test(t.title));if(_open){activate(_open.id);return;}const _id=openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,false,name);openRun(_id);}else if(type==='view'||type==='sequence'){openTab(name,'SELECT * FROM '+qid(db)+'.'+qid(name)+';',db,true,null);}else{openDdl(db,type,name);}}
 // A table's menu, in groups: reading it, its structure, its data in and out, its upkeep, and last
 // what changes or removes it. information_schema and performance_schema are the server's views of
 // itself - nothing in them is designed, filled, kept up, renamed or dropped - so their tables and
@@ -3988,7 +3992,10 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
     edReplaceRange(id,ls,le,block);ta.selectionStart=ls;ta.selectionEnd=ls+block.length;}}
  });
  syncHl(id);activate(id);if(run)runTab(id);return id;}
-function activate(id){activeTab=id;const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
+// Tabs in the order they were last shown, most recent last: closing the shown tab goes back to
+// the one shown before it, not to whichever happens to sit beside it.
+let tabHistory=[];
+function activate(id){activeTab=id;tabHistory=tabHistory.filter(x=>x!==id);tabHistory.push(id);const _ov=$('overview');if(_ov)_ov.style.display='none';tabs.forEach(t=>{$('tabbtn_'+t.id).classList.toggle('active',t.id===id);$('pane_'+t.id).classList.toggle('active',t.id===id);});const ta=$('ed_'+id);if(ta)setTimeout(()=>ta.focus(),0);updateSchemaBadge(id);const _t=T(id);if(_t&&_t.cols&&_t.cols.length&&!_t.colsFitted){requestAnimationFrame(()=>autofitAll(id));}}
 // Where the active tab's queries run: that schema's row in the list is marked (.runs). It was a
 // "Schema: x" chip in the top bar; the list already names every schema, so marking the row says
 // the same without the room a label takes. A table or DDL tab keeps the schema it was opened from
@@ -4062,7 +4069,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='F6'||e.ctrlKey||e.altKey||!a
 // F1 opens the list of shortcuts, as help does in most programs, and closes it again.
 document.addEventListener('keydown',e=>{if(e.key==='F1'&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){e.preventDefault();if($('mShortcuts').classList.contains('show'))hide('mShortcuts');else show('mShortcuts');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=[...document.querySelectorAll('.modal.show')].filter(m=>!window._floatingMinimized[m.id]);if(open.length){modalClose(open[open.length-1].id);}else if(window._newConnPrev&&!$('ctx').offsetParent)cancelNewConn();}});
-function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}delete vpState[id];closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();if(activeTab===id&&tabs.length)activate(tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
+function closeTab(id){const t=T(id);if(t&&t.runningReqId){cancelQuery(id);}delete vpState[id];closeCursorFor(t);txClose(t);const i=tabs.findIndex(t=>t.id===id);if(i<0)return;tabs.splice(i,1);$('tabbtn_'+id).remove();$('pane_'+id).remove();tabHistory=tabHistory.filter(x=>x!==id&&T(x));if(activeTab===id&&tabs.length)activate(tabHistory.length?tabHistory[tabHistory.length-1]:tabs[tabs.length-1].id);if(tabs.length===0){activeTab=null;}saveSession();toggleOverview();}
 // Each saved connection remembers its own open tabs (keyed by connection name; ad-hoc/unsaved
 // connections are keyed by host+user+port so different credentials don't collide).
 function sessionKeyFor(){const cn=$('connlist')?$('connlist').value:'';if(cn)return 'conn:'+cn;return 'adhoc:'+($('user')?$('user').value:'')+'@'+($('host')?$('host').value:'')+':'+($('port')?$('port').value:'');}
@@ -4109,6 +4116,9 @@ function clearAllTabsSilently(){[...tabs].forEach(t=>{tabSessClose(t);const b=$(
 // path (runs it, reports OK) instead of the query path that actually displays a result grid.
 // The active schema is still shown via the "Schema: <db>" badge, so nothing is lost here.
 function newTab(){openTab('Query','',curSchema,false,null);}
+// A double-click on the tab bar's empty space - beside or below the tabs - opens a new tab, as in a
+// browser. On a tab it does nothing more than the clicks do.
+document.addEventListener('dblclick',e=>{if(e.target&&e.target.id==='tabsbar')newTab();});
 // --- .sql files ------------------------------------------------------------------------------
 // A file opens in a tab of its own, named after it. The tab remembers the file (t.file: path, name,
 // its line ends and byte order mark, and the text as last saved), so Save writes it back as it came:
