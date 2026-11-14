@@ -13,7 +13,7 @@
     sortBy(t.id, ID); sortBy(t.id, ID); // descending
     G.eq('filtered and sorted before', viewIndices(t.id).map(ri => t.rows[ri][ID]).map(String), ['3', '1']);
 
-    await G.run(`INSERT INTO ${DB}.r VALUES (5,'grape'),(6,'apex'); UPDATE ${DB}.r SET name='avocado' WHERE id=1;`);
+    await G.run(`INSERT INTO ${DB}.r VALUES (5,'kiwi'),(6,'apex'); UPDATE ${DB}.r SET name='avocado' WHERE id=1;`);
     await refreshGrid(t.id);
 
     G.eq('the new rows are fetched', t.rows.length, 6);
