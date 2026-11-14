@@ -7952,11 +7952,12 @@ function plSetSort(ci){
  if(_plSort.col===name)_plSort.dir=-_plSort.dir;else{_plSort.col=name;_plSort.dir=1;}
  renderProcessList();
 }
-// Numbers (Id, Time) compare numerically, everything else as text; empty/NULL sorts last in
-// either direction, so sorting by Info doesn't bury the queries that are actually running.
+// Numbers (Id, Time) compare numerically, everything else as text. NULL is the lowest value, and
+// an empty one comes just after it, as the server sorts them: first going up, last going down.
 function plSortRows(rows,ci,dir){
- return rows.slice().sort((x,y)=>{const a=x[ci],b=y[ci];const ae=(a==null||a===''),be=(b==null||b==='');
-  if(ae||be)return ae&&be?0:(ae?1:-1);
+ const rank=v=>v==null?0:v===''?1:2;
+ return rows.slice().sort((x,y)=>{const a=x[ci],b=y[ci],ra=rank(a),rb=rank(b);
+  if(ra<2||rb<2)return (ra-rb)*dir;
   const an=Number(a),bn=Number(b);
   const c=(!isNaN(an)&&!isNaN(bn))?an-bn:String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'});
   return c*dir;});

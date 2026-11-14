@@ -37,9 +37,11 @@ test('text columns sort case-insensitively', () => {
   assert.deepEqual(col(['Sleep', 'query', 'Daemon'], -1), ['Sleep', 'query', 'Daemon']);
 });
 
-test('NULL and empty values sort last in both directions', () => {
-  assert.deepEqual(col([null, 'b', '', 'a'], 1).slice(0, 2), ['a', 'b']);
-  assert.deepEqual(col([null, 'b', '', 'a'], -1).slice(0, 2), ['b', 'a']);
+test('NULL is the lowest value, and empty comes just after it: first going up, last going down', () => {
+  assert.deepEqual(col([null, 'b', '', 'a'], 1), [null, '', 'a', 'b']);
+  assert.deepEqual(col([null, 'b', '', 'a'], -1), ['b', 'a', '', null]);
+  assert.deepEqual(col(['3', null, '10'], 1), [null, '3', '10']);
+  assert.deepEqual(col(['3', null, '10'], -1), ['10', '3', null]);
 });
 
 test('does not mutate the original rows', () => {
