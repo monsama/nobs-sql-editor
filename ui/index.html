@@ -2275,6 +2275,7 @@ const ICONS={
  explain:'<path d="M4 5h16M8 12h12M12 19h8"/>',
  format:'<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
  lastq:'<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5"/>',
+ refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/>',
  wholetable:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9.5h18M3 14.5h18M9 9.5V20"/>',
  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
  wrap:'<path d="M3 6h18M3 12h15a3 3 0 0 1 0 6h-4M16 16l-2 2 2 2M3 18h7"/>',
@@ -3838,6 +3839,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   lastBtn+selBtn+applyBtn+
   '<span class="tbsep"></span>'+
   '<span id="resultActions_'+id+'"'+(tab.ddl?'':' data-reserve')+' style="display:none;gap:9px;align-items:center" class="tbgroup">'+
+  '<button class="sm" id="refbtn_'+id+'" title="Fetch the rows again with the query that produced them, keeping the column filters, the search and the sort" onclick="refreshGrid(\''+id+'\')" data-ic="refresh" data-fit="2">Refresh</button>'+
   '<button title="Copy the grid to the clipboard, as CSV or Markdown, all rows or just the selected (checked) ones (binary/control-character values are copied as 0x... hex text, not the literal bytes)" onclick="event.stopPropagation();toggleCopyMenu(\''+id+'\',this)" data-ic="copy" data-fit="3">Copy \u25BE</button>'+'<button class="sm" id="wrapbtn_'+id+'" title="Toggle text wrapping in the grid" onclick="toggleWrap(\''+id+'\')" data-ic="wrap" data-fit="2"><span class="stk"><span class="off">Wrap: On</span><span>Wrap: Off</span></span></button>'+'<button class="sm" id="colsbtn_'+id+'" title="Show or hide columns" onclick="event.stopPropagation();toggleColPicker(\''+id+'\',this)" data-ic="columns" data-fit="2">Columns</button>'+'<button class="sm" title="Chart the rows the grid shows, as bars or a line" onclick="chartOpen(\''+id+'\')" data-ic="chart" data-fit="2">Chart</button>'+'<button class="sm tog'+(vpOpen?' ison':'')+'" id="vpbtn_'+id+'" aria-pressed="'+vpOpen+'" title="Show the value of the cell you click in a panel under the grid, to read and edit it at full length" onclick="vpToggle()">Value</button>'+'<input type="search" id="gsearch_'+id+'" placeholder="Search" title="Show only the rows holding this text in any column, and mark the cells that hold it (Ctrl+F from the grid; Enter / Shift+Enter: next / previous match; Esc clears). Searches the rows loaded so far, and says how many match in every result of a script." oninput="(v=>gridTypeSoon(\''+id+'\',()=>setGridSearch(\''+id+'\',v)))(this.value)" onkeydown="gsearchKey(event,\''+id+'\',this)" class="gsearch" style="width:170px;font-size:12px">'+'<button class="sm" id="clrflt_'+id+'" style="display:none" title="Clear the column filters and the search" onclick="clearGridFilters(\''+id+'\')" data-ic="clearf" data-fit="2">Clear filters</button>'+
   '</span>'+
   '<span style="flex:1 1 auto"></span>'+
@@ -4949,6 +4951,11 @@ function sqlBlankStringsAndComments(s){let out='',q=null;
 // pick replacing the one before it.
 function combinedFilterWhere(t){return (t.filterClauses&&t.filterClauses.length)?t.filterClauses.join(' AND '):null;}
 async function openRun(id){const t=T(id);const where=combinedFilterWhere(t);const wh=where?(' WHERE '+where):'';const sql='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+wh+';';t.genSql=sql;edSetAll(id,sql);syncHl(id);await runSql(id,sql);updateFilterBar(id);}
+// After Apply the rows are read again, with the column filters and sort kept. The query that
+// produced them runs again when it only reads, so a SELECT of your own - its columns, joins and
+// order - stays as written; otherwise the table is read as opening it does.
+async function applyReload(id){const t=T(id);if(!t)return;const q=t.curRun;
+ await rerunKeepingView(id,runOnlyReads(q)?()=>runSql(id,q):()=>openRun(id));}
 
 // ---- editable grid with pending changes ----
 function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
@@ -5204,7 +5211,14 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
  t.cols.forEach((c,ci)=>{h+='<th style="top:24px;padding:1px"><input data-ci="'+ci+'" oninput="(v=>gridTypeSoon(\''+id+'\',()=>setFilter(\''+id+'\','+ci+',v)))(this.value)" value="'+esc(t.filters[ci]||'')+'" placeholder="filter" style="width:100%;font-weight:400;font-size:11px"></th>';});
  h+='<th style="top:24px"></th>';
  h+='</tr></thead><tbody id="tbody_'+id+'"></tbody></table>';
- $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);vpRefresh(id);
+ // Drawn again for the same run - an edit, a sort, a filter - the grid stays where it was scrolled
+ // to: replacing its HTML put it back at the top, away from the row just edited. A new result starts
+ // at the top.
+ const _w=$('res_'+id),_keep=_w&&t._drawnSeq!=null&&t._drawnSeq===t.runSeq?[_w.scrollTop,_w.scrollLeft]:null;t._drawnSeq=t.runSeq;
+ _w.innerHTML=h;renderBody(id);
+ // Only once the rows give it its height can it scroll there; then the rows there are drawn.
+ if(_keep){_w.scrollTop=_keep[0];_w.scrollLeft=_keep[1];renderBody(id);}
+ syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);vpRefresh(id);
  const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{
    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.key==='c'||e.key==='C')){
     const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
@@ -5324,6 +5338,46 @@ function syncFilterUi(id){const t=T(id);if(!t)return;const on=!!t.search,any=on|
  const box=$('gsearch_'+id);if(box)box.classList.toggle('on',on);const b=$('clrflt_'+id);if(b)b.style.display=any?'':'none';}
 function clearGridFilters(id){const t=T(id);if(!t)return;t.filters={};const fr=$('filterrow_'+id);if(fr)fr.querySelectorAll('input').forEach(i=>i.value='');
  const box=$('gsearch_'+id);if(box)box.value='';setGridSearch(id,'');}
+// Whether every statement of a run only reads, so running it again changes nothing.
+function runOnlyReads(sql){return !!(sql&&String(sql).trim())&&splitStmts(String(sql)).filter(s=>!isCommentOnly(s)).every(s=>/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));}
+// The grid's Refresh button: the query that produced the rows runs again - not whatever the editor
+// holds now - with the column filters and the sort kept (rerunKeepingView). Edits not applied yet
+// would go with the old rows, so that is asked first, and so is a run that does more than read:
+// running it again would change data.
+async function refreshGrid(id){const t=T(id);if(!t)return;const sql=t.curRun;
+ if(!sql||!String(sql).trim()){toast('Nothing to refresh - run a query first.',true);return;}
+ if(t.runningReqId){toast('A query is still running in this tab.',true);return;}
+ const n=pendingCount(t);if(n>0&&!(await ask('This tab has '+n+' change'+(n===1?'':'s')+' not applied yet. Refresh and discard '+(n===1?'it':'them')+'?')))return;
+ if(!runOnlyReads(sql)&&!(await ask('The query that produced these rows also runs statements that are not plain reads. Run all of it again?')))return;
+ await rerunKeepingView(id,()=>runSql(id,sql));}
+// Reads the grid's rows again through run() - Refresh, and the reload after Apply - and puts the
+// column filters, the sort and the scroll position back on the new rows. A run clears filters and
+// sort (runSql), so they are kept here by column name and given back to the columns still there; a
+// column that is gone takes its filter with it. The search belongs to the tab and stays anyway.
+// As many rows as were loaded are read again - a run reads the first page only, so after loading
+// 5,000 rows an Apply showed 1,000 - and the scroll position is put back once the grid is drawn,
+// so the row just edited is still in front of you rather than the top of the table.
+async function rerunKeepingView(id,run){const t=T(id);if(!t)return;
+ const cols=t.cols||[],filters={};Object.entries(t.filters||{}).forEach(([ci,v])=>{if(v&&cols[ci]!=null)filters[cols[ci]]=v;});
+ const sortName=t.sortCol>=0?cols[t.sortCol]:null,sortDir=t.sortDir;
+ const w=$('res_'+id),top=w?w.scrollTop:0,left=w?w.scrollLeft:0,loaded=(t.rows||[]).length;
+ const seq0=t.runSeq||0;
+ await run();
+ // Only the run started here gets them back: one started meanwhile shows rows of its own.
+ const mine=()=>T(id)&&t.runSeq===seq0+1;
+ if(!mine()||t.resultSets||!t.cols||!t.cols.length||!$('tbody_'+id))return;
+ const nf={};Object.keys(filters).forEach(c=>{const ci=t.cols.indexOf(c);if(ci>=0)nf[ci]=filters[c];});
+ const si=sortName!=null?t.cols.indexOf(sortName):-1;
+ if(Object.keys(nf).length||si>=0){t.filters=nf;t._hitAt=null;if(si>=0){t.sortCol=si;t.sortDir=sortDir;}
+  renderGrid(id);updatePager(id);updateStatusLine(id);}
+ while(mine()&&t.hasMore&&t.cursorId&&t.rows.length<loaded){const before=t.rows.length;
+  // A batch already being read (by a scroll) is waited for, not doubled.
+  if(t.fetchingMore){await new Promise(r=>setTimeout(r,50));continue;}
+  await fetchNextBatch(id,Math.min(5000,loaded-before));if(t.rows.length===before)break;}
+ if(!mine())return;
+ // The grid draws its columns' widths in the next frame (autofitAll); the position goes back after.
+ await new Promise(r=>{requestAnimationFrame(()=>requestAnimationFrame(r));setTimeout(r,150);}); // a hidden window draws no frames
+ const w2=$('res_'+id);if(mine()&&w2){w2.scrollTop=top;w2.scrollLeft=left;renderBody(id);}}
 // q is already lower-cased. The same case-insensitive "contains" a column filter uses, on any column.
 function rowHasText(row,q){return row.some(v=>v!=null&&String(v).toLowerCase().includes(q));}
 function sortBy(id,ci){const t=T(id);if(t.sortCol===ci){if(t.sortDir>0){t.sortDir=-1;}else{t.sortCol=-1;t.sortDir=1;}}else{t.sortCol=ci;t.sortDir=1;}$('sortrow_'+id).innerHTML=sortHeader(id,!!t.pk);renderBody(id);syncFilterRowTop(id);wireColResize(id);updatePager(id);updateStatusLine(id);}
@@ -7095,7 +7149,7 @@ async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const
  // was saved, since until then the reload is still reading on the tab's connection.
  // What was done, by kind: rows updated (however many of their cells), inserted and deleted.
  const nIns=S.filter(x=>x.startsWith('INSERT INTO')).length,what=[[updWh.length,'updated'],[nIns,'inserted'],[delWh.length,'deleted']].filter(x=>x[0]).map(x=>fmtCount(x[0])+' row'+(x[0]===1?'':'s')+' '+x[1]).join(', ');
- if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
+ if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await applyReload(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");
