@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -71,6 +72,38 @@ test('formatting twice gives what formatting once gave', () => {
   for (const sql of CORPUS) { const once = lib.formatSql(sql); assert.equal(lib.formatSql(once), once, sql); }
 });
 
+// The Format button: the sql-formatter library (ui/vendor), checked against the text it was given,
+// with the formatter above to fall back on.
+const sqlFormatterLib = createRequire(import.meta.url)(join(root, 'ui', 'vendor', 'sql-formatter.min.js'));
+const prettyWith = (F, mariadb = false) => new Function('sqlFormatter', 'window',
+  ['formatSqlPretty', 'sqlSqueeze', 'formatSql'].map(n => extractFunction(html, n)).join('\n') + '\nreturn formatSqlPretty;')(F, { mariadb });
+const pretty = prettyWith(sqlFormatterLib);
+
+test('Format lays a query out a clause and a column per line, with function brackets kept on the name', () => {
+  const out = pretty("SELECT i.id AS identity_id, i.core_identity_id, (SELECT GROUP_CONCAT(un.value) FROM db.un un WHERE un.user_id = cu.id) AS names, CASE WHEN cu.id IS NULL THEN 'no' ELSE 'yes' END AS r FROM db.i i LEFT JOIN db.cu cu ON cu.id = CAST(i.core_identity_id AS CHAR) WHERE i.p = 0 ORDER BY r, i.core_identity_id;");
+  const lines = out.split('\n');
+  assert.equal(lines[0], 'SELECT', out);
+  assert.ok(lines.includes('  i.core_identity_id,'), 'a column per line, indented:\n' + out);
+  assert.ok(/GROUP_CONCAT\(un\.value\)/.test(out) && /CAST\(i\.core_identity_id AS CHAR\)/.test(out), 'no space between a function and its bracket:\n' + out);
+  assert.ok(lines.some(l => /^\s+WHEN cu\.id IS NULL THEN 'no'$/.test(l)), 'CASE is laid out over lines:\n' + out);
+  assert.ok(lines.includes('FROM') && lines.some(l => /^\s*LEFT JOIN db\.cu cu ON/.test(l)) && lines.includes('ORDER BY'), out);
+});
+
+test('Format only moves whitespace, and keeps the case words were typed in', () => {
+  for (const sql of CORPUS) assert.equal(squeeze(pretty(sql)), squeeze(sql), sql);
+  for (const sql of CORPUS) assert.equal(squeeze(prettyWith(sqlFormatterLib, true)(sql)), squeeze(sql), 'MariaDB: ' + sql);
+  assert.ok(/^select\n/.test(pretty('select a from t')), pretty('select a from t'));
+});
+
+test('when the library cannot read a query, or would change it, the built-in formatter lays it out', () => {
+  const sql = 'select a from t where b = 1';
+  const fallback = lib.formatSql(sql);
+  assert.equal(prettyWith({ format: () => { throw new Error('Parse error'); } })(sql), fallback, 'a query it cannot read');
+  assert.equal(prettyWith({ format: s => s.replace('b = 1', 'b = 2') })(sql), fallback, 'an answer that says something else');
+  assert.equal(prettyWith(null)(sql), fallback, 'the library not there');
+  assert.equal(pretty('   '), lib.formatSql('   '), 'nothing to format');
+});
+
 test('each clause starts a line; the joins and compound keywords stay together', () => {
   assert.equal(lib.formatSql('select a from t left join u on u.id=t.id where a=1 group by a order by a limit 5'),
     'select a\nfrom t\nleft join u\non u.id = t.id\nwhere a = 1\ngroup by a\norder by a\nlimit 5');
@@ -89,6 +122,14 @@ test('keywords inside strings and quoted names are not clauses', () => {
   const f = lib.formatSql("select 'from where' as `select` from t");
   assert.equal(f.split('\n').length, 2, f);
   assert.ok(f.includes("'from where'") && f.includes('`select`'));
+});
+
+test('a function call keeps its bracket against the name, since MySQL rejects COUNT (*)', () => {
+  assert.equal(lib.formatSql("select count(*), group_concat(u.v), cast(a as char) from t where b in (1, 2)"),
+    'select count(*), group_concat(u.v), cast(a as char)\nfrom t\nwhere b in (1, 2)');
+  // a space the author wrote stays a space
+  assert.equal(lib.formatSql('select a from t where b in(1)'), 'select a\nfrom t\nwhere b in(1)');
+  assert.equal(lib.formatSql('insert into t (a) values (1)'), 'insert into t (a)\nvalues (1)');
 });
 
 test('a name after a dot is not a keyword', () => {
