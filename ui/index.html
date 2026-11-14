@@ -1805,7 +1805,7 @@ function _clearKeys(includeAll){const keys=[];for(let i=0;i<localStorage.length;
 // back out of, and "Clear all app data" is far too big a hammer: it takes the connections with it.
 // One reset for all of it - the layout, the theme and the message timing here, the fonts, text sizes
 // and zoom through uiSizesReset(). A setting added to Appearance belongs in one of the two.
-const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','logH','objCollapsed','ovFolded','theme','toastMs','dlgGeom'];
+const APPEARANCE_KEYS=['sideW','sideFolded','logFolded','logH','edH','objCollapsed','ovFolded','theme','toastMs','dlgGeom'];
 async function resetAppearance(){
  if(!(await ask('Restore the default appearance?\n\nThe layout, the size and place of every window, the theme, fonts, text sizes, zoom and notification duration are reset to their defaults. Connections, the query library, history and pinned tables are not affected.')))return;
  // What is on screen now, without waiting for a restart.
@@ -3851,6 +3851,7 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
   '</span></div>'+
   '<div class="qfbar" id="qf_'+id+'" style="display:none"></div><div id="rsets_'+id+'" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 8px"></div><div class="result" id="res_'+id+'"></div>'+vpHtml(id)+'<div class="statusbar"><div class="status" id="st_'+id+'">Ready.</div><span class="status warnspan" id="stw_'+id+'"></span>'+pager+'</div>';
  $('panes').appendChild(pane);watchBar(pane.querySelector('.toolbar'));edFoldSync(id);vpWire(id);const ta=$('ed_'+id);ta.value=sql||'';
+ {const h0=edHGet();if(h0)$('ew_'+id).style.height=h0+'px';}
  const ra1=$('resultActions_'+id);if(ra1)ra1.style.display='none';updateEditBar(id);
  (function(){const es=$('es_'+id),ew=$('ew_'+id);es.addEventListener('mousedown',e=>{if(e.target!==es)return;e.preventDefault();
   // A folded half opens as the divider is dragged, from where the divider is (as the sidebar's).
@@ -3870,7 +3871,9 @@ function openTab(title,sql,db,run,table,ddl){const id='t'+(++tabSeq);title=uniqu
    const now=p.classList.contains('edfolded-editor')?'editor':p.classList.contains('edfolded-results')?'results':'';
    if(fold!==now){p.classList.remove('edfolded-editor','edfolded-results');if(fold)p.classList.add('edfolded-'+fold);edFoldSync(id);}
    if(!fold)ew.style.height=Math.max(44,Math.min(raw,maxH))+'px';syncHl(id);};
-  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.body.style.userSelect='';
+   // Left open at a height, that height is the one the next tab opens at; folded, it is not a height.
+   if(!p.classList.contains('edfolded-editor')&&!p.classList.contains('edfolded-results')){const h=parseFloat(ew.style.height);if(h>0)edHKeep(h);}};
   document.body.style.userSelect='none';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});})();
  ta.addEventListener('input',()=>{syncHl(id);acUpdate(id);markEdited(id);if(T(id)&&T(id).file)refreshTabDirty(id);});['keyup','mouseup','select','focus'].forEach(ev=>ta.addEventListener(ev,()=>gutCaret(id)));ta.addEventListener('scroll',()=>{syncHl(id);acHide();});
  ta.addEventListener('blur',()=>{setTimeout(acHide,150);saveSession();});
@@ -5252,7 +5255,13 @@ function edFold(id,which){const p=$('pane_'+id);if(!p)return;
  const ew=$('ew_'+id);if(ew&&which==='editor'&&!on)ew.style.height='';
  edFoldSync(id);syncHl(id);}
 function edSplitReset(id){const p=$('pane_'+id);if(p)p.classList.remove('edfolded-editor','edfolded-results');
- const ew=$('ew_'+id);if(ew)ew.style.height='';edFoldSync(id);syncHl(id);}
+ const ew=$('ew_'+id);if(ew)ew.style.height='';edHKeep(0);edFoldSync(id);syncHl(id);}
+// The height the editor was last dragged to, which every tab opened after starts from: a table, a
+// view or a new query opened at the default half and half undid the divider each time. The tabs
+// already open keep their own. Read from storage each time, as openTab runs before this file has
+// been read to the end while the session is restored. 0: the default.
+function edHGet(){try{const h=parseInt(localStorage.getItem('edH')||'',10);return h>0?h:0;}catch(e){return 0;}}
+function edHKeep(h){try{localStorage.setItem('edH',h>0?String(Math.round(h)):'');}catch(e){}}
 // Each caret points where its click will send things: up while it can still fold upwards, down
 // once what it folded is the thing it would bring back.
 function edFoldSync(id){const p=$('pane_'+id),es=$('es_'+id);if(!p||!es)return;

@@ -253,6 +253,13 @@
     G.check('dragged to the top, the editor folds away', $('pane_' + q).classList.contains('edfolded-editor'));
     mouse(document, 'mousemove', y3 - h3 + 150); mouse(document, 'mouseup', y3 - h3 + 150);
     G.check('and dragged back down, it opens again', !$('pane_' + q).classList.contains('edfolded-editor') && ew.offsetHeight > 44, ew.offsetHeight);
+    // the next tab opens with the divider where it was left, not back at the middle
+    const q2 = openTab('q2', 'SELECT 2', DB, false);
+    G.check('a new tab opens at the height the editor was dragged to', $('ew_' + q2).style.height === ew.style.height, $('ew_' + q2).style.height + ' / ' + ew.style.height);
+    edSplitReset(q2); closeTab(q2);
+    const q3 = openTab('q3', 'SELECT 3', DB, false);
+    G.check('reset by a double-click, the next tab opens at the default again', $('ew_' + q3).style.height === '', $('ew_' + q3).style.height);
+    closeTab(q3);
     closeTab(q);
   } finally {
     await G.run(`DROP DATABASE IF EXISTS ${DB}`);
