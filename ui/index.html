@@ -4738,7 +4738,6 @@ async function runSql(id,sql,paging){const t=T(id);if(!t)return;const userRun=!!
     if(stale())return;
     if(!r.ok){st.className='status err';st.textContent=timeLimitNote(r.error);$('res_'+id).innerHTML='';runLog(id,sqlOneLine(_q)+' -> '+logErr(r.error),'err',{sql,n:stmts.length});await schemaGoneNote(id,r.error);if(t.ddl){const _rn=await ddlRestoreIfDropped(t.ddl);if(_rn){st.textContent+=_rn;log(_rn.trim());}}return;}
     t.cols=r.columns;t.binCols=r.binaryCols||[];t.bitCols=r.bitCols||[];t.rows=r.rows;t.pk=null;t.pending=null;t.filters={};t.sortCol=-1;t.sortDir=1;t.selected=new Set();
-    {const kv=t._keepView;t._keepView=null;if(kv&&kv.cols.length===t.cols.length&&kv.cols.every((c,i)=>c===t.cols[i])){t.filters=kv.filters;t.sortCol=kv.sortCol;t.sortDir=kv.sortDir;}}
     // Direct clear (not updateEditBar) since a fresh query's table-ness isn't known yet - gives
     // instant feedback instead of showing stale buttons from whatever was loaded before while
     // this one is still fetching. Must also drop updateEditBar's own "nothing changed" cache
@@ -4951,12 +4950,12 @@ function sqlBlankStringsAndComments(s){let out='',q=null;
 // together - lets you stack e.g. status='active' AND created_at>'2024-01-01' instead of the last
 // pick replacing the one before it.
 function combinedFilterWhere(t){return (t.filterClauses&&t.filterClauses.length)?t.filterClauses.join(' AND '):null;}
-// keepView: the reload after Apply keeps the grid's column filters and sort as they were, so the
-// rows the user narrowed down to are still the ones shown once the save is in (runSql only takes
-// them back if the reloaded result has the same columns).
-async function openRun(id,keepView){const t=T(id);const where=combinedFilterWhere(t);const wh=where?(' WHERE '+where):'';const sql='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+wh+';';t.genSql=sql;edSetAll(id,sql);syncHl(id);
- t._keepView=keepView&&t.cols?{cols:t.cols.slice(),filters:Object.assign({},t.filters||{}),sortCol:t.sortCol,sortDir:t.sortDir}:null;
- try{await runSql(id,sql);}finally{t._keepView=null;}updateFilterBar(id);}
+async function openRun(id){const t=T(id);const where=combinedFilterWhere(t);const wh=where?(' WHERE '+where):'';const sql='SELECT * FROM '+qid(t.db)+'.'+qid(t.table)+wh+';';t.genSql=sql;edSetAll(id,sql);syncHl(id);await runSql(id,sql);updateFilterBar(id);}
+// After Apply the rows are read again, with the column filters and sort kept. The query that
+// produced them runs again when it only reads, so a SELECT of your own - its columns, joins and
+// order - stays as written; otherwise the table is read as opening it does.
+async function applyReload(id){const t=T(id);if(!t)return;const q=t.curRun;
+ await rerunKeepingView(id,runOnlyReads(q)?()=>runSql(id,q):()=>openRun(id));}
 
 // ---- editable grid with pending changes ----
 function clip(v,n){const s=String(v);return s.length>n?s.slice(0,n)+'\u2026':s;}
@@ -5332,22 +5331,28 @@ function syncFilterUi(id){const t=T(id);if(!t)return;const on=!!t.search,any=on|
  const box=$('gsearch_'+id);if(box)box.classList.toggle('on',on);const b=$('clrflt_'+id);if(b)b.style.display=any?'':'none';}
 function clearGridFilters(id){const t=T(id);if(!t)return;t.filters={};const fr=$('filterrow_'+id);if(fr)fr.querySelectorAll('input').forEach(i=>i.value='');
  const box=$('gsearch_'+id);if(box)box.value='';setGridSearch(id,'');}
+// Whether every statement of a run only reads, so running it again changes nothing.
+function runOnlyReads(sql){return !!(sql&&String(sql).trim())&&splitStmts(String(sql)).filter(s=>!isCommentOnly(s)).every(s=>/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)));}
 // The grid's Refresh button: the query that produced the rows runs again - not whatever the editor
-// holds now - and the column filters and the sort are put back on the new rows. A run clears both
-// (runSql), so they are kept here by column name and given back to the columns still there; the
-// search belongs to the tab and stays anyway. Edits not applied yet would go with the old rows, so
-// that is asked first, and so is a run that does more than read: running it again would change data.
+// holds now - with the column filters and the sort kept (rerunKeepingView). Edits not applied yet
+// would go with the old rows, so that is asked first, and so is a run that does more than read:
+// running it again would change data.
 async function refreshGrid(id){const t=T(id);if(!t)return;const sql=t.curRun;
  if(!sql||!String(sql).trim()){toast('Nothing to refresh - run a query first.',true);return;}
  if(t.runningReqId){toast('A query is still running in this tab.',true);return;}
  const n=pendingCount(t);if(n>0&&!(await ask('This tab has '+n+' change'+(n===1?'':'s')+' not applied yet. Refresh and discard '+(n===1?'it':'them')+'?')))return;
- const stmts=splitStmts(String(sql)).filter(s=>!isCommentOnly(s));
- if(!stmts.every(s=>/^(select|show|describe|desc|explain|with|table|values|use)\b/i.test(sqlHead(s)))&&!(await ask('The query that produced these rows also runs statements that are not plain reads. Run all of it again?')))return;
+ if(!runOnlyReads(sql)&&!(await ask('The query that produced these rows also runs statements that are not plain reads. Run all of it again?')))return;
+ await rerunKeepingView(id,()=>runSql(id,sql));}
+// Reads the grid's rows again through run() - Refresh, and the reload after Apply - and puts the
+// column filters, the sort and the scroll position back on the new rows. A run clears filters and
+// sort (runSql), so they are kept here by column name and given back to the columns still there; a
+// column that is gone takes its filter with it. The search belongs to the tab and stays anyway.
+async function rerunKeepingView(id,run){const t=T(id);if(!t)return;
  const cols=t.cols||[],filters={};Object.entries(t.filters||{}).forEach(([ci,v])=>{if(v&&cols[ci]!=null)filters[cols[ci]]=v;});
  const sortName=t.sortCol>=0?cols[t.sortCol]:null,sortDir=t.sortDir;
  const w=$('res_'+id),top=w?w.scrollTop:0,left=w?w.scrollLeft:0;
  const seq0=t.runSeq||0;
- await runSql(id,sql);
+ await run();
  // Only the run started here gets them back: one started meanwhile shows rows of its own.
  if(!T(id)||t.runSeq!==seq0+1||t.resultSets||!t.cols||!t.cols.length||!$('tbody_'+id))return;
  const nf={};Object.keys(filters).forEach(c=>{const ci=t.cols.indexOf(c);if(ci>=0)nf[ci]=filters[c];});
@@ -7126,7 +7131,7 @@ async function applyChangesRun(id,preview,anyway){const t=T(id);const S=[];const
  // was saved, since until then the reload is still reading on the tab's connection.
  // What was done, by kind: rows updated (however many of their cells), inserted and deleted.
  const nIns=S.filter(x=>x.startsWith('INSERT INTO')).length,what=[[updWh.length,'updated'],[nIns,'inserted'],[delWh.length,'deleted']].filter(x=>x[0]).map(x=>fmtCount(x[0])+' row'+(x[0]===1?'':'s')+' '+x[1]).join(', ');
- if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await openRun(id,true);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
+ if(r.ok){runLog(id,'Applied '+changes+' change(s): '+what+'.');toast('Applied '+changes+' change(s)'+(ws.length?', with '+warnText(ws):'')+'.','ok');invalidateTableCache(t.db,t.table);await applyReload(id);refreshTabDirty(id);if(ws.length)setRunWarnings(id,ws,stmts);return true;}else{runLog(id,'APPLY error: '+err,'err');toast(/Result consisted of more than one row/.test(String(r.error))?ONE_ROW_REFUSED:'Apply failed: '+err,true);return false;}}
 
 function ddlFailureNote(err, sql){
  const e = String(err || "");
