@@ -51,10 +51,11 @@
     const at = wrap.scrollTop;
     const ri = m.rows.findIndex(r => String(r[0]) === '2210');
     setUpd(m.id, ri, m.cols.indexOf('v'), 'edited');
+    G.check('changing a cell far down leaves the grid where it was', Math.abs($('res_' + m.id).scrollTop - at) <= rowH, [at, $('res_' + m.id).scrollTop]);
     G.check('a change far down applies', await applyChanges(m.id));
     G.eq('as many rows as before are there again', m.rows.length, 2600);
     G.eq('the change is in them', m.rows[m.rows.findIndex(r => String(r[0]) === '2210')][1], 'edited');
-    G.check('and the grid is where it was, not at the top', Math.abs(wrap.scrollTop - at) <= rowH, [at, wrap.scrollTop]);
+    G.check('and the grid is where it was, not at the top', Math.abs($('res_' + m.id).scrollTop - at) <= rowH, [at, $('res_' + m.id).scrollTop, $('res_' + m.id) === wrap]);
     G.check('with the edited row on screen', !!document.querySelector('#tbody_' + m.id + ' tr[data-r="' + m.rows.findIndex(r => String(r[0]) === '2210') + '"]'));
     closeTab(m.id);
 

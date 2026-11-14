@@ -5211,7 +5211,14 @@ function renderGrid(id){const t=T(id);const ed=!!t.pk;if(!t.filters)t.filters={}
  t.cols.forEach((c,ci)=>{h+='<th style="top:24px;padding:1px"><input data-ci="'+ci+'" oninput="(v=>gridTypeSoon(\''+id+'\',()=>setFilter(\''+id+'\','+ci+',v)))(this.value)" value="'+esc(t.filters[ci]||'')+'" placeholder="filter" style="width:100%;font-weight:400;font-size:11px"></th>';});
  h+='<th style="top:24px"></th>';
  h+='</tr></thead><tbody id="tbody_'+id+'"></tbody></table>';
- $('res_'+id).innerHTML=h;renderBody(id);syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);vpRefresh(id);
+ // Drawn again over the same rows - an edit, a sort, a filter - the grid stays where it was scrolled
+ // to: replacing its HTML put it back at the top, away from the row just edited. A new result starts
+ // at the top.
+ const _w=$('res_'+id),_keep=_w&&t._drawnRows===t.rows?[_w.scrollTop,_w.scrollLeft]:null;t._drawnRows=t.rows;
+ _w.innerHTML=h;renderBody(id);
+ // Only once the rows give it its height can it scroll there; then the rows there are drawn.
+ if(_keep){_w.scrollTop=_keep[0];_w.scrollLeft=_keep[1];renderBody(id);}
+ syncFilterRowTop(id);requestAnimationFrame(()=>autofitAll(id));wireColResize(id);updateStatusLine(id);refreshTabDirty(id);syncFilterUi(id);vpRefresh(id);
  const wrap=$('res_'+id);if(wrap&&!wrap.dataset.kbWired){wrap.tabIndex=-1;wrap.addEventListener('keydown',e=>{
    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.key==='c'||e.key==='C')){
     const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
