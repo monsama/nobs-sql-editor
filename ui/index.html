@@ -1127,6 +1127,8 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  <div class="row" style="justify-content:flex-end;flex:none"><button title="Rebuild the SQL from the column grid (discards manual edits in the box)" onclick="dGen(true)">Regenerate from columns</button><button class="go write" title="Run the SQL shown above against the database - creates the table if it's new, or alters it if it already exists" onclick="dApply()">Apply</button><button onclick="hide('mDesign')">Close</button></div>
  <div id="dLog" class="muted" style="white-space:pre-wrap;font-family:var(--mono);font-size:11px;max-height:220px;overflow:auto;margin-top:6px;flex:none"></div></div></div>
 
+<!-- The Format button's SQL formatter (ui/vendor/README.md). -->
+<script src="vendor/sql-formatter.min.js"></script>
 <script>
 // PowerShell edition: the server's token comes after # in the address the app window is opened with
 // (the part of an address a browser never sends), is kept for this tab so a reload still has it, and
@@ -4499,9 +4501,22 @@ function formatSql(sql){
 // A script with DELIMITER lines is left as it is: the delimiter is whatever the line says, and
 // nothing here knows where a routine body starts or ends. The text is replaced as an edit, so
 // Ctrl+Z brings the original back.
+// The Format button's layout comes from the sql-formatter library (ui/vendor): a clause per line,
+// a column per line, subqueries and CASE indented, in the server's own dialect. Words keep the case
+// they were typed in. What it gives back is checked to say the same as what went in - the same text
+// once the whitespace outside strings and comments is taken out - and when it does not, or the
+// library cannot read the query, the formatter above lays it out instead.
+function formatSqlPretty(sql){const F=typeof sqlFormatter!=='undefined'?sqlFormatter:null;
+ if(!F||!/\S/.test(sql))return formatSql(sql);
+ let out;try{out=F.format(sql,{language:window.mariadb?'mariadb':'mysql',tabWidth:2,keywordCase:'preserve',dataTypeCase:'preserve',functionCase:'preserve',identifierCase:'preserve',linesBetweenQueries:1});}
+ catch(e){return formatSql(sql);}
+ return sqlSqueeze(out)===sqlSqueeze(sql)?out:formatSql(sql);}
+// A statement with every run of whitespace outside strings, quoted names and comments taken out:
+// two texts that differ only in their whitespace come out the same.
+function sqlSqueeze(sql){return String(sql).replace(/('(?:[^'\\]|\\[\s\S]|'')*'|"(?:[^"\\]|\\[\s\S]|"")*"|`(?:[^`]|``)*`|\/\*[\s\S]*?\*\/|--[ \t][^\n]*|#[^\n]*)|\s+/g,(m,keep)=>keep?keep.replace(/\s+$/,''):'');}
 function formatTabSql(id){const ta=$('ed_'+id);
  if(/^[ \t]*delimiter[ \t]/im.test(ta.value)){toast('Scripts with DELIMITER lines are not formatted, because formatting would change the routine bodies.',true);return;}
- const next=formatSql(ta.value);if(next===ta.value)return;
+ const next=formatSqlPretty(ta.value);if(next===ta.value)return;
  ta.focus();ta.select();let ok=false;try{ok=document.execCommand('insertText',false,next);}catch(e){}
  if(!ok||ta.value!==next)ta.value=next;
  syncHl(id);markEdited(id);log('Formatted query.');}
