@@ -5390,8 +5390,23 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
    t.cols.forEach((c,ci)=>{const v=row[c];const cAttr=esc(c).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r');h+='<td class="editable" onclick="insClick(this,\''+id+'\','+ii+',\''+cAttr+'\')" ondblclick="editIns(this,\''+id+'\','+ii+',\''+cAttr+'\')" oncontextmenu="insCellMenu(event,\''+id+'\','+ii+',\''+cAttr+'\')" title="'+esc(v)+'">'+cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
- $('tbody_'+id).innerHTML=h;
- if(wrap&&slice.length){const sampleTr=wrap.querySelector('tbody tr[data-r]');if(sampleTr){const mh=sampleTr.getBoundingClientRect().height;if(mh>4)t._rowH=mh;}}
+ // The rows above the ones drawn are a spacer of their number times an estimated row height. Rows
+ // differ by a pixel or two (a badge, the arrow to a referenced row), and the estimate was taken
+ // from whichever row came first, so after a scroll the rows were drawn a little - or a few rows -
+ // away from where they had been: under a pointer that had not moved, another row, and a click
+ // picked a cell a few rows up or down. The row at the top of the view now stays where it was on
+ // screen, the spacer taking up the difference.
+ const tb=$('tbody_'+id);let anchor=null;
+ if(wrap&&view.length>VIRT_THRESHOLD){const top=wrap.getBoundingClientRect().top+((wrap.querySelector('thead')||{}).offsetHeight||0);
+  for(const tr of tb.querySelectorAll('tr[data-r]')){const r=tr.getBoundingClientRect();if(r.bottom>top){anchor={ri:tr.getAttribute('data-r'),top:r.top};break;}}}
+ tb.innerHTML=h;
+ if(anchor&&topH>0){const tr=tb.querySelector('tr[data-r="'+anchor.ri+'"]'),pad=tb.firstElementChild;
+  if(tr&&pad&&pad.classList.contains('vpad')){const d=tr.getBoundingClientRect().top-anchor.top;
+   // Only a drift of the estimate; a sort or a filter puts the row somewhere else on purpose.
+   if(Math.abs(d)>=0.5&&Math.abs(d)<rowH*4)pad.style.height=Math.max(0,topH-d)+'px';}}
+ // The estimate: the middle height of the rows drawn, changed only when it is really off.
+ if(wrap&&slice.length){const hs=[...tb.querySelectorAll('tr[data-r]')].map(tr=>tr.getBoundingClientRect().height).filter(x=>x>4).sort((a,b)=>a-b);
+  if(hs.length){const mh=hs[hs.length>>1];if(!t._rowH||Math.abs(mh-t._rowH)>0.5)t._rowH=mh;}}
  updateEditBar(id);}
 // renderBody() (the grid's own virtualized-scroll re-render, up to ~60/sec while actively
 // scrolling) calls this every time, but the pending count/selection it depends on almost never

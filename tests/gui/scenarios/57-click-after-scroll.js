@@ -33,6 +33,22 @@
     ev(below, 'mouseover', to);
     G.eq('dragging there picks the six cells', t.cellSel.size, 6);
     ev(document, 'mouseup', to);
+
+    // Drawn again with a row height that is off - rows differ by a pixel or two, and the estimate is
+    // only an estimate - the rows stay where they are on screen: the one under the pointer is still
+    // the one under it, so a click picks the cell it is on.
+    // A point in the middle of the results; everything under it is looked through, as a toast may lie on top.
+    const wr = wrap.getBoundingClientRect(), px = wr.left + wr.width / 2, py = wr.top + wr.height / 2;
+    const rowAt = () => { for (const el of document.elementsFromPoint(px, py)) { const r = el.closest && el.closest('tr[data-r]'); if (r && wrap.contains(r)) return r.dataset.r; } return null; };
+    const view = viewIndices(t.id);
+    for (const off of [3, -3, 1.5]) {
+      renderBody(t.id);
+      const was = rowAt();
+      // Scrolled by seven rows, and drawn with the estimate off: the row under the pointer is the
+      // one seven further on, not one a few rows from it.
+      t._rowH = rowH + off; wrap.scrollTop += 7 * rowH; renderBody(t.id);
+      G.eq('with the row height estimated ' + off + 'px off, the row under the pointer is the one scrolled to', rowAt(), String(view[view.indexOf(+was) + 7]));
+    }
   } finally {
     document.body.classList.remove('gridpicking'); window._gridDrag = null;
     if (t && T(t.id)) { if (t.pending) t.pending.upd = {}; closeTab(t.id); }
