@@ -5357,13 +5357,33 @@ async fn hist_clear(req: Value) -> R {
     match r { Ok(()) => Ok(json!({"ok":true})), Err(e) => Ok(json!({"ok":false,"error":e})) }
 }
 
+/// "core_val*" -> "%c%o%r%e%v%a%l%": only letters and digits are kept, so nothing in it is a
+/// LIKE wildcard or needs escaping.
+fn fuzzy_like(term: &str) -> String {
+    let mut s = String::from("%");
+    for c in term.chars().filter(|c| c.is_alphanumeric()) { s.push(c); s.push('%'); }
+    s
+}
+
+#[cfg(test)]
+mod fuzzy_like_tests {
+    use super::*;
+    #[test]
+    fn keeps_letters_and_digits_in_order() {
+        assert_eq!(fuzzy_like("core_val*1"), "%c%o%r%e%v%a%l%1%");
+        assert_eq!(fuzzy_like("'%_*"), "%");
+    }
+}
+
 #[tauri::command]
 async fn search_all_schemas(req: Value) -> R {
     let term = req["term"].as_str().unwrap_or("").trim().to_string();
     if term.is_empty() { return Ok(json!({"ok":false,"error":"Empty search term."})); }
     tokio::task::spawn_blocking(move || {
         let mut c = build_conn(&req["conn"])?;
-        let like = sql_lit(&format!("%{}%", term));
+        // The same fuzzy match as the objects filter: the term's letters and digits, in order,
+        // anywhere in the name; anything else typed (_ . - * ...) is ignored.
+        let like = sql_lit(&fuzzy_like(&term));
         let sql = format!(
             "SELECT TABLE_SCHEMA,'table',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','SYSTEM VERSIONED') AND TABLE_NAME LIKE {t} \
              UNION ALL SELECT TABLE_SCHEMA,'view',TABLE_NAME FROM information_schema.TABLES WHERE TABLE_TYPE IN ('VIEW','SYSTEM VIEW') AND TABLE_NAME LIKE {t} \
