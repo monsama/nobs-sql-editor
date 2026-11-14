@@ -391,6 +391,12 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  #vHexTabs button{border:1px solid var(--bd);background:var(--btn);color:var(--fg);border-radius:var(--r-s);padding:4px 12px;cursor:pointer;font:inherit}
  #vHexTabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
  #ctx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:180px}
+ /* A foreign key cell's own way to the row it points at, and the short look at that row on hover. */
+ table.grid td .fkgo{float:right;margin:0 -4px 0 4px;padding:0 3px;border-radius:var(--r-s);color:var(--erd-line,#7aa8d8);cursor:pointer;font-size:11px;opacity:.55;user-select:none}
+ table.grid td .fkgo:hover{opacity:1;background:var(--hover)}
+ #fkPeek{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:1999999;display:none;max-width:420px;padding:6px 8px;font-size:12px;pointer-events:none}
+ #fkPeek .fkph{font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #fkPeek table{border-collapse:collapse} #fkPeek td{padding:1px 6px 1px 0;vertical-align:top;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px} #fkPeek td:first-child{color:var(--muted)}
  #colPicker,#objTypePicker,#impDbPicker{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:2000000;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
  #copyMenu{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9500;display:none;min-width:200px;max-height:320px;overflow:auto;padding:6px 0}
  .cphdr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 12px 6px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--bd2);margin-bottom:4px}
@@ -5378,6 +5384,8 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
  }
  const slice=view.slice(startIdx,endIdx),gf=gridFocusOf(id);
  const nCols=1+(ed?1:0)+t.cols.length;
+ // The foreign key columns, each with its key's parts, for the arrow that goes to the row.
+ const fkp={};if(t.table&&t.fk&&t.fk.length)t.cols.forEach((c,ci)=>{const fp=fkPartsOf(t,c);if(fp)fkp[ci]=fp;});
  let h='';
  if(topH>0)h+='<tr class="vpad" style="height:'+topH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  slice.forEach((ri,k)=>{const row=t.rows[ri];const del=ed&&t.pending.del.has(ri);const vi=startIdx+k,up=vi>0?view[vi-1]:null,dn=vi<view.length-1?view[vi+1]:null;const fr=gf&&gf.ri===ri;h+='<tr data-r="'+ri+'" class="'+(del?'del':'')+(fr?' kbrow':'')+(t.selected.has(ri)?' rowpick':'')+'">';
@@ -5386,7 +5394,8 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
    const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn)+(fr&&gf.ci===ci?' kbfocus':'');
    const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ':'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
-   h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
+   const go=fkGoHtml(id,ri,ci,fkp[ci]);
+   h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+go+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
    t.cols.forEach((c,ci)=>{const v=row[c];const cAttr=esc(c).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r');h+='<td class="editable" onclick="insClick(this,\''+id+'\','+ii+',\''+cAttr+'\')" ondblclick="editIns(this,\''+id+'\','+ii+',\''+cAttr+'\')" oncontextmenu="insCellMenu(event,\''+id+'\','+ii+',\''+cAttr+'\')" title="'+esc(v)+'">'+cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
@@ -6616,8 +6625,15 @@ function insClick(td,id,ii,col){{const t0=T(id);if(t0&&t0.pending&&t0.pending.in
 // regenerates every cell from persisted state, and a not-yet-committed inline edit isn't part of
 // that state. Reverting only the one cell that actually needs reverting avoids the whole class of
 // race entirely.
+// The cell comes back as the grid draws it, the arrow to a referenced row included: an inline edit
+// left by clicking another row used to take the arrow with it.
 function cellRevert(td,id,ri,ci){const t=T(id);const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:t.rows[ri][ci];
- td.className='editable'+(pend?' dirty':'');td.title=String(clip(val,300));td.innerHTML=cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
+ const fp=t.table&&t.fk&&t.fk.length?fkPartsOf(t,t.cols[ci]):null;
+ td.className='editable'+(pend?' dirty':'');td.title=String(clip(val,300));td.innerHTML=fkGoHtml(id,ri,ci,fp)+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
+// The little arrow in a foreign key cell that opens the row it points at, with a preview on hover;
+// nothing where the cell is no key (fp null) or a part of the key is NULL.
+function fkGoHtml(id,ri,ci,fp){if(!fp||!fkRefOf(id,ri,ci,fp))return '';const a='\''+id+'\','+ri+','+ci;
+ return '<span class="fkgo" title="" onmousedown="event.stopPropagation()" ondblclick="event.stopPropagation()" onclick="fkGo(event,'+a+')" onmouseenter="fkPeek(this,'+a+')" onmouseleave="fkPeekHide()">↗</span>';}
 function insCellRevert(td,id,ii,col){const t=T(id);const v=t.pending.ins[ii][col];const ci=t.cols.indexOf(col);
  td.className='editable';td.title=(v===undefined?'undefined':String(v));td.innerHTML=cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
 // With opts ({initial, keys}) the edit was started by typing: the box opens at once holding what was
@@ -6736,13 +6752,8 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
   editable&&sel&&['Delete '+(nsel===1?'the selected row':nsel+' selected rows'),()=>deleteSel(id)],
   '-'];
  if(t.table){const col=t.cols[ci];if(!multi)items.push(['Quick filter',qfSub(id,col,cur)]);if(t.filterClauses&&t.filterClauses.length){if(t.filterClauses.length>1)items.push(['Remove filter',t.filterClauses.map((c,i)=>[clip(c,60),()=>removeFilterClause(id,i)])]);items.push(['Clear filter ('+t.filterClauses.length+')',()=>clearFilters(id)]);}
-  const fkd=(t.fkDetails||[]).find(f=>f[0]===col);
-  // The key is followed into the database it names, on every column it has; a part that is NULL
-  // points nowhere.
-  if(!multi&&fkd&&cur!=null){const refDb=fkd[3]||t.db,parts=fkd[4]!=null?(t.fkDetails||[]).filter(f=>f[4]===fkd[4]&&(f[3]||t.db)===refDb&&f[1]===fkd[1]):[fkd];
-   const valOf=c=>{const i=t.cols.indexOf(c),k=ri+':'+i;return i<0?undefined:(t.pending&&(k in t.pending.upd))?t.pending.upd[k]:t.rows[ri][i];};
-   const pairs=parts.map(f=>[f[2],valOf(f[0])]);
-   if(pairs.every(p=>p[1]!=null))items.push(['Go to referenced row ('+(refDb!==t.db?refDb+'.':'')+fkd[1]+'.'+pairs.map(p=>p[0]).join('+')+')',()=>goToFkRow(refDb,fkd[1],pairs)]);}
+  const fr=!multi&&fkRefOf(id,ri,ci);
+  if(fr)items.push(['Go to referenced row ('+fr.label+')',()=>goToFkRow(fr.db,fr.table,fr.pairs)]);
   items.push('-');}
  // With no row ticked, the rows that picked cells are on are "the selected ones" to an export:
  // cells picked on two rows export those two rows, as ticking them would.
@@ -6761,12 +6772,58 @@ async function cellMenu(e,id,ri,ci){e.preventDefault();const t=T(id);const key=r
 // value is written for the column's type, so an empty binary key (0x) and a text key that looks
 // like hex both find their row.
 async function goToFkRow(db,refTable,pairs){
- const bc=await tableBinCols(db,refTable,pairs.map(p=>p[0]));
- const cond=pairs.map((p,i)=>qid(p[0])+'='+litAs(p[1],bc?bc[i]:null)).join(' AND ');
+ const cond=await fkCond(db,refTable,pairs);
  const _i=openTab(refTable+' (FK: '+pairs.map(p=>p[0]+'='+p[1]).join(', ')+')','SELECT * FROM '+qid(db)+'.'+qid(refTable)+' WHERE '+cond+';',db,false,refTable);
  T(_i).filterClauses=[cond];
  await openRun(_i);
 }
+// The WHERE that finds the row a key points at, each value written for its column's type.
+async function fkCond(db,refTable,pairs){
+ const bc=await tableBinCols(db,refTable,pairs.map(p=>p[0]));
+ return pairs.map((p,i)=>qid(p[0])+'='+litAs(p[1],bc?bc[i]:null)).join(' AND ');}
+// The foreign key a table's column is part of, as its parts: [column, referenced db, table, column].
+// The key is followed into the database it names, on every column it has. null when it is no key.
+function fkPartsOf(t,col){
+ if(!t||!t.table)return null;const all=t.fkDetails||[],fkd=all.find(f=>f[0]===col);if(!fkd)return null;
+ const refDb=fkd[3]||t.db;
+ return {db:refDb,table:fkd[1],parts:fkd[4]!=null?all.filter(f=>f[4]===fkd[4]&&(f[3]||t.db)===refDb&&f[1]===fkd[1]):[fkd]};}
+// Where one cell's key points, with the values as they stand (an edit waiting for Apply counts) -
+// or null, also when a part of the key is NULL: that points nowhere.
+function fkRefOf(id,ri,ci,fp){
+ const t=T(id);if(!t||!t.rows||!t.rows[ri])return null;fp=fp||fkPartsOf(t,t.cols[ci]);if(!fp)return null;
+ const valOf=c=>{const i=t.cols.indexOf(c),k=ri+':'+i;return i<0?undefined:(t.pending&&(k in t.pending.upd))?t.pending.upd[k]:t.rows[ri][i];};
+ const pairs=fp.parts.map(f=>[f[2],valOf(f[0])]);
+ if(!pairs.every(p=>p[1]!=null))return null;
+ return {db:fp.db,table:fp.table,pairs,label:(fp.db!==t.db?fp.db+'.':'')+fp.table+'.'+pairs.map(p=>p[0]).join('+')};}
+// The little arrow in a key's cell: a click opens the row, as the cell menu's 'Go to referenced row'
+// does; resting on it shows a short look at that row. Neither is a click on the cell.
+function fkGo(e,id,ri,ci){e.stopPropagation();e.preventDefault();fkPeekHide();$('ctx').style.display='none';const fr=fkRefOf(id,ri,ci);if(fr)goToFkRow(fr.db,fr.table,fr.pairs);}
+let _fkPeekTok=0,_fkPeekTimer=null;const _fkPeekCache=new Map();
+function fkPeekHide(){_fkPeekTok++;clearTimeout(_fkPeekTimer);const p=$('fkPeek');if(p)p.style.display='none';}
+function fkPeek(el,id,ri,ci){
+ fkPeekHide();const tok=_fkPeekTok;
+ _fkPeekTimer=setTimeout(async()=>{
+  const fr=fkRefOf(id,ri,ci);if(!fr)return;
+  const where=qid(fr.db)+'.'+qid(fr.table);let r;
+  try{const cond=await fkCond(fr.db,fr.table,fr.pairs);const ck=(window._activeConnName||'')+'|'+where+'|'+cond;const hit=_fkPeekCache.get(ck);
+   if(hit&&Date.now()-hit.at<30000)r=hit.r;else{if(tok!==_fkPeekTok)return;r=await api('/api/query',{sql:'SELECT * FROM '+where+' WHERE '+cond+' LIMIT 2',db:fr.db});if(r&&r.ok){if(_fkPeekCache.size>200)_fkPeekCache.clear();_fkPeekCache.set(ck,{at:Date.now(),r});}}}
+  catch(err){r={ok:false,error:String(err&&err.message||err)};}
+  if(tok!==_fkPeekTok||!el.isConnected)return;
+  let p=$('fkPeek');if(!p){p=document.createElement('div');p.id='fkPeek';document.body.appendChild(p);}
+  const head='<div class="fkph">'+esc((fr.db!==T(id).db?fr.db+'.':'')+fr.table)+' <span class="muted" style="font-weight:400">'+esc(fr.pairs.map(q=>q[0]+' = '+clip(q[1],40)).join(', '))+'</span></div>';
+  let body;
+  if(!r||!r.ok)body='<div class="muted">'+esc((r&&r.error)||'Could not read the row.')+'</div>';
+  else if(!r.rows.length)body='<div class="muted">No row there - the key points at nothing.</div>';
+  else{const row=r.rows[0],bin=r.binaryCols||[],bit=r.bitCols||[],MAX=12;
+   body='<table>'+r.columns.slice(0,MAX).map((c,i)=>{const v=row[i];return '<tr><td>'+esc(c)+'</td><td>'+cellHtml(typeof v==='string'&&v.length>200?v.slice(0,200):v,bit[i],bin[i])+'</td></tr>';}).join('')+'</table>'+
+    (r.columns.length>MAX?'<div class="muted" style="margin-top:3px">+ '+(r.columns.length-MAX)+' more column'+(r.columns.length-MAX===1?'':'s')+'</div>':'')+
+    (r.rows.length>1?'<div class="muted" style="margin-top:3px">More than one row matches.</div>':'');}
+  p.innerHTML=head+body+'<div class="muted" style="margin-top:4px;font-size:11px">Click to open it in a tab.</div>';
+  p.style.display='block';p.style.visibility='hidden';p.style.left='0';p.style.top='0';
+  const b=el.getBoundingClientRect(),w=p.offsetWidth,h=p.offsetHeight;
+  let x=Math.min(b.left,innerWidth-w-6);if(x<6)x=6;let y=b.bottom+4;if(y+h>innerHeight-6)y=Math.max(6,b.top-h-4);
+  p.style.left=x+'px';p.style.top=y+'px';p.style.visibility='visible';},350);}
+document.addEventListener('scroll',fkPeekHide,true);document.addEventListener('mousedown',fkPeekHide,true);
 // The Windows clipboard's text format ends at the first NUL. Copying "a<NUL>b" puts "a" on it and
 // drops the rest, and the Clipboard API still reports success - measured: a three-character value
 // arrived as one. Nothing here can carry a NUL through it, so what this does is stop calling that
