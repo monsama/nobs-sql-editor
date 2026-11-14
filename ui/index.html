@@ -478,6 +478,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
     row each, a row's actions at its right, and a note in the middle when there is nothing yet. */
  .dsec{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
  .clist{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel2);overflow:auto}
+ #plTable.plfixed td,#plTable.plfixed th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #plTable th .rz{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;z-index:3}
+ #plTable th .rz:hover,#plTable th .rz.drag{background:var(--accent);opacity:.55}
  .clist>.item{padding:6px 12px}
  .citem{padding:10px 14px;border-top:1px solid var(--bd2)} .citem:first-child{border-top:0} .citem:hover{background:var(--hover)}
  .citem-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
@@ -7936,23 +7939,103 @@ async function refreshProcessList(){
  const hiddenCount=r.rows.length-filteredRows.length;
  r.rows=filteredRows;
  $('plStatus').textContent=r.rows.length+' process(es)'+(hiddenCount?' (hid '+hiddenCount+' - this connection\'s own SHOW PROCESSLIST)':'')+'.';
- let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
- r.columns.forEach((c,ci)=>{const wide=(ci===idIdx)?'min-width:70px;':'';h+='<th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd2);position:sticky;top:0;background:var(--panel2);'+wide+'">'+esc(c)+'</th>';});
- h+='<th style="padding:4px 6px;border-bottom:1px solid var(--bd2);position:sticky;top:0;background:var(--panel2);width:1%"></th></tr></thead><tbody>';
- r.rows.forEach(row=>{
+ window._plData={columns:r.columns,rows:r.rows,idIdx,infoIdx};
+ // Auto-refresh redraws every 3s - hold off while a column edge is mid-drag, or the table being
+ // dragged would be swapped out from under the pointer; the drag's own end draws the latest data.
+ if(_plDragging)_plPendingRender=true;else renderProcessList();
+}
+// Sort column/direction and hand-set column widths survive refreshes (auto-refresh included),
+// keyed by column NAME so they still line up should the PROCESSLIST column set ever differ.
+let _plSort={col:null,dir:1};let _plWidths=null;let _plDragging=false;let _plPendingRender=false;
+function plSetSort(ci){
+ const d=window._plData;if(!d)return;const name=d.columns[ci];
+ if(_plSort.col===name)_plSort.dir=-_plSort.dir;else{_plSort.col=name;_plSort.dir=1;}
+ renderProcessList();
+}
+// Numbers (Id, Time) compare numerically, everything else as text. NULL is the lowest value, and
+// an empty one comes just after it, as the server sorts them: first going up, last going down.
+function plSortRows(rows,ci,dir){
+ const rank=v=>v==null?0:v===''?1:2;
+ return rows.slice().sort((x,y)=>{const a=x[ci],b=y[ci],ra=rank(a),rb=rank(b);
+  if(ra<2||rb<2)return (ra-rb)*dir;
+  const an=Number(a),bn=Number(b);
+  const c=(!isNaN(an)&&!isNaN(bn))?an-bn:String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'});
+  return c*dir;});
+}
+function plHasWidths(){const d=window._plData;return !!(d&&_plWidths&&d.columns.every(c=>_plWidths[c]>0));}
+function renderProcessList(){
+ const d=window._plData;if(!d)return;const{columns,idIdx,infoIdx}=d;
+ const sci=_plSort.col==null?-1:columns.indexOf(_plSort.col);
+ const rows=sci>=0?plSortRows(d.rows,sci,_plSort.dir):d.rows;
+ const thBase='text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd2);position:sticky;top:0;background:var(--panel2);';
+ let h='<table id="plTable" style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+ columns.forEach((c,ci)=>{const wide=(ci===idIdx)?'min-width:70px;':'';const arrow=ci===sci?(_plSort.dir>0?' \u25B2':' \u25BC'):'';
+  h+='<th style="'+thBase+wide+'cursor:pointer;user-select:none" onclick="plSetSort('+ci+')" title="Click to sort (again to reverse) - drag the right edge to resize, double-click it to fit">'+esc(c)+arrow+'<span class="rz" data-ci="'+ci+'"></span></th>';});
+ h+='<th style="'+thBase+'width:1%"></th></tr></thead><tbody>';
+ rows.forEach(row=>{
   h+='<tr>';
   row.forEach(v=>{h+='<td style="padding:4px 6px;border-bottom:1px solid var(--bd2)">'+cellHtml(v)+'</td>';});
   const pid=idIdx>=0?row[idIdx]:null;
-  // Same reasoning as the filtering above: this connection's own SHOW [FULL] PROCESSLIST row
-  // can never actually be killed, so - when "Show hidden" reveals it anyway - it gets no Kill
-  // button at all rather than one that would only ever fail.
+  // Same reasoning as the filtering in refreshProcessList: this connection's own SHOW [FULL]
+  // PROCESSLIST row can never actually be killed, so - when "Show hidden" reveals it anyway -
+  // it gets no Kill button at all rather than one that would only ever fail.
   const info=infoIdx>=0?String(row[infoIdx]||'').trim().toLowerCase():'';
   const isSelf=(info==='show full processlist'||info==='show processlist');
   h+='<td style="padding:4px 6px;border-bottom:1px solid var(--bd2)">'+((pid!=null&&!isSelf)?'<button class="sm warn" onclick="killProcess(\''+esc(pid).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r')+'\')">Kill</button>':'')+'</td>';
   h+='</tr>';
  });
  h+='</tbody></table>';
- $('plGrid').innerHTML=h;
+ const grid=$('plGrid');const sl=grid.scrollLeft,st=grid.scrollTop;
+ grid.innerHTML=h;
+ if(plHasWidths())plApplyWidths();
+ grid.scrollLeft=sl;grid.scrollTop=st;
+ plWireResize();
+}
+// Until a column is resized the table lays itself out (100% wide, content-sized columns). The
+// first drag snapshots every column's current width; from then on the table is fixed-layout at
+// exactly those widths (long cells cut off with an ellipsis), scrolling sideways when they add
+// up past the dialog's width.
+function plMeasureWidths(){
+ const d=window._plData,table=$('plTable');if(!d||!table)return;
+ const ths=table.querySelectorAll('thead th');const w={};
+ d.columns.forEach((c,ci)=>{w[c]=Math.max(40,Math.round(ths[ci]?ths[ci].getBoundingClientRect().width:120));});
+ _plWidths=Object.assign(w,_plWidths||{});
+}
+function plApplyWidths(){
+ const d=window._plData,table=$('plTable');if(!d||!table)return;
+ let cg=table.querySelector('colgroup');
+ if(!cg){cg=document.createElement('colgroup');d.columns.forEach(()=>cg.appendChild(document.createElement('col')));const last=document.createElement('col');last.style.width='60px';cg.appendChild(last);table.insertBefore(cg,table.firstChild);}
+ d.columns.forEach((c,ci)=>{cg.children[ci].style.width=_plWidths[c]+'px';});
+ table.classList.add('plfixed');table.style.tableLayout='fixed';
+ table.style.width=(d.columns.reduce((s,c)=>s+_plWidths[c],0)+60)+'px';
+}
+function plWireResize(){
+ const d=window._plData,table=$('plTable');if(!d||!table)return;
+ table.querySelectorAll('thead .rz').forEach(rz=>{
+  const ci=+rz.getAttribute('data-ci');const name=d.columns[ci];let sx=0,sw=0,drag=false;
+  rz.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();
+   if(!plHasWidths()){plMeasureWidths();plApplyWidths();}
+   drag=true;_plDragging=true;sx=e.clientX;sw=_plWidths[name];try{rz.setPointerCapture(e.pointerId);}catch(_){}rz.classList.add('drag');});
+  rz.addEventListener('pointermove',e=>{if(!drag)return;_plWidths[name]=Math.max(40,Math.round(sw+(e.clientX-sx)));plApplyWidths();});
+  const end=e=>{if(!drag)return;drag=false;_plDragging=false;rz.classList.remove('drag');try{rz.releasePointerCapture(e.pointerId);}catch(_){}
+   // Only redraw if a refresh arrived mid-drag - redrawing unconditionally would replace this
+   // handle between the two clicks of a double-click, so the auto-fit would never fire.
+   if(_plPendingRender){_plPendingRender=false;renderProcessList();}};
+  rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);
+  rz.addEventListener('click',e=>e.stopPropagation());
+  rz.addEventListener('dblclick',e=>{e.stopPropagation();plAutofitCol(ci);});
+ });
+}
+// Double-click a column edge: size that column to its widest header/cell text (capped at 600px).
+function plAutofitCol(ci){
+ const d=window._plData,table=$('plTable');if(!d||!table)return;
+ if(!plHasWidths())plMeasureWidths();
+ const probe=document.createElement('span');probe.style.cssText='position:absolute;visibility:hidden;white-space:pre;font-size:12px';document.body.appendChild(probe);
+ let mx=0;
+ [table.querySelectorAll('thead th')[ci],...table.querySelectorAll('tbody tr>td:nth-child('+(ci+1)+')')].forEach(c=>{if(!c)return;probe.textContent=c.textContent;mx=Math.max(mx,probe.getBoundingClientRect().width);});
+ probe.remove();
+ _plWidths[d.columns[ci]]=Math.min(Math.max(40,Math.ceil(mx)+20),600);
+ renderProcessList();
 }
 async function killProcess(pid){
  const r=await api('/api/kill-process',{pid});
