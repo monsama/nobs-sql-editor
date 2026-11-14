@@ -397,7 +397,7 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  .cplink{color:var(--accent);cursor:pointer}
  .cpitem{display:flex;align-items:center;gap:6px;padding:3px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
  .cpitem:hover{background:var(--hover,rgba(127,127,127,.12))}
- #ctx .item{padding:5px 12px} #ctx .sep{height:1px;background:var(--bd2);margin:3px 0}
+ #ctx .item{padding:5px 12px} #ctx .sep{height:1px;background:var(--bd2);margin:3px 0} #ctx .mhead{padding:4px 12px 2px;font-size:11px;color:var(--muted);cursor:default;user-select:none}
  .item.kbsel{background:var(--hover);outline:1px solid var(--accent);outline-offset:-1px}
  #acx{position:fixed;background:var(--bg);border:1px solid var(--bd);box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:9600;display:none;max-height:230px;overflow:auto;min-width:160px;font-family:var(--mono);font-size:12px}
  #acx .ai{padding:3px 10px;cursor:pointer;white-space:nowrap} #acx .ai.on{background:var(--accent);color:#fff} #allSchemasBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -1998,7 +1998,9 @@ function tidyMenu(items){const out=[];(items||[]).forEach(it=>{if(!it)return;
  if(it==='-'){if(out.length&&out[out.length-1]!=='-')out.push('-');return;}out.push(it);});
  while(out.length&&out[out.length-1]==='-')out.pop();return out;}
 function menu(x,y,items,opts){const m=$('ctx');m.innerHTML='';buildMenuItems(m,tidyMenu(items),!!(opts&&opts.local));m.style.display='block';m.style.visibility='hidden';m.style.left='0';m.style.top='0';const w=m.offsetWidth||190,h=m.offsetHeight||0;let nx=Math.min(x,innerWidth-w-6);if(nx<6)nx=6;let ny=y;if(y+h>innerHeight-6)ny=Math.max(6,innerHeight-h-6);m.style.left=nx+'px';m.style.top=ny+'px';m.style.visibility='visible';}
-function buildMenuItems(container,items,local){items.forEach(it=>{if(it==='-'){const s=document.createElement('div');s.className='sep';container.appendChild(s);return;}const d=document.createElement('div');d.className='item';const isSub=Array.isArray(it[1]);d.textContent=it[0]+(isSub?'  \u25B8':'');const _destr=!local&&/^(drop|truncate|delete|rename|create|alter|import|design|new |duplicate|optimize|repair|analyze|paste|set null|set empty|edit value)/i.test(it[0]||'');if(window.readOnly&&_destr){d.className='item rodis';d.title='Disabled in read-only mode';container.appendChild(d);return;}
+// An entry {head:'text'} is a heading over the entries after it: not something to click.
+function buildMenuItems(container,items,local){items.forEach(it=>{if(it==='-'){const s=document.createElement('div');s.className='sep';container.appendChild(s);return;}
+ if(it&&it.head!=null){const h=document.createElement('div');h.className='mhead';h.textContent=it.head;h.onclick=e=>e.stopPropagation();container.appendChild(h);return;}const d=document.createElement('div');d.className='item';const isSub=Array.isArray(it[1]);d.textContent=it[0]+(isSub?'  \u25B8':'');const _destr=!local&&/^(drop|truncate|delete|rename|create|alter|import|design|new |duplicate|optimize|repair|analyze|paste|set null|set empty|edit value)/i.test(it[0]||'');if(window.readOnly&&_destr){d.className='item rodis';d.title='Disabled in read-only mode';container.appendChild(d);return;}
  if(isSub){d.style.position='relative';const fly=document.createElement('div');fly.className='ctxsub';buildMenuItems(fly,tidyMenu(it[1]),local);d.appendChild(fly);let ht=null;const showFly=()=>{if(ht){clearTimeout(ht);ht=null;}fly.style.display='block';fly.style.left='';fly.style.right='';fly.style.top='0';const r=fly.getBoundingClientRect(),dr=d.getBoundingClientRect();if(dr.right+r.width>innerWidth-4){fly.style.right='100%';}else{fly.style.left='100%';}if(dr.top+r.height>innerHeight-4){fly.style.top=(innerHeight-4-(dr.top+r.height))+'px';}};const hideFly=()=>{ht=setTimeout(()=>{fly.style.display='none';},200);};d.onmouseenter=showFly;d.onmouseleave=hideFly;fly.onmouseenter=()=>{if(ht){clearTimeout(ht);ht=null;}};fly.onmouseleave=hideFly;
  }else{d.onclick=()=>{$('ctx').style.display='none';it[1]();};}
  container.appendChild(d);});}
@@ -6954,7 +6956,9 @@ function qfClipPreview(s){const v=String(s).replace(/\r?\n/g,'⏎').replace(/[\x
 // clipboard's - its own comparisons when it could be read already, else read when clicked.
 function qfMenu(id,col,cur,clipText){const sub=qfSub(id,col,cur);
  sub.push('-');sub.push(['Custom value...',()=>qfCustom(id,col,cur)]);
- if(clipText!=null)sub.push(['Clipboard value '+qfClipPreview(clipText),qfSub(id,col,clipText,true).concat(['-',['Other comparison...',()=>qfCustom(id,col,clipText)]])]);
+ // The clipboard value's comparisons are right here, under a heading naming the value, not one
+ // submenu further in.
+ if(clipText!=null){sub.push('-',{head:'Clipboard value '+qfClipPreview(clipText)},...qfSub(id,col,clipText,true),['Other comparison with the clipboard value...',()=>qfCustom(id,col,clipText)]);}
  else sub.push(['Clipboard value...',async()=>{const s=await qfReadClip(false);if(s==null){toast('The clipboard holds no single text value to filter on.',true);return;}qfCustom(id,col,s);}]);
  return sub;}
 // Adds one more ANDed condition to the table tab's active quick filter (does not replace the

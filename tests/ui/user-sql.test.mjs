@@ -586,12 +586,14 @@ test('the quick filter takes a typed value and the clipboard value', async () =>
   assert.equal(f.qfClipUsable('x'.repeat(1001)), null, 'a whole document is not one value');
   assert.equal(f.qfClipPreview('line1\nline2 and some more text after it'), '"line1⏎line2 and some mor…"');
 
-  const labels = m => m.map(x => Array.isArray(x) ? x[0] : x);
+  const labels = m => m.map(x => Array.isArray(x) ? x[0] : x && x.head != null ? '# ' + x.head : x);
   const withClip = f.qfMenu('t1', 'v', 'abc', '42');
-  const ci = withClip.findIndex(x => Array.isArray(x) && x[0].startsWith('Clipboard value "42"'));
+  const ci = withClip.findIndex(x => x && x.head != null && x.head.startsWith('Clipboard value "42"'));
   assert.ok(labels(withClip).includes('Custom value...'), labels(withClip).join(' | '));
-  assert.ok(ci >= 0 && Array.isArray(withClip[ci][1]), 'the clipboard value has its own comparisons');
-  const cl = labels(withClip[ci][1]);
+  assert.ok(ci >= 0, 'the clipboard value has a heading of its own');
+  assert.ok(!withClip.some(x => Array.isArray(x) && Array.isArray(x[1])), 'and no submenu: its comparisons are in this one');
+  const cl = labels(withClip.slice(ci + 1));
+  assert.ok(cl.includes('Other comparison with the clipboard value...'), cl.join(' | '));
   assert.ok(cl.includes("`v` = '42'") && cl.includes("`v` > '42'") && !cl.some(l => /IS NULL/.test(l)), cl.join(' | '));
   const noClip = f.qfMenu('t1', 'v', null, null);
   assert.ok(labels(noClip).includes('Clipboard value...') && labels(noClip).includes('Custom value...'), labels(noClip).join(' | '));
