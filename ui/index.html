@@ -230,7 +230,7 @@ body.schemas-folded #schemas{display:none} #objects{flex:1;overflow:auto}
  .statusbar{display:flex;min-width:0} .statusbar>.status:first-child{flex:1;min-width:0} .pagerinfo{white-space:nowrap} .pagerinfo:empty{display:none}
  /* The server's warnings for the last run, beside its status (setRunWarnings): warnings stand out, Notes do not. */
  .warnspan{white-space:nowrap;flex:none} .warnspan:empty{display:none}
- .loadall{white-space:nowrap;flex:none;padding-top:1px;padding-bottom:1px} .loadall:empty{display:none} .loadall button{font-size:11px;padding:0 8px} .loadall .stlan{width:76px;font-size:11px;padding:0 4px;margin:0 4px 0 8px;height:20px;box-sizing:border-box;vertical-align:middle} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
+ .loadall{white-space:nowrap;flex:none;padding-top:1px;padding-bottom:1px} .loadall:empty{display:none} .loadall button{font-size:11px;padding:0 8px} .loadall button+button{margin-left:4px} .loadall .stlan{width:64px;font-size:11px;padding:0 4px;margin:0 4px 0 0;text-align:right;height:20px;box-sizing:border-box;vertical-align:middle} .warnlink{color:var(--warn);font-weight:600} .notelink{color:var(--muted)}
  .stk{display:inline-grid} .stk>span{grid-area:1/1} .stk>.off{visibility:hidden}
  .c-str{color:var(--str)} .c-kw{color:var(--kw);font-weight:600} .c-com{color:var(--com);font-style:italic} .c-num{color:var(--num)}
  .toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -2831,9 +2831,10 @@ function paintLoadAll(id){const t=T(id),b=$('stla_'+id);if(!b)return;
  if(!t||!(t.loadingAll||(t.hasMore&&t.cursorId))){b.innerHTML='';return;}
  if(t.loadingAll){b.innerHTML='<button class="sm warn" title="Stop reading rows - the rows loaded so far stay in the grid" onclick="loadAllRows(\''+id+'\')">Stop loading</button>';return;}
  const n=t.loadMoreN||LOAD_MORE_DEFAULT;
- b.innerHTML='<button class="sm" title="Read every remaining row of the result into the grid, rather than scrolling to load them '+fmtCount(PAGE_BATCH)+' at a time" onclick="loadAllRows(\''+id+'\')">Load all rows</button>'
-  +'<input type="number" id="stlan_'+id+'" class="stlan" min="1" step="1000" value="'+n+'" title="How many more rows Load more reads" aria-label="How many more rows to load" oninput="loadMoreSet(\''+id+'\',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();loadMoreRows(\''+id+'\');}">'
-  +'<button class="sm" title="Read this many more rows of the result into the grid" onclick="loadMoreRows(\''+id+'\')">Load more</button>';}
+ // The count, then Load more, then Load all rows. A text box, not a number box: no up/down arrows.
+ b.innerHTML='<input type="text" inputmode="numeric" id="stlan_'+id+'" class="stlan" value="'+n+'" title="How many more rows Load more reads" aria-label="How many more rows to load" oninput="loadMoreSet(\''+id+'\',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();loadMoreRows(\''+id+'\');}">'
+  +'<button class="sm" title="Read this many more rows of the result into the grid" onclick="loadMoreRows(\''+id+'\')">Load more</button>'
+  +'<button class="sm" title="Read every remaining row of the result into the grid, rather than scrolling to load them '+fmtCount(PAGE_BATCH)+' at a time" onclick="loadAllRows(\''+id+'\')">Load all rows</button>';}
 function hideLoadAll(id){const b=$('stla_'+id);if(b)b.innerHTML='';}
 // The number typed, as a whole count of at least 1; null while it is not one.
 function loadMoreCount(v){const n=Math.floor(Number(String(v).replace(/['\s,_]/g,'')));return Number.isFinite(n)&&n>=1?n:null;}
@@ -2863,6 +2864,7 @@ async function loadAllRows(id,more){const t=T(id);if(!t)return;
  if(!T(id)||t.runSeq!==seq||!t.hasMore||!t.cursorId)return;
  // A token of this reading's own: Stop and then Load again must not leave two readings going.
  const tok={};t.loadingAll=tok;paintLoadAll(id);log(more?'Loading '+fmtCount(more)+' more row(s) of the result...':'Loading every row of the result...');
+ let failed=false;
  try{
   while(t.loadingAll===tok&&T(id)&&t.runSeq===seq&&t.hasMore&&t.cursorId&&t.rows.length<upTo){
    // A batch already being read (by a scroll) is waited for, not doubled.
@@ -2870,12 +2872,15 @@ async function loadAllRows(id,more){const t=T(id);if(!t)return;
    const before=t.rows.length,cur=t.cursorId;
    // The last batch asks for just what is still wanted, so the count comes out exact.
    await fetchNextBatch(id,Math.min(PAGE_BATCH,upTo-before));
-   // A read that failed without closing the cursor is not tried over and over.
-   if(t.rows.length===before&&t.hasMore&&t.cursorId===cur)break;
+   // A read that failed without closing the cursor is not tried over and over; one that closed
+   // it (fetchNextBatch has said why) leaves the rest of the result unread - not "all loaded".
+   if(t.rows.length===before&&t.hasMore&&t.cursorId===cur){failed=true;break;}
+   if(t.rows.length===before&&!t.cursorId){failed=true;break;}
   }
  }finally{const reached=t.rows.length>=upTo,stopped=t.hasMore&&t.runSeq===seq&&!reached;if(t.loadingAll===tok)t.loadingAll=null;
   if(T(id)&&t.runSeq===seq&&!t.loadingAll){paintLoadAll(id);
-   log(stopped?'Stopped loading: '+fmtCount(t.rows.length)+' row(s) loaded.'
+   log(failed?'The rest of the result could not be read; '+fmtCount(t.rows.length)+' row(s) are in the grid. Run the query again to read the rest.'
+    :stopped?'Stopped loading: '+fmtCount(t.rows.length)+' row(s) loaded.'
     :more&&t.hasMore?'Loaded '+fmtCount(t.rows.length-loaded)+' more row(s), '+fmtCount(t.rows.length)+' in all; the result has more.'
     :'All '+fmtCount(t.rows.length)+' row(s) loaded.');}}}
 // Tears down a tab's open result cursor (if any), server-side, and forgets it locally. Fire-and-

@@ -15,6 +15,8 @@
     const bar = $('stla_' + t.id);
     G.check('the buttons are there', bar && /Load all rows/.test(bar.textContent) && /Load more/.test(bar.textContent), bar && bar.innerHTML);
     G.eq('the number starts at 10,000', $('stlan_' + t.id).value, '10000');
+    G.eq('the box, then Load more, then Load all rows', [...bar.children].map(e => e.tagName === 'INPUT' ? 'box' : e.textContent), ['box', 'Load more', 'Load all rows']);
+    G.eq('a plain text box, with no up and down arrows', $('stlan_' + t.id).type, 'text');
 
     $('stlan_' + t.id).value = '1500'; $('stlan_' + t.id).dispatchEvent(new Event('input'));
     await loadMoreRows(t.id);
