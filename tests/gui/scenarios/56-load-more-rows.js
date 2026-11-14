@@ -35,6 +35,7 @@
     await loadAllRows(t.id);
     G.eq('Load all rows reads the rest', [t.rows.length, t.hasMore], [3500, false]);
     G.check('again without an error', !logs.some(m => /ERROR|not found|closed/i.test(m)), logs);
+    G.check('told once at the end, not a line per batch', !logs.some(m => /^Fetched /.test(m)) && logs.some(m => /^All 3'?500 row/.test(m)), logs);
     G.eq('and the buttons go once every row is in', bar.innerHTML, '');
     G.eq('every row once, in order', [t.rows[0][0], t.rows[2499][0], t.rows[3499][0]].map(String), ['1', '2500', '3500']);
   } finally {

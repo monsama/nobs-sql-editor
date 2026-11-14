@@ -2824,6 +2824,9 @@ function updateStatusLine(id){const t=T(id);if(!t||!t.rows)return;const st=$('st
 // batch from the same open cursor that scrolling reads from, instead of scrolling to the bottom over
 // and over. While it reads, the same button stops it (as does Cancel), keeping what has arrived.
 const LOAD_ALL_WARN=100000;
+// Rows read per round trip by Load all rows and Load more: ten times the page scrolling reads, as
+// they read many pages anyway. The backend still ends a batch early at PAGE_BYTES, for large values.
+const LOAD_ALL_BATCH=10000;
 // Beside it, a number and "Load more": that many more rows, in the same way. The number starts at
 // LOAD_MORE_DEFAULT; a number typed is kept for the tab while the app is open, not saved.
 const LOAD_MORE_DEFAULT=10000;
@@ -2871,14 +2874,15 @@ async function loadAllRows(id,more){const t=T(id);if(!t)return;
    if(t.fetchingMore){await new Promise(r=>setTimeout(r,50));continue;}
    const before=t.rows.length,cur=t.cursorId;
    // The last batch asks for just what is still wanted, so the count comes out exact.
-   await fetchNextBatch(id,Math.min(PAGE_BATCH,upTo-before));
+   await fetchNextBatch(id,Math.min(LOAD_ALL_BATCH,upTo-before),true);
    // A read that failed without closing the cursor is not tried over and over; one that closed
    // it (fetchNextBatch has said why) leaves the rest of the result unread - not "all loaded".
    if(t.rows.length===before&&t.hasMore&&t.cursorId===cur){failed=true;break;}
    if(t.rows.length===before&&!t.cursorId){failed=true;break;}
   }
  }finally{const reached=t.rows.length>=upTo,stopped=t.hasMore&&t.runSeq===seq&&!reached;if(t.loadingAll===tok)t.loadingAll=null;
-  if(T(id)&&t.runSeq===seq&&!t.loadingAll){paintLoadAll(id);
+  // The rows read are drawn once, now (the batches were read quietly).
+  if(T(id)&&t.runSeq===seq&&!t.loadingAll){if(t.rows.length!==loaded)renderBody(id);paintLoadAll(id);
    log(failed?'The rest of the result could not be read; '+fmtCount(t.rows.length)+' row(s) are in the grid. Run the query again to read the rest.'
     :stopped?'Stopped loading: '+fmtCount(t.rows.length)+' row(s) loaded.'
     :more&&t.hasMore?'Loaded '+fmtCount(t.rows.length-loaded)+' more row(s), '+fmtCount(t.rows.length)+' in all; the result has more.'
@@ -3061,7 +3065,9 @@ function closeCursorFor(t){if(t&&t.cursorId){api('/api/close-cursor',{cursorId:t
 // keeps this cursor's connection registered under its original requestId (t.cursorReqId) for the
 // cursor's whole life, so clicking Cancel during a slow fetch KILL QUERYs it exactly like
 // cancelling the first page does - not just during the very first fetch.
-async function fetchNextBatch(id,size){
+// quiet: a read that is one of many (Load all rows, Load more) - the grid is drawn and the reading
+// told in the log once at the end, not after every batch; the row count still moves on each.
+async function fetchNextBatch(id,size,quiet){
  const t=T(id);if(!t||!t.hasMore||t.fetchingMore)return;
  if(!t.cursorId)return;
  t.fetchingMore=true;
@@ -3081,8 +3087,8 @@ async function fetchNextBatch(id,size){
   // renderBody (not renderGrid) deliberately: it only rewrites tbody's own innerHTML, not the
   // scrollable wrap element's - renderGrid replacing wrap's innerHTML resets scrollTop to 0,
   // which would yank the view back to the top on every background scroll-triggered prefetch.
-  renderBody(id);updatePager(id);updateStatusLine(id);
-  log('Fetched '+fmtCount(r.rows.length)+' more row(s), '+fmtCount(t.rows.length)+' total loaded.');
+  if(!quiet)renderBody(id);updatePager(id);updateStatusLine(id);
+  if(!quiet)log('Fetched '+fmtCount(r.rows.length)+' more row(s), '+fmtCount(t.rows.length)+' total loaded.');
  }catch(e){toast(String(e),true);}
  finally{t.fetchingMore=false;if(!stale()){t.runningReqId=null;setRunning(id,false);}}
 }
