@@ -1388,6 +1388,8 @@ async fn session_end(req: Value) -> R {
 // was. The rest may already have been sent, with the statement over by the time the KILL arrives;
 // one statement of nothing (DO 0) then runs before the connection goes back, so a KILL that found
 // nothing to stop cannot fall on the tab's next statement.
+// How long an open result waits to be read further before it is closed.
+const CURSOR_IDLE_SECS: u64 = 600;
 fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: Option<String>, home: Option<String>, kill: Option<(u32, Value)>) -> (
     std::sync::mpsc::Receiver<CursorOpen>,
     std::sync::mpsc::Sender<CursorCmd>,
@@ -1413,6 +1415,17 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         // borrow of Conn across separate command invocations.
         // A cursor on a tab's transaction gives the connection back to it at the end, whichever
         // way this block is left.
+        // The server gives up on a result nobody reads: once the client has not taken the next
+        // rows for net_write_timeout seconds (60 by default), it drops the connection, and the
+        // next page - a scroll to the bottom, Load all rows - failed with "An existing connection
+        // was forcibly closed by the remote host" (or, once the cursor was gone, "Cursor not
+        // found"). A cursor waits up to CURSOR_IDLE_SECS between reads, so the server is asked to
+        // wait as long. On the tab's kept connection, where the user can see the setting, it is
+        // put back afterwards; and a query that names the setting - reading it, or setting it - is
+        // left to see and do what it says.
+        let raise = !sql.to_ascii_lowercase().contains("net_write_timeout");
+        let net_write_before: Option<u64> = if raise && home.is_some() { conn.query_first("SELECT @@SESSION.net_write_timeout").ok().flatten() } else { None };
+        if raise { let _ = conn.query_drop(format!("SET SESSION net_write_timeout = {}", CURSOR_IDLE_SECS + 60)); }
         'body: {
         let mut result = match conn.query_iter(&sql) {
             Ok(r) => r,
@@ -1433,7 +1446,7 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
         loop {
             // Idle safety net: an abandoned cursor (tab closed without the UI's cleanup call
             // reaching the backend, app crashed, etc.) can't hold its DB connection open forever.
-            match cmd_rx.recv_timeout(std::time::Duration::from_secs(600)) {
+            match cmd_rx.recv_timeout(std::time::Duration::from_secs(CURSOR_IDLE_SECS)) {
                 Ok(CursorCmd::Fetch { n, reply }) => {
                     // Fill the page (starting with whatever the last look-ahead held back), then
                     // read exactly one row beyond it so "is there more?" is still answered from
@@ -1496,6 +1509,8 @@ fn spawn_cursor_thread(conn: Conn, sql: String, cursor_id: String, request_id: O
             let _ = reply.send(Ok(batch));
         }
         }
+        // After the warnings were read: a SET clears them.
+        if let Some(v) = net_write_before { let _ = conn.query_drop(format!("SET SESSION net_write_timeout = {}", v)); }
         if let Some(id) = home { sess_return(&id, conn); }
     });
     (open_rx, cmd_tx)
@@ -8502,6 +8517,53 @@ mod cursor_tests {
         uniq.sort();
         uniq.dedup();
         assert_eq!(uniq.len(), 100_000, "the same row was delivered on more than one page");
+    }
+
+    // A result left open while the user looks at the first page: the server used to drop the
+    // connection once net_write_timeout passed with nobody reading (60 s by default), and the next
+    // page failed with "An existing connection was forcibly closed by the remote host". Here the
+    // server's default is made 2 s for the connections opened meanwhile, the result is left for 5 s
+    // - its rows wide enough that the server is still writing them - and then read to the end. On a
+    // tab's kept connection the setting is its own again afterwards.
+    #[tokio::test]
+    #[ignore]
+    async fn a_result_left_unread_for_a_while_can_still_be_read() {
+        let Some(conn) = conn_json() else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
+        let q = |sql: &str| { let conn = conn.clone(); let sql = sql.to_string(); async move { script(json!({"sql": sql, "conn": conn})).await.unwrap() } };
+        let before = query(json!({"sql": "SELECT @@GLOBAL.net_write_timeout", "conn": conn})).await.unwrap();
+        let global: u64 = before["rows"][0][0].as_str().and_then(|s| s.parse().ok()).unwrap_or(60);
+        struct Restore(Value, u64);
+        impl Drop for Restore { fn drop(&mut self) {
+            if let Ok(mut c) = build_conn(&self.0) { let _ = c.query_drop(format!("SET GLOBAL net_write_timeout = {}", self.1)); }
+        } }
+        let _restore = Restore(conn.clone(), global);
+        let r = q("SET GLOBAL net_write_timeout = 2").await;
+        assert_eq!(r["ok"], true, "could not lower net_write_timeout for the test: {r}");
+        let sql = "SELECT id, REPEAT('x', 300) FROM bulk_rows ORDER BY id";
+        for session in [None, Some("live_net_write_timeout")] {
+            let mut req = json!({"sql": sql, "conn": conn, "db": "nobs_test", "pageSize": 1000});
+            if let Some(s) = session { req["session"] = json!(s); }
+            let first = query(req).await.unwrap();
+            assert_eq!(first["ok"], true, "opening the result failed: {first}");
+            let cursor_id = first["cursorId"].as_str().unwrap_or("").to_string();
+            assert!(!cursor_id.is_empty(), "a result this big leaves a cursor open: {first}");
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let mut n = first["rows"].as_array().map(|a| a.len()).unwrap_or(0);
+            let mut more = true;
+            for _ in 0..200 {
+                if !more { break; }
+                let b = fetch_cursor_batch(json!({"cursorId": cursor_id, "pageSize": 5000})).await.unwrap();
+                assert_eq!(b["ok"], true, "read after 5 s unread ({session:?}): {b}");
+                n += b["rows"].as_array().map(|a| a.len()).unwrap_or(0);
+                more = b["hasMore"].as_bool().unwrap_or(false);
+            }
+            assert_eq!(n, 100_000, "every row, read after the wait ({session:?})");
+            if let Some(s) = session {
+                let v = query(json!({"sql": "SELECT @@SESSION.net_write_timeout", "conn": conn, "session": s})).await.unwrap();
+                assert_eq!(v["rows"][0][0], json!("2"), "the kept connection has its own setting back: {v}");
+                let _ = session_end(json!({"session": s, "action": "close", "conn": conn})).await;
+            }
+        }
     }
 }
 
