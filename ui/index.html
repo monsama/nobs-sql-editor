@@ -5368,14 +5368,27 @@ function viewIndicesFresh(t){let view=t.rows.map((r,ri)=>ri);
 function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=new Set();const view=viewIndices(id);t._total=view.length;const q=t.search?String(t.search).toLowerCase():'';
  const wrap=$('res_'+id);const rowH=t._rowH||23;const VIRT_THRESHOLD=300;const BUFFER=15;
  let startIdx=0,endIdx=view.length,topH=0,botH=0;
+ // The rows above the ones drawn are a spacer of their number times an estimated row height. Rows
+ // differ by a pixel or two (a badge, the arrow to a referenced row), so the rows drawn from the
+ // scroll position alone landed up to dozens of rows from where they had been on screen: under a
+ // pointer that had not moved, another row, and a click after a scroll picked a cell a few rows up
+ // or down. So the row at the top of the view (anchor) is found among the rows drawn before; when
+ // it is still at the same place in the result - no sort or filter moved it - the rows are drawn
+ // around it, and it is put back exactly where it was on screen (below).
+ const tb=$('tbody_'+id);let anchor=null;
  if(view.length>VIRT_THRESHOLD&&wrap){
   const scrollTop=wrap.scrollTop,viewportH=wrap.clientHeight||600;
-  startIdx=Math.max(0,Math.floor(scrollTop/rowH)-BUFFER);
-  endIdx=Math.min(view.length,Math.ceil((scrollTop+viewportH)/rowH)+BUFFER);
+  if(tb&&t._bodyStart!=null){const wr=wrap.getBoundingClientRect(),vTop=wr.top+((wrap.querySelector('thead')||{}).offsetHeight||0),vBot=wr.top+wrap.clientHeight;
+   const trs=tb.querySelectorAll('tr[data-r]');
+   for(let k=0;k<trs.length;k++){const r=trs[k].getBoundingClientRect();if(r.bottom<=vTop)continue;
+    const pos=t._bodyStart+k;if(r.top<vBot&&view[pos]===+trs[k].getAttribute('data-r'))anchor={ri:trs[k].getAttribute('data-r'),top:r.top,pos,above:Math.max(0,r.top-vTop)};break;}}
+  if(anchor){startIdx=Math.max(0,anchor.pos-Math.ceil(anchor.above/rowH)-BUFFER);endIdx=Math.min(view.length,anchor.pos+Math.ceil(viewportH/rowH)+BUFFER);}
+  else{startIdx=Math.max(0,Math.floor(scrollTop/rowH)-BUFFER);endIdx=Math.min(view.length,Math.ceil((scrollTop+viewportH)/rowH)+BUFFER);}
   if(startIdx>=view.length)startIdx=Math.max(0,view.length-1);
   if(endIdx<startIdx)endIdx=startIdx;
   topH=startIdx*rowH;botH=(view.length-endIdx)*rowH;
  }
+ t._bodyStart=startIdx;
  const slice=view.slice(startIdx,endIdx),gf=gridFocusOf(id);
  const nCols=1+(ed?1:0)+t.cols.length;
  let h='';
@@ -5390,8 +5403,15 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
    t.cols.forEach((c,ci)=>{const v=row[c];const cAttr=esc(c).replace(/\\/g,'\\\\').replace(/\x27/g,'\\x27').replace(/\n/g,'\\n').replace(/\r/g,'\\r');h+='<td class="editable" onclick="insClick(this,\''+id+'\','+ii+',\''+cAttr+'\')" ondblclick="editIns(this,\''+id+'\','+ii+',\''+cAttr+'\')" oncontextmenu="insCellMenu(event,\''+id+'\','+ii+',\''+cAttr+'\')" title="'+esc(v)+'">'+cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
- $('tbody_'+id).innerHTML=h;
- if(wrap&&slice.length){const sampleTr=wrap.querySelector('tbody tr[data-r]');if(sampleTr){const mh=sampleTr.getBoundingClientRect().height;if(mh>4)t._rowH=mh;}}
+ tb.innerHTML=h;
+ // The anchor back where it was on screen: the spacer above takes up the difference, or, near the
+ // top where there is none to take it, the scroll position does.
+ if(anchor){const tr=tb.querySelector('tr[data-r="'+anchor.ri+'"]');
+  if(tr){const d=tr.getBoundingClientRect().top-anchor.top,pad=tb.firstElementChild;
+   if(Math.abs(d)>=0.5){if(pad&&pad.classList.contains('vpad')&&topH-d>=0)pad.style.height=(topH-d)+'px';else wrap.scrollTop+=d;}}}
+ // The estimate: the middle height of the rows drawn, changed only when it is really off.
+ if(wrap&&slice.length){const hs=[...tb.querySelectorAll('tr[data-r]')].map(tr=>tr.getBoundingClientRect().height).filter(x=>x>4).sort((a,b)=>a-b);
+  if(hs.length){const mh=hs[hs.length>>1];if(!t._rowH||Math.abs(mh-t._rowH)>0.5)t._rowH=mh;}}
  updateEditBar(id);}
 // renderBody() (the grid's own virtualized-scroll re-render, up to ~60/sec while actively
 // scrolling) calls this every time, but the pending count/selection it depends on almost never
@@ -5989,9 +6009,12 @@ function typeIntoCells(id,ch){const t=T(id);if(!(t&&t.pk&&t.pending))return fals
  inlineEdit(td,id,ri,ci,{initial:ch,keys});return true;}
 let clickTimer=null;
 let gridFocus={}; // per-tab: {ri, ci} of the currently keyboard-focused cell
-function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t)return null;const off=(!!t.pk)?2:1;
+// A row that is not drawn is scrolled to and drawn - unless noScroll: only looking, as to take a mark
+// off a cell (the row gets its marks when it is drawn). Taking the focus mark off the cell focused
+// before a scroll scrolled back to it: the first click after scrolling landed far from where it was.
+function gridCellEl(id,ri,ci,noScroll){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t)return null;const off=(!!t.pk)?2:1;
  let tr=wrap.querySelector('tr[data-r="'+ri+'"]');
- if(!tr){
+ if(!tr&&!noScroll){
   const view=viewIndices(id);const pos=view.indexOf(ri);
   if(pos>=0){const rowH=t._rowH||23;wrap.scrollTop=Math.max(0,pos*rowH-rowH*4);renderBody(id);tr=wrap.querySelector('tr[data-r="'+ri+'"]');}
  }
@@ -6000,7 +6023,7 @@ function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t
 // nothing is marked until a cell is picked again.
 function gridFocusOf(id){const f=gridFocus[id],t=T(id);return f&&t&&f.rows===t.rows?f:null;}
 // The focused cell's row and column name are marked too (kbrow, kbcol), more quietly than the cell.
-function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
+function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci,true);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
  const t=T(id),hdr=$('sortrow_'+id),th=hdr&&t&&hdr.children[1+(t.pk?1:0)+f.ci];if(th)th.classList.toggle('kbcol',on);}
 function gridSetFocus(id,ri,ci,scroll){const t=T(id);if(!t)return;const view=viewIndices(id);if(view.indexOf(ri)<0)return;
  const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);
@@ -6459,7 +6482,15 @@ function gridDragStart(e,id,ri,ci){if(e.button!==0)return;
  // Ctrl or shift held: the press belongs to the grid, not to the browser's text selection, which
  // would otherwise streak from wherever the caret last was to the cell that was clicked.
  if(e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();dropTextSelection();}
- window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null};}
+ window._gridDrag={id,ri,ci,add:e.ctrlKey||e.metaKey,moved:false,base:null,x:e.clientX,y:e.clientY};}
+// Whether the pointer itself has moved since the press. Rows can move under a pointer that has not:
+// the grid draws the rows scrolled to a frame later, at a height it estimates, so a click just after
+// scrolling had the row under it change while the button was down - and the browser's mouseover on
+// the new row picked the cells from the one clicked down to it, five or six of them.
+// A press or move without a position (one made by code, at 0,0 - no real one is at the window's
+// corner, over the toolbar) counts as moved, as it always did.
+function gridDragMoved(d,e){const at=v=>v&&typeof v.clientX==='number'&&(v.clientX||v.clientY);
+ return !at(e)||d.x==null||!(d.x||d.y)||Math.abs(e.clientX-d.x)>3||Math.abs(e.clientY-d.y)>3;}
 // The press becomes a cell selection: the cells picked so far kept (Ctrl) or let go, and no text
 // selected anywhere on the page while it lasts.
 // A press in a result cell picks cells, never text: the browser's own selection is not let start
@@ -6479,6 +6510,7 @@ function gridDragOver(e,id,ri,ci){const d=window._gridDrag;
  if(d&&d.moved)dropTextSelection();
  if(!d||d.id!==id||(e.buttons!==undefined&&!(e.buttons&1)))return;
  if(!d.moved&&d.ri===ri&&d.ci===ci)return;
+ if(!d.moved&&!gridDragMoved(d,e))return;
  const t=T(id);if(!t.cellSel)t.cellSel=new Set();
  if(!d.moved)gridDragBegin(d,t);
  t.cellSel=new Set(d.base);d.lastCi=ci;
@@ -6496,7 +6528,7 @@ document.addEventListener('mousemove',e=>{const d=window._gridDrag;
  // Leaving the cell the press began on, in any direction, is a selection - also where no other cell
  // is passed on the way (from the last row straight down, out of the results). Left to the browser,
  // that drag selected text from the cell into the rest of the window.
- if(d&&!d.moved&&(e.buttons&1)){const c=gridCellEl(d.id,d.ri,d.ci),t=T(d.id);
+ if(d&&!d.moved&&(e.buttons&1)&&gridDragMoved(d,e)){const c=gridCellEl(d.id,d.ri,d.ci,true),t=T(d.id);
   if(c&&t){const r=c.getBoundingClientRect();
    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){if(!t.cellSel)t.cellSel=new Set();gridDragBegin(d,t);
     t.cellSel=new Set(d.base);t.cellSel.add(d.ri+':'+d.ci);d.lastCi=d.ci;t._cellAnchor=d.ri+':'+d.ci;paintCellPick(d.id);}}}
