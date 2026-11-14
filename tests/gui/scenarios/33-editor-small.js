@@ -51,6 +51,10 @@
     qe.value = 'SELECT * FROM `my t'; qe.setSelectionRange(qe.value.length, qe.value.length);
     acItems = ['`my table`']; acIdx = 0; acAccept(q);
     G.eq('a quoted name is quoted once', qe.value, 'SELECT * FROM `my table`');
+    qe.value = 'SELECT * FROM t WHERE s LI'; qe.setSelectionRange(qe.value.length, qe.value.length);
+    acItems = ['LIKE']; acIdx = 0; acAccept(q);
+    G.eq("LIKE comes with '%%'", qe.value, "SELECT * FROM t WHERE s LIKE '%%'");
+    G.eq('and the cursor between the two %', qe.selectionStart, qe.value.length - 2);
 
     // Close others asks about work that is not saved in the tabs it would close
     const other = tabs.find(x => x.id === t.id);
