@@ -136,7 +136,8 @@ Export files are kept wherever you saved them.
 **Results and editing**
 - Result grids with per-column filtering and sorting, column resize and show/hide, and a
   row-detail form for wide tables. Large results load as you scroll, or all at once with
-  "Load all rows" next to the row count (it asks first when that is a lot of rows).
+  "Load all rows" next to the row count (it asks first when that is a lot of rows), or a
+  number of rows more at a time with "Load more".
 - Inline and full-row editing, staged as pending changes and applied in one transaction; add and
   delete rows. Right-click **Apply** (or Ctrl+Shift+S) shows the SQL it would run first.
 - Pick several cells to type one value into all of them, or set them all to NULL or empty.
