@@ -34,6 +34,22 @@
     G.eq('dragging there picks the six cells', t.cellSel.size, 6);
     ev(document, 'mouseup', to);
 
+    // A cell focused, the grid scrolled far from it, and then the first press: the grid stays where
+    // it is and the cell pressed is the one focused. Taking the focus mark off the cell focused
+    // before scrolled the grid back to it, so the first click after a scroll landed far away.
+    wrap.scrollTop = 0; renderBody(t.id); await G.wait(50);
+    const first = gridCellEl(t.id, viewIndices(t.id)[3], V);
+    const fr = first.getBoundingClientRect();
+    ev(first, 'mousedown', { x: fr.left + 5, y: fr.top + 5 }); ev(document, 'mouseup', { x: fr.left + 5, y: fr.top + 5 });
+    G.eq('a cell near the top is focused', gridFocus[t.id] && gridFocus[t.id].ri, viewIndices(t.id)[3]);
+    wrap.scrollTop = 450 * rowH; renderBody(t.id); await G.wait(50);
+    const far = [...document.querySelectorAll('#tbody_' + t.id + ' tr[data-r]')].find(tr => tr.getBoundingClientRect().top > wrap.getBoundingClientRect().top + 60);
+    const farRi = +far.dataset.r, farTd = gridCellEl(t.id, farRi, V), ft = farTd.getBoundingClientRect(), st = wrap.scrollTop;
+    ev(farTd, 'mousedown', { x: ft.left + 5, y: ft.top + 5 });
+    G.eq('the first press after scrolling leaves the grid where it is', wrap.scrollTop, st);
+    G.eq('and focuses the cell pressed', gridFocus[t.id] && gridFocus[t.id].ri, farRi);
+    ev(document, 'mouseup', { x: ft.left + 5, y: ft.top + 5 });
+
     // Drawn again with a row height that is off - rows differ by a pixel or two, and the estimate is
     // only an estimate - the rows stay where they are on screen: the one under the pointer is still
     // the one under it, so a click picks the cell it is on.

@@ -6009,9 +6009,12 @@ function typeIntoCells(id,ch){const t=T(id);if(!(t&&t.pk&&t.pending))return fals
  inlineEdit(td,id,ri,ci,{initial:ch,keys});return true;}
 let clickTimer=null;
 let gridFocus={}; // per-tab: {ri, ci} of the currently keyboard-focused cell
-function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t)return null;const off=(!!t.pk)?2:1;
+// A row that is not drawn is scrolled to and drawn - unless noScroll: only looking, as to take a mark
+// off a cell (the row gets its marks when it is drawn). Taking the focus mark off the cell focused
+// before a scroll scrolled back to it: the first click after scrolling landed far from where it was.
+function gridCellEl(id,ri,ci,noScroll){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t)return null;const off=(!!t.pk)?2:1;
  let tr=wrap.querySelector('tr[data-r="'+ri+'"]');
- if(!tr){
+ if(!tr&&!noScroll){
   const view=viewIndices(id);const pos=view.indexOf(ri);
   if(pos>=0){const rowH=t._rowH||23;wrap.scrollTop=Math.max(0,pos*rowH-rowH*4);renderBody(id);tr=wrap.querySelector('tr[data-r="'+ri+'"]');}
  }
@@ -6020,7 +6023,7 @@ function gridCellEl(id,ri,ci){const t=T(id);const wrap=$('res_'+id);if(!wrap||!t
 // nothing is marked until a cell is picked again.
 function gridFocusOf(id){const f=gridFocus[id],t=T(id);return f&&t&&f.rows===t.rows?f:null;}
 // The focused cell's row and column name are marked too (kbrow, kbcol), more quietly than the cell.
-function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
+function gridMarkFocus(id,f,on){const el=gridCellEl(id,f.ri,f.ci,true);if(el){el.classList.toggle('kbfocus',on);if(el.parentNode)el.parentNode.classList.toggle('kbrow',on);}
  const t=T(id),hdr=$('sortrow_'+id),th=hdr&&t&&hdr.children[1+(t.pk?1:0)+f.ci];if(th)th.classList.toggle('kbcol',on);}
 function gridSetFocus(id,ri,ci,scroll){const t=T(id);if(!t)return;const view=viewIndices(id);if(view.indexOf(ri)<0)return;
  const old=gridFocus[id];if(old)gridMarkFocus(id,old,false);
@@ -6525,7 +6528,7 @@ document.addEventListener('mousemove',e=>{const d=window._gridDrag;
  // Leaving the cell the press began on, in any direction, is a selection - also where no other cell
  // is passed on the way (from the last row straight down, out of the results). Left to the browser,
  // that drag selected text from the cell into the rest of the window.
- if(d&&!d.moved&&(e.buttons&1)&&gridDragMoved(d,e)){const c=gridCellEl(d.id,d.ri,d.ci),t=T(d.id);
+ if(d&&!d.moved&&(e.buttons&1)&&gridDragMoved(d,e)){const c=gridCellEl(d.id,d.ri,d.ci,true),t=T(d.id);
   if(c&&t){const r=c.getBoundingClientRect();
    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){if(!t.cellSel)t.cellSel=new Set();gridDragBegin(d,t);
     t.cellSel=new Set(d.base);t.cellSel.add(d.ri+':'+d.ci);d.lastCi=d.ci;t._cellAnchor=d.ri+':'+d.ci;paintCellPick(d.id);}}}
