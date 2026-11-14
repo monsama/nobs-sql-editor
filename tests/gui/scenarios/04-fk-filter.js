@@ -35,6 +35,34 @@ INSERT INTO ${DB}.tp VALUES ('0x41', 'hex text'), ('A', 'letter A');`);
     await G.until(() => tabs.length > before && tabs[tabs.length - 1].rows && !tabs[tabs.length - 1].runningReqId);
     G.eq('a click on the arrow opens the row', G.rowsOf(tabs[tabs.length - 1]), ['0x42|B']);
 
+    // A key column that may be NULL, as most are: the arrow stays through a click into the cell and
+    // out of it again - leaving the cell's editor for another row used to redraw the cell without it
+    // - goes while the key is set to NULL, and comes back when that is reverted.
+    await G.A('/api/script', { sql: `CREATE TABLE ${DB}.pa (id INT PRIMARY KEY, name VARCHAR(10)); INSERT INTO ${DB}.pa VALUES (1,'one'),(2,'two'); CREATE TABLE ${DB}.ch (id INT PRIMARY KEY, pa_id INT NULL, FOREIGN KEY (pa_id) REFERENCES ${DB}.pa(id)); INSERT INTO ${DB}.ch VALUES (1,1),(2,2),(3,NULL);` });
+    const tn = await G.openTable(DB, 'ch');
+    const keyCell = id => { const tr = document.querySelector('#tbody_' + tn.id + ' tr[data-r="' + tn.rows.findIndex(r => r[0] == id) + '"]'); return tr && tr.children[(tn.pk ? 2 : 1) + tn.cols.indexOf('pa_id')]; };
+    const editor = td => td.querySelector('input,textarea');
+    G.eq('a key that may be NULL: the arrow where it is set, none where it is NULL', [1, 2, 3].map(i => !!keyCell(i).querySelector('.fkgo')), [true, true, false]);
+    keyCell(1).click();
+    await G.until(() => editor(keyCell(1)), 5000);
+    // What a click on another row does to the editor first: it loses the focus.
+    editor(keyCell(1)).dispatchEvent(new Event('blur'));
+    keyCell(2).click();
+    await G.until(() => !editor(keyCell(1)) && editor(keyCell(2)), 5000);
+    G.check('clicked into and then left for another row, the cell keeps its arrow', !!keyCell(1).querySelector('.fkgo'), keyCell(1).innerHTML);
+    editor(keyCell(2)).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await G.until(() => !editor(keyCell(2)), 5000);
+    G.check('and so does the other one, its editor closed with Esc', !!keyCell(2).querySelector('.fkgo'), keyCell(2).innerHTML);
+    const PA = tn.cols.indexOf('pa_id'), r1 = tn.rows.findIndex(r => r[0] == 1);
+    G.check('the key column takes NULL', canNull(tn.id, 'pa_id'));
+    setUpd(tn.id, r1, PA, null);
+    G.check('set to NULL, the arrow goes', !keyCell(1).querySelector('.fkgo'), keyCell(1).innerHTML);
+    revertChanges(tn.id);
+    G.check('reverted, it is back', !!keyCell(1).querySelector('.fkgo'), keyCell(1).innerHTML);
+    setUpd(tn.id, r1, PA, null);
+    G.check('a NULL applies to the key', await applyChanges(tn.id));
+    G.eq('and stays NULL, with no arrow', [tn.rows[tn.rows.findIndex(r => r[0] == 1)][PA], !!keyCell(1).querySelector('.fkgo')], [null, false]);
+
     const t = await G.openTable(DB, 'p');
     const ci = t.cols.indexOf('id');
     const pick = async (value, op) => {

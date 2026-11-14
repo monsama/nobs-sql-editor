@@ -5394,7 +5394,7 @@ function renderBody(id){const t=T(id);const ed=!!t.pk;if(!t.selected)t.selected=
   row.forEach((v,ci)=>{const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:v;
    const cls=(ed?'editable'+(pend?' dirty':''):'')+(q&&val!=null&&String(val).toLowerCase().includes(q)?' hit':'')+cellPickCls(t,ri,ci,up,dn)+(fr&&gf.ci===ci?' kbfocus':'');
    const attr=(cls?'class="'+cls.trim()+'" ':'')+(ed?'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="editCell(this,\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ':'onclick="cellClick(this,\''+id+'\','+ri+','+ci+',event)" ondblclick="viewCell(\''+id+'\','+ri+','+ci+')" onmousedown="gridDragStart(event,\''+id+'\','+ri+','+ci+')" onmouseover="gridDragOver(event,\''+id+'\','+ri+','+ci+')" ')+'oncontextmenu="cellMenu(event,\''+id+'\','+ri+','+ci+')"';
-   const go=fkp[ci]&&fkRefOf(id,ri,ci,fkp[ci])?'<span class="fkgo" title="" onmousedown="event.stopPropagation()" ondblclick="event.stopPropagation()" onclick="fkGo(event,\''+id+'\','+ri+','+ci+')" onmouseenter="fkPeek(this,\''+id+'\','+ri+','+ci+')" onmouseleave="fkPeekHide()">↗</span>':'';
+   const go=fkGoHtml(id,ri,ci,fkp[ci]);
    h+='<td '+attr+' title="'+esc(clip(val,300))+'">'+go+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci])+'</td>';});h+='</tr>';});
  if(botH>0)h+='<tr class="vpad" style="height:'+botH+'px"><td colspan="'+nCols+'" style="padding:0;border:none"></td></tr>';
  if(ed)t.pending.ins.forEach((row,ii)=>{h+='<tr class="insrow"><td></td><td class="delcell" onclick="delIns(\''+id+'\','+ii+')">\u00D7</td>';
@@ -6625,8 +6625,15 @@ function insClick(td,id,ii,col){{const t0=T(id);if(t0&&t0.pending&&t0.pending.in
 // regenerates every cell from persisted state, and a not-yet-committed inline edit isn't part of
 // that state. Reverting only the one cell that actually needs reverting avoids the whole class of
 // race entirely.
+// The cell comes back as the grid draws it, the arrow to a referenced row included: an inline edit
+// left by clicking another row used to take the arrow with it.
 function cellRevert(td,id,ri,ci){const t=T(id);const key=ri+':'+ci;const pend=t.pending&&(key in t.pending.upd);const val=pend?t.pending.upd[key]:t.rows[ri][ci];
- td.className='editable'+(pend?' dirty':'');td.title=String(clip(val,300));td.innerHTML=cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
+ const fp=t.table&&t.fk&&t.fk.length?fkPartsOf(t,t.cols[ci]):null;
+ td.className='editable'+(pend?' dirty':'');td.title=String(clip(val,300));td.innerHTML=fkGoHtml(id,ri,ci,fp)+cellHtml(val,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
+// The little arrow in a foreign key cell that opens the row it points at, with a preview on hover;
+// nothing where the cell is no key (fp null) or a part of the key is NULL.
+function fkGoHtml(id,ri,ci,fp){if(!fp||!fkRefOf(id,ri,ci,fp))return '';const a='\''+id+'\','+ri+','+ci;
+ return '<span class="fkgo" title="" onmousedown="event.stopPropagation()" ondblclick="event.stopPropagation()" onclick="fkGo(event,'+a+')" onmouseenter="fkPeek(this,'+a+')" onmouseleave="fkPeekHide()">↗</span>';}
 function insCellRevert(td,id,ii,col){const t=T(id);const v=t.pending.ins[ii][col];const ci=t.cols.indexOf(col);
  td.className='editable';td.title=(v===undefined?'undefined':String(v));td.innerHTML=cellHtml(v===undefined?null:v,t.bitCols&&t.bitCols[ci],t.binCols&&t.binCols[ci]);}
 // With opts ({initial, keys}) the edit was started by typing: the box opens at once holding what was
