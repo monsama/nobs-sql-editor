@@ -459,39 +459,40 @@ test('applyChanges actually calls that screen', () => {
 // The rule now: use the picker only for a value it hands back unchanged. Anything else gets the
 // plain text editor, where it is edited exactly as stored. These check the rule and the values
 // that drove it, all verified against what MariaDB actually returns for those column types.
-test('the date picker is offered only when it round-trips the stored value', () => {
+test('the date picker is offered only when it round-trips the stored value', async () => {
   const F = new Function(extractFunction(html, 'mysqlToNativeDate') + '\n' +
                          extractFunction(html, 'nativeDateToMysql') +
                          '\nreturn {mysqlToNativeDate,nativeDateToMysql};')();
-  // The test editWidgetFor applies.
-  const usesPicker = (v, t) => {
-    if (v == null || v === '') return true;
-    const n = F.mysqlToNativeDate(v, t);
-    return !!(n && F.nativeDateToMysql(n, t) === String(v));
-  };
+  // The real editWidgetFor - the function that picks the editor - asked for a column of each kind,
+  // so the rule is the app's own and not a copy of it kept here.
+  const colType = { 'date': 'date', 'datetime-local': 'datetime(6)', 'time': 'time(3)' };
+  const editWidgetFor = t => new Function('T', 'getColType', 'parseQuotedOptionList', 'binaryEditMode',
+    ['mysqlToNativeDate', 'nativeDateToMysql', 'editWidgetFor'].map(n => extractFunction(html, n)).join('\n') + '\nreturn editWidgetFor;')(
+    () => ({ cols: ['c'], binCols: [false], bitCols: [false] }), async () => colType[t], () => [], () => null);
+  const usesPicker = async (v, t) => (await editWidgetFor(t)('t1', 'c', v)).dateType === t;
 
   // Values the picker represents exactly: offered, and lossless.
   for (const [t, v] of [['datetime-local', '2024-01-01 12:34:56'],
                         ['date', '2024-02-29'],
                         ['time', '12:34:56']]) {
-    assert.equal(usesPicker(v, t), true, `${v} should use the picker`);
+    assert.equal(await usesPicker(v, t), true, `${v} should use the picker`);
     assert.equal(F.nativeDateToMysql(F.mysqlToNativeDate(v, t), t), v, `${v} must survive the round trip`);
   }
 
   // Fractional seconds: the picker drops them, so it must not be offered.
-  assert.equal(usesPicker('2024-01-01 12:34:56.123456', 'datetime-local'), false, 'DATETIME(6)');
-  assert.equal(usesPicker('2024-01-01 12:34:56.500', 'datetime-local'), false, 'DATETIME(3)');
-  assert.equal(usesPicker('12:34:56.789', 'time'), false, 'TIME(3)');
+  assert.equal(await usesPicker('2024-01-01 12:34:56.123456', 'datetime-local'), false, 'DATETIME(6)');
+  assert.equal(await usesPicker('2024-01-01 12:34:56.500', 'datetime-local'), false, 'DATETIME(3)');
+  assert.equal(await usesPicker('12:34:56.789', 'time'), false, 'TIME(3)');
 
   // MySQL TIME spans -838:59:59 to 838:59:59 - well outside a clock - and allows a zero date.
-  assert.equal(usesPicker('838:59:59', 'time'), false, 'a TIME beyond 24 hours');
-  assert.equal(usesPicker('-01:30:00', 'time'), false, 'a negative TIME');
-  assert.equal(usesPicker('0000-00-00', 'date'), false, 'the zero date');
-  assert.equal(usesPicker('0000-00-00 00:00:00', 'datetime-local'), false, 'the zero datetime');
+  assert.equal(await usesPicker('838:59:59', 'time'), false, 'a TIME beyond 24 hours');
+  assert.equal(await usesPicker('-01:30:00', 'time'), false, 'a negative TIME');
+  assert.equal(await usesPicker('0000-00-00', 'date'), false, 'the zero date');
+  assert.equal(await usesPicker('0000-00-00 00:00:00', 'datetime-local'), false, 'the zero datetime');
 
   // An empty or absent value has nothing to lose, so the picker is fine.
-  assert.equal(usesPicker(null, 'date'), true);
-  assert.equal(usesPicker('', 'date'), true);
+  assert.equal(await usesPicker(null, 'date'), true);
+  assert.equal(await usesPicker('', 'date'), true);
 });
 
 // Row values are written for their column's type once it is known. lit() goes by the value's shape,

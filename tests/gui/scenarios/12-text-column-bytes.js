@@ -79,7 +79,7 @@ INSERT INTO ${DB}.t VALUES (1, 0xFF, 0xFF), (2, 'plain', 0x00FF);`);
     const th = await G.openTable(DB, 'h');
     const vi = th.cols.indexOf('v'), hb = th.cols.indexOf('b');
     G.eq('a text column holding "0x41" shows "0x41", not "A"', gridCellEl(th.id, 0, vi).innerText.trim(), '0x41');
-    G.check('and a binary column holding the byte 0x41 is still decoded', gridCellEl(th.id, 0, hb).innerText.trim() !== '0x41' || !!(th.binCols && th.binCols[hb]), gridCellEl(th.id, 0, hb).innerText);
+    G.eq('and a binary column holding the byte 0x41 is still decoded', [gridCellEl(th.id, 0, hb).innerText.trim(), !!(th.binCols && th.binCols[hb])], ['A', true]);
   } finally {
     await G.A('/api/script', { sql: `DROP DATABASE IF EXISTS ${DB}` });
   }

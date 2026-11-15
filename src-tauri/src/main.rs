@@ -7356,6 +7356,16 @@ mod tests {
 mod live_tests {
     use super::*;
 
+    // Every live test returns early, and so passes, when NOBS_TEST_DSN is missing. This one fails
+    // instead, so a run with --include-ignored and no server named is not read as tested.
+    #[test]
+    #[ignore]
+    fn a_live_run_names_its_server() {
+        let dsn = std::env::var("NOBS_TEST_DSN").unwrap_or_default();
+        assert_eq!(dsn.splitn(4, ':').count(), 4,
+            "NOBS_TEST_DSN must be host:port:user:password - without it every live test passes without running");
+    }
+
     // "default" encrypts whenever the server offers TLS. It used to mean plaintext, always, in this
     // edition only - the client tools behind Export and Import negotiated TLS on the same setting.
     #[test]
@@ -9478,6 +9488,7 @@ mod ssl_tests {
     }
 
     #[test]
+    #[ignore]
     fn required_actually_encrypts() {
         if !caps::tls_or_skip() { return; }
         if conn_json("required").is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return; }
@@ -9486,6 +9497,7 @@ mod ssl_tests {
     }
 
     #[test]
+    #[ignore]
     fn disabled_actually_does_not_encrypt() {
         if conn_json("disabled").is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return; }
         let c = cipher_for("disabled").expect("\"disabled\" must be able to connect");
@@ -9493,6 +9505,7 @@ mod ssl_tests {
     }
 
     #[test]
+    #[ignore]
     fn verify_is_never_weaker_than_required() {
         if !caps::tls_or_skip() { return; }
         if conn_json("verify").is_none() { eprintln!("NOBS_TEST_DSN not set - skipping"); return; }
@@ -10214,6 +10227,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
 
     // The pair that proves the CA decides the outcome: same mode, same server, only the CA differs.
     #[test]
+    #[ignore]
     fn verify_ca_accepts_the_servers_own_ca_and_refuses_any_other() {
         let Some(ca) = server_ca() else { eprintln!("NOBS_TEST_SERVER_CA not set - skipping"); return };
         let Some(right) = conn_with("verify-ca", &ca) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
@@ -10231,6 +10245,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
     // "verify" keeps checking the host name. Against a server whose certificate names something
     // else, the right CA is not enough - and the message has to point at the mode, not the file.
     #[test]
+    #[ignore]
     fn verify_with_the_right_ca_explains_a_name_mismatch() {
         let Some(ca) = server_ca() else { eprintln!("NOBS_TEST_SERVER_CA not set - skipping"); return };
         let Some(conn) = conn_with("verify", &ca) else { eprintln!("NOBS_TEST_DSN not set - skipping"); return };
@@ -10251,6 +10266,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
     }
 
     #[test]
+    #[ignore]
     fn required_ignores_the_ca_and_still_connects() {
         if !caps::tls_or_skip() { return; }
         let wrong_file = unrelated_ca_file();
@@ -10263,6 +10279,7 @@ s+GblpHbDz1GCdRkiTPZKgv8QnJrmZQthFmp2EzeKamcSe1q+U4O
     // actually being read: a CA that was being ignored would fail with the same untrusted-root error
     // as no CA at all, and never mention a file.
     #[test]
+    #[ignore]
     fn a_missing_ca_file_is_reported_as_a_missing_file() {
         if !caps::tls_or_skip() { return; }
         for mode in ["verify", "verify-ca"] {

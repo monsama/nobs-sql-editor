@@ -72,9 +72,15 @@ function Stage([string]$name, [string]$key, [scriptblock]$run, [string]$why) {
   if ($why) { $results.Add([pscustomobject]@{ Stage = $name; Result = 'skipped'; Note = $why }); return }
   Write-Host "`n===== $name =====" -ForegroundColor Cyan
   $t = [Diagnostics.Stopwatch]::StartNew()
-  & $run
-  $ok = $LASTEXITCODE -eq 0
-  $results.Add([pscustomobject]@{ Stage = $name; Result = $(if ($ok) { 'passed' } else { 'FAILED' }); Note = '{0:n0} s' -f $t.Elapsed.TotalSeconds })
+  # Cleared first: a stage whose command never started (npm or cargo not found) would otherwise be
+  # judged by the exit code of whatever ran before it, and could count as passed.
+  $global:LASTEXITCODE = $null
+  $threw = $null
+  try { & $run } catch { $threw = "$_" }
+  $ok = (-not $threw) -and ($LASTEXITCODE -eq 0)
+  $note = '{0:n0} s' -f $t.Elapsed.TotalSeconds
+  if ($threw) { $note += " - $threw" } elseif ($null -eq $LASTEXITCODE) { $note += ' - its command did not run' }
+  $results.Add([pscustomobject]@{ Stage = $name; Result = $(if ($ok) { 'passed' } else { 'FAILED' }); Note = $note })
 }
 
 # What the live and GUI runs read, for one server. Set for the run and put back after it.
@@ -99,10 +105,16 @@ try {
 
   if ($Build -and $Skip -notcontains 'gui') {
     Write-Host "`n===== Building the debug app =====" -ForegroundColor Cyan
+    $global:LASTEXITCODE = $null
     npm run tauri build -- --debug
+    # A failed build leaves the last good exe in place; testing that would pass for the wrong code.
+    if ($LASTEXITCODE -ne 0) {
+      $buildFailed = $true
+      $results.Add([pscustomobject]@{ Stage = 'Debug build'; Result = 'FAILED'; Note = 'the GUI tests are not run against an older build' })
+    }
   }
   foreach ($s in @(@{ N = 'MariaDB'; D = $MariaDsn; C = $MariaCa }, @{ N = 'MySQL'; D = $MysqlDsn; C = $MysqlCa })) {
-    $why = if (-not $s.D) { 'no DSN given' } elseif (-not (Test-Path $app)) { 'no debug build - run with -Build' }
+    $why = if (-not $s.D) { 'no DSN given' } elseif ($buildFailed) { 'the debug build failed' } elseif (-not (Test-Path $app)) { 'no debug build - run with -Build' }
     Stage "GUI tests ($($s.N))" 'gui' { WithServer $s.D $s.C { node tests/gui/run.mjs --app desktop --target $app } } $why
   }
 } finally { Pop-Location }

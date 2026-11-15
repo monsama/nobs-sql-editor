@@ -61,9 +61,15 @@
     m = await open(i, 0, 0);
     G.check('but not when the counts differ', !m.some(x => /rows over the/.test(x)), m);
     T(i).selected = new Set([0, 1]);
+    // The two rows copied the other way round, so each lands on a row that differs from it: a row
+    // pasted over itself changes nothing, and nothing would be staged.
+    const rowA = T(i).rows[0].slice(), rowB = T(i).rows[1].slice();
+    window._rowsClipboard = [rowB, rowA];
     pasteRowsOver(i);
     await G.wait(200);
-    G.check('and it stages an edit for each row rather than writing anything', Object.keys(T(i).pending.upd).length >= 0 && !!T(i).pending, 'nothing staged');
+    G.eq('and it stages an edit for each row, the key left alone', Object.entries(T(i).pending.upd).sort(),
+      [['0:1', rowB[1]], ['0:2', rowB[2]], ['1:1', rowA[1]], ['1:2', rowA[2]]]);
+    G.eq('rather than writing anything', await G.q(`SELECT id, name, note FROM ${db}.${tbl} ORDER BY id`), [['1', 'a', 'x'], ['2', 'b', 'y'], ['3', 'c', 'z']]);
     T(i).pending.upd = {};
     T(i).selected = new Set();
     window._rowsClipboard = null;
