@@ -27,7 +27,7 @@ function extractFunction(src, name) {
   throw new Error(`unbalanced braces while extracting ${name}`);
 }
 
-const viewIndicesSrc = extractFunction(html, 'viewIndices') + '\n' + extractFunction(html, 'viewIndicesFresh');
+const viewIndicesSrc = extractFunction(html, 'viewIndices') + '\n' + extractFunction(html, 'viewIndicesFresh') + '\n' + extractFunction(html, 'wildMatcher');
 const rowHasTextSrc = extractFunction(html, 'rowHasText');
 const stepSrc = extractFunction(html, 'gridSearchStep');
 
@@ -90,6 +90,27 @@ test('NULLs sort last and do not make the column non-numeric', () => {
 test('filtering still narrows the view', () => {
   const got = sortColumn(['alpha', 'beta', 'alphabet'], { filters: { 0: 'alpha' } });
   assert.deepEqual(got, ['alpha', 'alphabet']);
+});
+
+test('a * in a column filter stands for any run of characters, and nothing else is special', () => {
+  const vals = ['core_value', 'CORE attribute VALUE', 'value core', 'a.b', 'axb', 'cv'];
+  assert.deepEqual(sortColumn(vals, { filters: { 0: 'core*value' } }), ['CORE attribute VALUE', 'core_value']);
+  assert.deepEqual(sortColumn(vals, { filters: { 0: '*' } }).length, vals.length);
+  assert.deepEqual(sortColumn(vals, { filters: { 0: 'a.b' } }), ['a.b']);
+  assert.deepEqual(sortColumn(vals, { filters: { 0: 'c*v' } }), ['CORE attribute VALUE', 'core_value', 'cv']);
+});
+
+// The objects filter: the term's letters and digits, in order, anywhere in the name.
+const objNameMatcher = new Function(`${extractFunction(html, 'objNameMatcher')}
+return objNameMatcher;`)();
+
+test('the objects filter matches letters in order, ignoring other characters and case', () => {
+  const m = objNameMatcher('corevalue');
+  for (const n of ['core_value', 'core_attribute_value', 'colgrevadimlue', 'CoreValue']) assert.ok(m(n), n);
+  for (const n of ['value_core', 'corevalu', 'orders']) assert.ok(!m(n), n);
+  assert.ok(objNameMatcher('core_val*')('core_attribute_value'));
+  assert.ok(objNameMatcher('*')('anything'));
+  assert.ok(objNameMatcher('')('anything'));
 });
 
 // The toolbar's search: rows holding the text in any column, over whatever columns the rows have.

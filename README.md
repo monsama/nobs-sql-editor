@@ -134,8 +134,8 @@ Export files are kept wherever you saved them.
 - A reusable query library with export and import.
 
 **Results and editing**
-- Result grids with per-column filtering and sorting, column resize and show/hide, and a
-  row-detail form for wide tables. Large results load as you scroll.
+- Result grids with per-column filtering (`*` matches anything, e.g. `core*value`) and sorting,
+  column resize and show/hide, and a row-detail form for wide tables. Large results load as you scroll.
 - Inline and full-row editing, staged as pending changes and applied in one transaction; add and
   delete rows. Right-click **Apply** (or Ctrl+Shift+S) shows the SQL it would run first.
 - Pick several cells to type one value into all of them, or set them all to NULL or empty.
@@ -150,7 +150,8 @@ Export files are kept wherever you saved them.
 - Read the same rows in another character set, to tell text stored wrong from text read wrong.
 
 **Databases**
-- Browse databases, tables, views, procedures, functions, triggers and events, with quick filtering.
+- Browse databases, tables, views, procedures, functions, triggers and events, with quick fuzzy filtering:
+  the letters typed, in order, anywhere in the name (`corevalue` finds `core_attribute_value`).
 - Table designer: columns (moved up and down, UNSIGNED, collation), indexes, foreign keys and table options (engine, collation, comment, rename), shown as SQL you can read before it runs. DDL view and edit; routines and triggers edited and recreated in place.
 - Inspect a table: its details and sizes, its indexes with their columns in order, its foreign
   keys, and the tables that point at it.
