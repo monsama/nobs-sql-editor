@@ -74,7 +74,10 @@ test('only the statement at the caret counts', () => {
 test('a table name is due after FROM, JOIN, UPDATE, INTO', () => {
   assert.equal(ctx('SELECT * FROM or|').afterTable, true);
   assert.equal(ctx('SELECT * FROM a JOIN |').afterTable, true);
+  assert.equal(ctx('UPDATE or|').afterTable, true);
+  assert.equal(ctx('INSERT INTO or|').afterTable, true);
   assert.equal(ctx('SELECT na| FROM a').afterTable, false);
+  assert.equal(ctx('UPDATE orders SET na|').afterTable, false, 'after the table, a column is due');
 });
 
 test('names that need quoting get it', () => {

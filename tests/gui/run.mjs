@@ -176,6 +176,14 @@ try {
 
   const timings = [];
   const files = readdirSync(join(here, 'scenarios')).filter(f => f.endsWith('.js') && (!only || f.includes(only))).sort();
+  // --only with a name that matches nothing would otherwise end as "all 0 passed".
+  if (!files.length) throw new Error(only ? `no scenario's file name contains "${only}"` : 'no scenarios found');
+  const tally = checks => {
+    for (const c of checks || []) {
+      if (c.skipped) { console.log(`  skip  ${c.name} (${c.skipped})`); continue; }
+      if (c.ok) { passed++; console.log(`  ok    ${c.name}`); } else { failed++; console.log(`  FAIL  ${c.name} -> ${c.detail}`); }
+    }
+  };
   for (const f of files) {
     console.log(`\n-- ${f} --`);
     const began = Date.now();
@@ -187,10 +195,10 @@ try {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const checks = await page.evaluate(readFileSync(join(here, 'scenarios', f), 'utf8'));
-        for (const c of checks || []) {
-          if (c.skipped) { console.log(`  skip  ${c.name} (${c.skipped})`); continue; }
-          if (c.ok) { passed++; console.log(`  ok    ${c.name}`); } else { failed++; console.log(`  FAIL  ${c.name} -> ${c.detail}`); }
-        }
+        tally(checks);
+        // A scenario that ends without "return G.report()", or returns before its first check,
+        // would otherwise count as passed with nothing checked.
+        if (!Array.isArray(checks) || !checks.length) { failed++; console.log(`  FAIL  ${f} returned no checks, so it tested nothing`); }
         const shown = await page.evaluate('G.errs().splice(0)');
         if (shown.length) { failed++; console.log(`  FAIL  errors shown to the user -> ${JSON.stringify(shown)}`); }
         break;
@@ -203,10 +211,13 @@ try {
           }
           if (back) {
             console.log(`  RETRY ${f} stopped because the app's server did not answer once; it answers again, so the scenario runs once more`);
-            await page.evaluate(`(()=>{const d=document.getElementById('deadOverlay');if(d)d.style.display='none';G.errs().splice(0);G.take&&G.take();return true;})()`).catch(() => {});
+            await page.evaluate(`(()=>{const d=document.getElementById('deadOverlay');if(d)d.style.display='none';G.errs().splice(0);G.checks.length=0;G.take&&G.take();return true;})()`).catch(() => {});
             continue;
           }
         }
+        // What it had checked before it stopped is reported here, under its own name, and not left
+        // for the next scenario's report to pick up.
+        tally(await page.evaluate('G.checks.splice(0)').catch(() => []));
         failed++; console.log(`  FAIL  ${f} stopped: ${e.message}`);
         break;
       } finally {
