@@ -52,8 +52,11 @@
   G.ROWS_GAP = 'SHOW WARNINGS after each statement resets ROW_COUNT(), so a run reports 0 rows changed';
   G.report = () => G.checks.splice(0);
 
-  // Tables open in tabs; waits until the grid has loaded and the run has finished.
+  // Tables open in tabs; waits until the grid has loaded and the run has finished. Opening a table
+  // that already has a tab only shows that tab again, so any earlier one is closed first: each call
+  // gets a fresh tab with the table as it is now.
   G.openTable = async (db, table) => {
+    tabs.filter(t => t.db === db && t.table === table && !t.ddl && !/ \(FK: /.test(t.title)).forEach(t => closeTab(t.id));
     objOpen(db, 'table', table);
     const t = tabs[tabs.length - 1];
     await G.until(() => t.rows && t.pending !== undefined && !t.runningReqId);
