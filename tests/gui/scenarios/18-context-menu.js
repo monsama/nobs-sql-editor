@@ -155,6 +155,14 @@
     objMenu({ clientX: 40, clientY: 40 }, db, 'table', tbl); const ut = items();
     G.check('a user table: upkeep in one Maintenance submenu, removal last', ut.some(x => x.startsWith('Maintenance')) && !ut.includes('Optimize') && ut[ut.length - 1] === 'Drop table...', ut);
 
+    // Clicking an entry that opens a submenu leaves the menu open, so the submenu can be used.
+    objMenu({ clientX: 40, clientY: 40 }, db, 'table', tbl);
+    const mt = [...document.querySelectorAll('#ctx > .item')].find(d => d.querySelector(':scope > .ctxsub'));
+    mt.click();
+    G.check('clicking an entry with a submenu keeps the menu open', $('ctx').style.display === 'block', own(mt));
+    G.check('and shows its submenu', mt.querySelector(':scope > .ctxsub').style.display === 'block', own(mt));
+    $('ctx').style.display = 'none';
+
     // Repair is offered where the engine can do it: MyISAM, not InnoDB.
     const EDB = 'nobs_gui_engines';
     try {
