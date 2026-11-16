@@ -50,7 +50,7 @@ async function apply({ cols, pk, rows, upd = {}, del = [], types = {}, bin, repl
               pending: { upd, del: new Set(del), ins: [] }, txSession: session };
   const env = {
     roBlock: () => false, T: () => t, qid: s => '`' + s + '`', log: () => {}, runLog: (id, m) => logged.push(m), histStart: (tab, sql) => { const h = { sql }; hist.push(h); return h; }, histKeep: () => {}, clip: s => s, invalidateTableCache: () => {},
-    openRun: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession, sessFree: async () => {},
+    openRun: async () => {}, applyReload: async () => {}, refreshTabDirty: () => {}, sessOf: tab => tab.txSession, sessFree: async () => {},
     gridBinCols: async () => bin || cols.map(() => false),
     tableColTypes: async () => types, tableNulTextCount: async () => 0, fmtCount: String,
     toast: (m, k) => toasts.push((k === true ? 'ERR ' : '') + m),
