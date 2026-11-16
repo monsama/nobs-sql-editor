@@ -528,7 +528,7 @@ test('row values are written for their column type, and CR survives a script', (
 test('following a foreign key, and the quick filter, find the right rows', async () => {
   const SRC = html;
   const CHECK = (c, l, d) => assert.ok(c, l + ' -> ' + d);
-  const names = ['goToFkRow', 'qfSub', 'litAs', 'lit', 'strLit'];
+  const names = ['goToFkRow', 'fkCond', 'qfSub', 'litAs', 'lit', 'strLit'];
   const body = names.map(n => extractFunction(SRC, n)).join('\n');
   const make = (bin) => {
     const tab = { cols: ['id', 'v'], filterClauses: null };
