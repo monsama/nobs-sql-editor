@@ -105,7 +105,7 @@
     key(document.activeElement, { key: 'F6' });
     G.check('and back', document.activeElement === ked);
     const typed = ked.value; key(ked, { key: 'F', ctrlKey: true, shiftKey: true });
-    G.check('Ctrl+Shift+F formats the query (not the find box)', ked.value !== typed && ked.value.includes('\nfrom ') && (!$('fr_' + k) || $('fr_' + k).style.display === 'none'), ked.value);
+    G.check('Ctrl+Shift+F formats the query (not the find box)', ked.value !== typed && /\nfrom\n/.test(ked.value) && (!$('fr_' + k) || $('fr_' + k).style.display === 'none'), ked.value);
     key(ked, { key: 'F9' }); await G.until(() => T(k).rows && T(k).rows.length && !T(k).runningReqId, 15000);
     G.eq('F9 runs it', T(k).rows.map(r => String(r[0])), ['1']);
     closeTab(k);
