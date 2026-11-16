@@ -342,6 +342,9 @@ table.grid td input[type="checkbox"]{display:block;margin:0 auto;vertical-align:
  table.grid td .celled>button:hover{background:var(--hover);color:var(--fg)}
  table.grid td input,table.grid td textarea{width:100%;height:100%;box-sizing:border-box;border:none;font:inherit;padding:2px 8px;background:transparent;color:var(--fg);vertical-align:middle}
  table.grid td textarea{display:block;resize:vertical;white-space:pre-wrap}
+ /* A multi-line value edited with the value panel open: one line over the cell, as a single-line
+    one is, since the panel already shows the whole value - the row keeps its height. */
+ table.grid td .celled.over>textarea{resize:none;overflow:hidden;white-space:pre}
  /* The "Set NULL" button next to the input is a regular <button> (height:28px by default) - taller
     than a grid row, which was what was actually forcing the row to grow while editing. Shrunk to
     match the cell instead. */
@@ -6623,6 +6626,11 @@ function insCellRevert(td,id,ii,col){const t=T(id);const v=t.pending.ins[ii][col
 // With opts ({initial, keys}) the edit was started by typing: the box opens at once holding what was
 // typed - waiting for the column type would lose the keys that follow - and is written to every
 // cell in keys.
+// The box an inline edit types into. A multi-line value gets a textarea about as tall as its lines,
+// which grows the row - unless the value panel is open: that already shows the whole value, so the
+// textarea is one line laid over the cell, like a single-line value's input, and the row stays put.
+function cellEdOpen(td,cur,isMulti,nullOk){const tall=isMulti&&!vpOpen;
+ td.classList.add('cellEditing');td.innerHTML=(tall?'':td.innerHTML)+'<div class="celled'+(tall?'':' over')+'">'+(isMulti?'<textarea rows="'+(tall?Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length)):1)+'"></textarea>':'<input>')+(nullOk?'<button tabindex="-1" title="Set NULL">&empty;</button>':'')+'</div>';}
 async function inlineEdit(td,id,ri,ci,opts){const t=T(id);const key=ri+':'+ci;const cur=opts?opts.initial:(key in t.pending.upd)?t.pending.upd[key]:t.rows[ri][ci];
  if(!opts){
  // Enum/boolean columns always go through editCell's dropdown - a plain inline text input would
@@ -6647,7 +6655,7 @@ async function inlineEdit(td,id,ri,ci,opts){const t=T(id);const key=ri+':'+ci;co
  // No inp.select() here on purpose - auto-selecting the whole value made entering edit mode look
  // like a big blue highlight box instead of just dropping into the text, so the cursor is placed
  // at the end of the existing value instead (still lets you type to replace via Home+shift, etc).
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+(nullOk?'<button tabindex="-1" title="Set NULL">&empty;</button>':'')+'</div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');
+ cellEdOpen(td,cur,isMulti,nullOk);const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');
  // A BIT value comes as bytes (0x01) but the cell shows it as a number, and the box shows what the
  // cell did; a number typed back is stored as that bit pattern (see bitAt in applyChangesRun).
  const bitHex=!opts&&!!(t.bitCols&&t.bitCols[ci])&&typeof cur==='string'&&/^0x[0-9A-Fa-f]+$/.test(cur);
@@ -6666,7 +6674,7 @@ async function inlineEdit(td,id,ri,ci,opts){const t=T(id);const key=ri+':'+ci;co
  inp.addEventListener('blur',()=>setTimeout(()=>{if(!done){if(dirty)set(inp.value);else cellRevert(td,id,ri,ci);}},120));}
 function inlineEditIns(td,id,ii,col){const t=T(id);if(isGenCol(id,col)){toast(genColMsg(col),true);return;}const cur=t.pending.ins[ii][col];
  const isMulti=cur!=null&&/[\r\n]/.test(String(cur));const nullOk=canNullIns(id,col);
- td.classList.add('cellEditing');td.innerHTML=(isMulti?'':td.innerHTML)+'<div class="celled'+(isMulti?'':' over')+'">'+(isMulti?'<textarea rows="'+Math.min(8,Math.max(2,String(cur).split(/\r\n|\r|\n/).length))+'"></textarea>':'<input>')+(nullOk?'<button tabindex="-1" title="Set NULL">&empty;</button>':'')+'</div>';const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
+ cellEdOpen(td,cur,isMulti,nullOk);const inp=td.querySelector(isMulti?'textarea':'input');const nb=td.querySelector('.celled button');inp.value=(cur==null?'':cur);inp.focus();let done=false,dirty=false;
  if(nb)colMeta(id).then(()=>{if(!canNullIns(id,col))nb.remove();});
  const set=v=>{done=true;if(v!==null)v=keepLineEnds(cur,v);t.pending.ins[ii][col]=v;renderGrid(id);};
  inp.addEventListener('input',()=>dirty=true);
